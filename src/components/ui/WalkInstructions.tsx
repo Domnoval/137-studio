@@ -3,68 +3,88 @@
 import React, { useState, useEffect } from "react";
 
 export function WalkInstructions() {
-  const [isVisible, setIsVisible] = useState(true);
+  const [showFull, setShowFull] = useState(true);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
 
   useEffect(() => {
     const handlePointerLockChange = () => {
       const locked = document.pointerLockElement !== null;
       setIsPointerLocked(locked);
-      if (locked) {
-        // Hide instructions after first pointer lock
-        setTimeout(() => setIsVisible(false), 3000);
-      }
+      if (locked) setTimeout(() => setShowFull(false), 2500);
     };
 
     document.addEventListener("pointerlockchange", handlePointerLockChange);
-    
-    // Auto-hide after 10 seconds if user doesn't interact
-    const timeout = setTimeout(() => setIsVisible(false), 10000);
+    const hide = setTimeout(() => setShowFull(false), 8000);
 
     return () => {
       document.removeEventListener("pointerlockchange", handlePointerLockChange);
-      clearTimeout(timeout);
+      clearTimeout(hide);
     };
   }, []);
 
-  if (!isVisible) return null;
-
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
-      {/* Instructions overlay */}
-      <div className="absolute top-8 left-8 text-white font-mono">
-        <div className="bg-black/60 backdrop-blur-sm p-4 rounded-lg border border-gold/30">
-          <h3 className="text-gold text-lg font-bold mb-2">🦞 Walk Through the Temple</h3>
-          <div className="space-y-1 text-sm">
-            {!isPointerLocked && (
-              <p className="text-cyan animate-pulse">Click to enter first-person mode</p>
-            )}
-            <p><span className="text-gold">WASD</span> or <span className="text-gold">Arrow Keys</span> — Move</p>
-            <p><span className="text-gold">Mouse</span> — Look around</p>
-            <p><span className="text-gold">ESC</span> — Exit first-person mode</p>
-            <p className="text-cyan/80 mt-2">Walk into the TV to enter the gallery</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Crosshair when pointer locked */}
-      {isPointerLocked && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 border border-gold/60 rounded-full bg-transparent">
-            <div className="w-1 h-1 bg-gold/80 rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+      {/* Instructions */}
+      {showFull && (
+        <div className="absolute top-6 left-6 animate-fadeIn">
+          <div
+            className="bg-black/70 backdrop-blur-md px-5 py-4 rounded-xl border border-[#C9A84C]/30"
+            style={{ fontFamily: "monospace" }}
+          >
+            <h3 className="text-[#C9A84C] text-base font-bold mb-2">
+              🦞 137 Studio
+            </h3>
+            <div className="space-y-1 text-xs text-white/80">
+              {!isPointerLocked && (
+                <p className="text-[#00FFD1] animate-pulse text-sm">
+                  Click to move · Double-click for free look
+                </p>
+              )}
+              <p>
+                <span className="text-[#C9A84C]">WASD</span> Move
+                <span className="mx-2 text-white/30">|</span>
+                <span className="text-[#C9A84C]">Mouse</span> Look
+              </p>
+              <p>
+                <span className="text-[#C9A84C]">ESC</span> Exit free look
+              </p>
+              <p className="text-[#00FFD1]/70 pt-1">
+                Walk into a TV to enter
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Distance indicator when near TV */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-        <div 
-          id="proximity-indicator" 
-          className="bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full border border-cyan/30 text-cyan font-mono text-sm opacity-0 transition-opacity duration-300"
-        >
-          Portal proximity detected
+      {/* Minimal hint when instructions hidden */}
+      {!showFull && !isPointerLocked && (
+        <div className="absolute top-4 left-4">
+          <p
+            className="text-[#C9A84C]/40 text-xs"
+            style={{ fontFamily: "monospace" }}
+          >
+            Click to move · Double-click for free look
+          </p>
         </div>
-      </div>
+      )}
+
+      {/* Crosshair */}
+      {isPointerLocked && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          <svg width="20" height="20" viewBox="0 0 20 20">
+            <circle
+              cx="10"
+              cy="10"
+              r="6"
+              fill="none"
+              stroke="#C9A84C"
+              strokeWidth="1"
+              opacity="0.5"
+            />
+            <circle cx="10" cy="10" r="1.5" fill="#C9A84C" opacity="0.7" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
