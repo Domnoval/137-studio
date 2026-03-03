@@ -120,7 +120,7 @@ export default function HomePage() {
               textShadow: '0 0 40px rgba(201, 168, 76, 0.1)'
             }}
           >
-            Michael Yoast
+            Michael MacDonald
           </h1>
           
           {/* The golden line - invitation to scroll */}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { PHI, GOLDEN_ANGLE, T2 } from '@/lib/sacred-math';
+import { useState, useEffect, useRef } from 'react';
+import { PHI, GOLDEN_ANGLE, T2, T4 } from '@/lib/sacred-math';
 
 /**
  * Signal Section - Contact as transmission
@@ -11,6 +11,8 @@ import { PHI, GOLDEN_ANGLE, T2 } from '@/lib/sacred-math';
 export function SignalSection() {
   const [isTransmitting, setIsTransmitting] = useState(false);
   const [pulsePhase, setPulsePhase] = useState(0);
+  const [sectionProgress, setSectionProgress] = useState(0);
+  const sectionRef = useRef<HTMLDivElement>(null);
 
   // Sacred pulse animation
   useEffect(() => {
@@ -19,6 +21,32 @@ export function SignalSection() {
     }, 50);
     
     return () => clearInterval(interval);
+  }, []);
+
+  // Track scroll progress within this section for philosophy reveal
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!sectionRef.current) return;
+      
+      const rect = sectionRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Calculate how far through this section we've scrolled
+      const sectionTop = rect.top;
+      const sectionHeight = rect.height;
+      
+      // Progress from 0 (section just entered viewport) to 1 (section bottom reached viewport top)
+      const progress = Math.max(0, Math.min(1, 
+        (-sectionTop + viewportHeight) / (sectionHeight + viewportHeight * 0.5)
+      ));
+      
+      setSectionProgress(progress);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial call
+    
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleSignalSend = () => {
@@ -31,8 +59,19 @@ export function SignalSection() {
     }, 1618); // PHI seconds in ms
   };
 
+  // Michael's core philosophy - revealed progressively at journey's end
+  const philosophyLines = [
+    "Perception is choice.",
+    "Choices change experience.", 
+    "Experience is the point.",
+    "Love is the answer."
+  ];
+
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-deep">
+    <div 
+      ref={sectionRef}
+      className="relative min-h-screen flex items-center justify-center bg-deep"
+    >
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="w-full h-full" style={{
@@ -175,6 +214,49 @@ export function SignalSection() {
             </button>
           ))}
         </div>
+
+        {/* Michael's Philosophy - The Hidden Discovery */}
+        {sectionProgress > 0.7 && (
+          <div className="mt-24 text-center max-w-2xl mx-auto">
+            {philosophyLines.map((line, index) => {
+              // Each line appears progressively as you scroll deeper
+              const lineThreshold = 0.75 + (index * 0.05); // 0.75, 0.80, 0.85, 0.90
+              const isVisible = sectionProgress > lineThreshold;
+              const delay = index * 150; // Staggered timing
+              
+              return (
+                <div
+                  key={index}
+                  className={`
+                    font-cinzel text-gold text-lg md:text-xl tracking-widest mb-6
+                    transition-all duration-${Math.floor(T4 * 1000)} ease-out
+                    ${isVisible 
+                      ? 'opacity-100 translate-y-0' 
+                      : 'opacity-0 translate-y-8'
+                    }
+                  `}
+                  style={{
+                    transitionDelay: `${delay}ms`,
+                    textShadow: '0 0 20px rgba(201, 168, 76, 0.3)'
+                  }}
+                >
+                  {line}
+                </div>
+              );
+            })}
+            
+            {/* Separator line appears after all philosophy is revealed */}
+            {sectionProgress > 0.95 && (
+              <div 
+                className="w-48 h-px bg-gradient-to-r from-transparent via-gold to-transparent mx-auto mt-12 mb-8 opacity-60"
+                style={{
+                  animation: `fadeIn ${T4}s ease-out`,
+                  boxShadow: '0 0 10px rgba(201, 168, 76, 0.3)'
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Sacred geometry footer */}
         <div className="mt-16 text-center">
