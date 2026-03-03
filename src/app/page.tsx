@@ -8,6 +8,8 @@ import { FacetPanel } from '@/components/ui/FacetPanel';
 import { ToolArtifact } from '@/components/ui/ToolArtifact';
 import { SignalSection } from '@/components/ui/SignalSection';
 import { PHI, GOLDEN_ANGLE, T4, T2 } from '@/lib/sacred-math';
+import { calculateDimensionalState, updateDimensionalCSS, getDimensionalDescription } from '@/lib/dimensional-ascension';
+import { quantumManager } from '@/lib/quantum-mechanics';
 
 /**
  * 137 Studio — Sacred Geometry as Operating System
@@ -22,6 +24,7 @@ import { PHI, GOLDEN_ANGLE, T4, T2 } from '@/lib/sacred-math';
 export default function HomePage() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
+  const [dimensionalState, setDimensionalState] = useState({ dimension: 1.0, description: 'Beginning ascension...' });
   const lenisRef = useRef<Lenis | null>(null);
   const goldenLineRef = useRef<HTMLDivElement>(null);
 
@@ -41,13 +44,22 @@ export default function HomePage() {
 
     requestAnimationFrame(raf);
 
-    // Track scroll progress and active section
+    // Track scroll progress, dimensional ascension, and active section
     const handleScroll = () => {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = scrollTop / docHeight;
+      const progress = Math.max(0, Math.min(1, scrollTop / docHeight));
       
       setScrollProgress(progress);
+      
+      // Calculate dimensional state and update CSS
+      const dimState = calculateDimensionalState(progress);
+      updateDimensionalCSS(dimState);
+      
+      setDimensionalState({
+        dimension: dimState.dimension,
+        description: getDimensionalDescription(dimState.dimension)
+      });
       
       // Determine active section (5 sections total)
       const section = Math.floor(progress * 5);
@@ -60,6 +72,13 @@ export default function HomePage() {
     return () => {
       window.removeEventListener('scroll', handleScroll);
       lenis.destroy();
+    };
+  }, []);
+
+  // Cleanup quantum manager on unmount
+  useEffect(() => {
+    return () => {
+      quantumManager.destroy();
     };
   }, []);
 
@@ -204,17 +223,37 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Sacred progress indicator (bottom) */}
+      {/* Sacred progress indicator with dimensional state (bottom) */}
       <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="text-center mb-2">
+          <div className="text-gold/80 text-xs font-cinzel tracking-wider">
+            DIMENSION {dimensionalState.dimension.toFixed(1)}
+          </div>
+          <div className="text-cream/60 text-xs font-crimson italic mt-1">
+            {dimensionalState.description}
+          </div>
+        </div>
         <div className="flex items-center space-x-2 bg-void/80 border border-gold/20 rounded-full px-4 py-2 backdrop-blur-sm">
           <span className="font-mono text-xs text-gold/60 tracking-wider">
             {Math.floor(scrollProgress * 100)}%
           </span>
-          <div className="w-24 h-px bg-gold/20">
+          <div className="w-24 h-px bg-gold/20 relative">
             <div 
               className="h-full bg-gold transition-all duration-300"
               style={{ width: `${scrollProgress * 100}%` }}
             />
+            {/* Dimensional transition markers */}
+            <div className="absolute inset-0 flex justify-between">
+              {[1, 2, 3, 4, 5].map(dim => (
+                <div
+                  key={dim}
+                  className={`w-px h-2 -translate-y-1/2 ${
+                    dimensionalState.dimension >= dim ? 'bg-gold' : 'bg-gold/30'
+                  }`}
+                  style={{ left: `${((dim - 1) / 4) * 100}%` }}
+                />
+              ))}
+            </div>
           </div>
           <div className="text-gold/60 text-xs">
             {activeSection + 1}/5

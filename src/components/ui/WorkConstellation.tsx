@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { goldenSpiralPosition, PHI, T2, T4 } from '@/lib/sacred-math';
 import { constellationWorks } from '@/lib/works';
+import { QuantumElement } from './QuantumElement';
 
 /**
  * Work Constellation - Art pieces floating in golden spiral
@@ -55,9 +56,12 @@ export function WorkConstellation() {
           const adjustedProgress = Math.max(0, scrollProgress - delay);
           
           return (
-            <div
+            <QuantumElement
               key={work.id}
-              className="absolute w-48 h-32 group cursor-pointer"
+              id={`constellation-${work.id}`}
+              elementIndex={index}
+              className="absolute w-48 h-32 group"
+              href={work.url}
               style={{
                 transform: `
                   translate(${position.x}px, ${position.y}px) 
@@ -111,7 +115,7 @@ export function WorkConstellation() {
                   }}
                 />
               )}
-            </div>
+            </QuantumElement>
           );
         })}
       </div>

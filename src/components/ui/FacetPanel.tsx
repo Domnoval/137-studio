@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { worksByFacet } from '@/lib/works';
 import { PHI, T2, T4 } from '@/lib/sacred-math';
+import { QuantumButton, QuantumElement } from './QuantumElement';
 
 /**
  * Facet Panel - Four equal windows into Michael's dimensions
@@ -76,9 +77,11 @@ export function FacetPanel() {
         
         {/* Facet Navigation */}
         <div className="flex justify-center space-x-8 mb-12">
-          {facets.map((facet) => (
-            <button
+          {facets.map((facet, index) => (
+            <QuantumButton
               key={facet.key}
+              id={`facet-${facet.key}`}
+              elementIndex={index}
               onClick={() => {
                 setActiveFacet(facet.key);
                 setAutoRotate(false);
@@ -101,7 +104,7 @@ export function FacetPanel() {
               <span className="font-cormorant text-lg tracking-wide">
                 {facet.title}
               </span>
-            </button>
+            </QuantumButton>
           ))}
         </div>
 
