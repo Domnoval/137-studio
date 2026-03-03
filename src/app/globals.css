@@ -1,42 +1,377 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* Sacred Geometry CSS Variables - The invisible architecture */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Sacred Colors */
+  --void: #050505;
+  --deep: #0a0808;
+  --surface: #0d0b08;
   --gold: #C9A84C;
-  --warm-gold: #E8C547;
-  --chalk: #e8e0d0;
-  --magenta: #FF006E;
-  --cyan: #00FFD1;
-  --purple: #7B2FBE;
+  --gold-bright: #E8D48B;
+  --gold-dim: #8B7535;
+  --cream: #e8e0d0;
+  --cream-dim: rgba(232, 224, 208, 0.4);
+  
+  /* Sacred Constants */
+  --phi: 1.6180339887;
+  --phi-inv: 0.6180339887;
+  --golden-angle: 137.5077deg;
+  --sqrt-phi: 1.2720196495;
+  
+  /* Sacred Spacing (φ-based) */
+  --s1: 8px;
+  --s2: 13px;
+  --s3: 21px;
+  --s4: 34px;
+  --s5: 55px;
+  --s6: 89px;
+  --s7: 144px;
+  
+  /* Sacred Timing (φ-based) */
+  --t1: 382ms;
+  --t2: 618ms;
+  --t3: 1000ms;
+  --t4: 1618ms;
+  --t5: 2618ms;
+  
+  /* Sacred Font Sizes (φ-based) */
+  --font-xs: 0.764rem;
+  --font-sm: 0.854rem;
+  --font-base: 1rem;
+  --font-md: 1.236rem;
+  --font-lg: 1.618rem;
+  --font-xl: 2.618rem;
+  --font-2xl: 4.236rem;
+  --font-hero: 6.854rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-gold: var(--gold);
-  --color-warm-gold: var(--warm-gold);
-  --color-chalk: var(--chalk);
-  --font-serif: var(--font-playfair);
-  --font-mono: var(--font-jetbrains);
+/* Base styles with sacred proportions */
+html {
+  font-size: var(--font-base);
+  line-height: var(--phi);
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-mono, monospace);
-  cursor: none;
+  font-family: var(--font-crimson), Georgia, serif;
+  background-color: var(--void);
+  color: var(--cream);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
-body.touch-device {
-  cursor: auto;
+/* Sacred Typography Classes */
+.font-cormorant { font-family: var(--font-cormorant), Georgia, serif; }
+.font-crimson { font-family: var(--font-crimson), Georgia, serif; }
+.font-mono { font-family: var(--font-mono), 'Courier New', monospace; }
+.font-cinzel { font-family: var(--font-cinzel), Georgia, serif; }
+
+/* Sacred Color Classes */
+.text-gold { color: var(--gold); }
+.text-gold-bright { color: var(--gold-bright); }
+.text-gold-dim { color: var(--gold-dim); }
+.text-cream { color: var(--cream); }
+.text-void { color: var(--void); }
+.bg-void { background-color: var(--void); }
+.bg-deep { background-color: var(--deep); }
+.bg-surface { background-color: var(--surface); }
+.bg-gold { background-color: var(--gold); }
+.border-gold { border-color: var(--gold); }
+
+/* Sacred Animations */
+@keyframes breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(var(--phi-inv)); }
 }
 
-a, button {
-  cursor: none;
+@keyframes goldenRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(var(--golden-angle)); }
 }
 
-body.touch-device a,
-body.touch-device button {
-  cursor: pointer;
+@keyframes sacredPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(var(--s4));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInSpiral {
+  from {
+    opacity: 0;
+    transform: translateX(-100px) rotate(-var(--golden-angle)) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+}
+
+/* Sacred utility classes */
+.breathe { animation: breathe calc(var(--t5) * 1ms) ease-in-out infinite; }
+.golden-rotate { animation: goldenRotate calc(var(--t5) * 1ms) linear infinite; }
+.sacred-pulse { animation: sacredPulse calc(var(--t4) * 1ms) ease-in-out infinite; }
+
+/* Sacred layout patterns */
+.golden-section {
+  aspect-ratio: var(--phi) / 1;
+}
+
+.golden-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: var(--phi-inv)fr 1fr;
+}
+
+.sacred-spacing > * + * {
+  margin-top: calc(var(--s3) * 1px);
+}
+
+.phi-spacing {
+  padding: calc(var(--s3) * 1px) calc(var(--s4) * 1px);
+}
+
+/* Scroll-driven animations using CSS @scroll-timeline (experimental) */
+@supports (animation-timeline: scroll()) {
+  .scroll-spiral {
+    animation: goldenRotate linear;
+    animation-timeline: scroll();
+  }
+  
+  .scroll-fade {
+    animation: fadeInUp linear;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+}
+
+/* Sacred focus states */
+*:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Sacred selection */
+::selection {
+  background-color: var(--gold);
+  color: var(--void);
+}
+
+::-moz-selection {
+  background-color: var(--gold);
+  color: var(--void);
+}
+
+/* Sacred scrollbar (webkit) */
+::-webkit-scrollbar {
+  width: var(--s2);
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--gold-dim);
+  border-radius: calc(var(--s2) / 2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--gold);
+}
+
+/* Sacred responsive patterns */
+@media (max-width: 768px) {
+  :root {
+    --font-hero: 4.236rem;
+    --font-2xl: 2.618rem;
+    --font-xl: 1.618rem;
+  }
+  
+  .sacred-spacing > * + * {
+    margin-top: calc(var(--s2) * 1px);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --font-hero: 2.618rem;
+    --font-2xl: 1.618rem;
+    --font-xl: 1.236rem;
+  }
+}
+
+/* Sacred reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Sacred print styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+  }
+  
+  .font-cormorant,
+  .font-cinzel {
+    font-family: 'Times New Roman', serif;
+  }
+  
+  .font-mono {
+    font-family: 'Courier New', monospace;
+  }
+}
+
+/* Custom utility classes for the redesign */
+.constellation-item {
+  transition: all var(--t2) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.constellation-item:hover {
+  transform: scale(1.1) rotate(calc(var(--golden-angle) * 0.1));
+}
+
+.facet-transition {
+  transition: all var(--t4) cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.signal-pulse {
+  animation: sacredPulse var(--t5) ease-in-out infinite;
+  animation-delay: calc(var(--t1) * var(--index, 0));
+}
+
+/* Sacred grid system based on φ */
+.phi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(200px * var(--phi-inv)), 1fr));
+  gap: calc(var(--s3) * 1px);
+}
+
+/* Loading states with sacred timing */
+.loading-sacred {
+  animation: breathe calc(var(--t4) * 1ms) ease-in-out infinite;
+}
+
+/* Sacred blur effects */
+.sacred-blur {
+  backdrop-filter: blur(var(--s2)) saturate(1.618);
+  -webkit-backdrop-filter: blur(var(--s2)) saturate(1.618);
+}
+
+/* Sacred gradient patterns */
+.golden-gradient {
+  background: linear-gradient(
+    calc(var(--golden-angle) - 90deg),
+    var(--gold-dim),
+    var(--gold),
+    var(--gold-bright)
+  );
+}
+
+.void-gradient {
+  background: radial-gradient(
+    circle at center,
+    var(--deep) 0%,
+    var(--void) 100%
+  );
+}
+
+/* Sacred glow effects */
+.sacred-glow {
+  box-shadow: 
+    0 0 var(--s2) var(--gold-dim),
+    0 0 var(--s4) var(--gold-dim),
+    0 0 var(--s6) var(--gold-dim);
+}
+
+.sacred-glow:hover {
+  box-shadow: 
+    0 0 var(--s3) var(--gold),
+    0 0 var(--s5) var(--gold),
+    0 0 var(--s7) var(--gold-dim);
+}
+
+/* Section scroll snap (optional) */
+.scroll-sections {
+  scroll-snap-type: y mandatory;
+}
+
+.scroll-sections > * {
+  scroll-snap-align: start;
+}
+
+/* Sacred container patterns */
+.sacred-container {
+  max-width: calc(1200px * var(--phi-inv));
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--s4);
+  padding-right: var(--s4);
+}
+
+@media (max-width: 768px) {
+  .sacred-container {
+    padding-left: var(--s3);
+    padding-right: var(--s3);
+  }
+}
+
+/* Interactive states following phi */
+button,
+.interactive {
+  transition: all var(--t2) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+button:hover,
+.interactive:hover {
+  transform: scale(calc(1 + var(--phi-inv) * 0.1));
+}
+
+button:active,
+.interactive:active {
+  transform: scale(calc(1 - var(--phi-inv) * 0.1));
+}
+
+/* Sacred spacing utilities */
+.space-phi > * + * { margin-top: calc(var(--s3) * 1px); }
+.space-phi-sm > * + * { margin-top: calc(var(--s2) * 1px); }
+.space-phi-lg > * + * { margin-top: calc(var(--s4) * 1px); }
+
+/* Sacred border radius */
+.rounded-sacred { border-radius: calc(var(--s2) * 1px); }
+.rounded-sacred-lg { border-radius: calc(var(--s3) * 1px); }
+
+/* Sacred shadows */
+.shadow-sacred {
+  box-shadow: 0 calc(var(--s1) * 1px) calc(var(--s3) * 1px) rgba(0, 0, 0, 0.618);
+}
+
+.shadow-sacred-lg {
+  box-shadow: 0 calc(var(--s2) * 1px) calc(var(--s4) * 1px) rgba(0, 0, 0, 0.382);
+}
+
+/* Sacred text shadows */
+.text-shadow-sacred {
+  text-shadow: 0 calc(var(--s1) * 1px) calc(var(--s2) * 1px) rgba(0, 0, 0, 0.618);
 }

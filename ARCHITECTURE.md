@@ -29,6 +29,9 @@ A digital temple that feels like stepping into an art installation. The 137 chal
 /shop/[handle]      → Product detail
 /about              → Behind the broadcast
 /137                → The number (easter egg / brand story)
+/apps               → App Showcase (all tools we've built)
+/meditations        → Daily Meditations (sacred geometry drawing journal)
+/meditations/upload → Upload page (admin/hidden)
 ```
 
 ## The Experience Flow
@@ -221,14 +224,64 @@ const tokens = {
 - Sitemap generation
 - the37thmove.com canonical URLs
 
+## App Showcase (/apps)
+
+A portfolio page for all the tools and apps built at 137 Studio. Each app gets a card with:
+- Screenshot/preview image
+- Name + one-line description
+- Tech stack badges
+- Link to live app
+- Status badge (live, beta, coming soon)
+
+**Apps to feature:**
+| App | URL | One-liner |
+|-----|-----|-----------|
+| 137 Geometry | 137-geometry.vercel.app | Procedural sacred geometry SVG generator |
+| 137 Cipher | 137-cipher.vercel.app | Multi-script translator (10 ancient alphabets) |
+| 137 Pad | 137-pad.vercel.app | Infinite canvas note-taking for tablets |
+| Harmonic Arcana | harmonic-arcana.vercel.app | Tarot → music → chord mapper |
+| Lyric Lab | lyric-lab.vercel.app | AI lyric writing + Suno prompt generator |
+| Speak23D | speak23d.vercel.app | Voice-to-3D-print pipeline |
+| The Book | the-book-amber.vercel.app | Gambling P&L ledger |
+| Frank's Stories | franks-stories.vercel.app | Voice memoir recorder |
+
+Layout: Responsive grid (3 cols desktop, 2 tablet, 1 mobile). Dark cards with gold hover borders. Same aesthetic as the rest of the site.
+
+## Daily Meditations (/meditations)
+
+A visual journal of Michael's sacred geometry drawing practice. Updated regularly.
+
+**Features:**
+- Date-stamped grid gallery, newest first
+- Each entry: image, date, optional title/caption
+- Lightbox view with swipe/arrows
+- Filter by month/year
+- Subtle animation on scroll (fade-in stagger)
+
+**Upload flow:**
+- `/meditations/upload` — simple form (image + optional title/caption + date)
+- Protected by password or hidden URL
+- Stores to Supabase Storage (`meditations` bucket)
+- Metadata in Supabase table: `meditations` (id, created_at, image_url, title, caption)
+- Could also accept uploads from 137 Pad in the future
+
+**Tech:**
+- Supabase: khmycyzqwalqyerltgje.supabase.co
+- Bucket: `meditations` (public read)
+- Table: `meditations` (id uuid, created_at timestamptz, image_url text, title text, caption text)
+- Next.js server component fetches from Supabase, renders grid
+- Client-side lightbox (no additional library — custom)
+
 ## Phase Plan
-1. **Scaffold** — Next.js 15 + Tailwind + R3F + GSAP, deploy to Vercel
-2. **Loading Gate** — 137 chalkboard intro
-3. **The Room** — 3D scene with TV, tesseract, basic environment
+1. ~~**Scaffold**~~ ✅ — Next.js 15 + Tailwind + R3F + GSAP, deploy to Vercel
+2. ~~**Loading Gate**~~ ✅ — 137 chalkboard intro
+3. ~~**The Room**~~ ✅ — 3D walkable scene with TVs, tesseract, environment
 4. **TV Navigation** — Camera dolly + channel switch transition
 5. **Gallery** — Art grid inside CRT frame
 6. **Living Paintings** — AI personality on featured pieces
 7. **Shop** — Shopify integration
 8. **About** — Brand story
-9. **Polish** — Animations, performance, mobile optimization
-10. **Content** — All art cataloged, products in Shopify, personalities written
+9. **App Showcase** — Portfolio of all built tools
+10. **Daily Meditations** — Sacred geometry drawing journal with upload
+11. **Polish** — Animations, performance, mobile optimization
+12. **Content** — All art cataloged, products in Shopify, personalities written
