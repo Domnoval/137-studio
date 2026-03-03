@@ -1,277 +1,356 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import Lenis from 'lenis';
-import { SacredBackground } from '@/components/ui/SacredBackground';
-import { WorkConstellation } from '@/components/ui/WorkConstellation';
-import { FacetPanel } from '@/components/ui/FacetPanel';
-import { ToolArtifact } from '@/components/ui/ToolArtifact';
-import { SignalSection } from '@/components/ui/SignalSection';
-import { PHI, GOLDEN_ANGLE, T4, T2 } from '@/lib/sacred-math';
-import { calculateDimensionalState, updateDimensionalCSS, getDimensionalDescription } from '@/lib/dimensional-ascension';
-import { quantumManager } from '@/lib/quantum-mechanics';
+import { useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+import { PHI, S1, S2, S3, S4, S5, S6, S7 } from '@/lib/sacred-math';
 
-/**
- * 137 Studio — Sacred Geometry as Operating System
- * A single scroll experience through five sacred sections:
- * 0. The Threshold — Presence and invitation
- * 1. The Work — Constellation of creation
- * 2. The Facets — Four equal windows
- * 3. The Tools — Floating instruments
- * 4. The Signal — Connection across the void
- */
+gsap.registerPlugin(ScrollTrigger);
+
+// Art data mapping to actual files
+const artworks = [
+  { id: 'totem', title: 'Totem', file: '/art/totem.jpg', aspect: 'portrait' },
+  { id: 'composite-head', title: 'Composite Head', file: '/art/composite-head.jpg', aspect: 'portrait' },
+  { id: 'math-chaos', title: 'Math Chaos', file: '/art/math-chaos.jpg', aspect: 'landscape' },
+  { id: 'red-cross', title: 'Red Cross', file: '/art/red-cross.jpg', aspect: 'square' },
+  { id: 'chaos-garden', title: 'Chaos Garden', file: '/art/chaos-garden.jpg', aspect: 'landscape' },
+  { id: 'blue-teeth', title: 'Blue Teeth', file: '/art/blue-teeth.jpg', aspect: 'panoramic' },
+  { id: 'teal-skull', title: 'Teal Skull', file: '/art/teal-skull.jpg', aspect: 'square' },
+  { id: 'pink-skull', title: 'Pink Skull', file: '/art/pink-skull.jpg', aspect: 'portrait' },
+  { id: 'cruciform', title: 'Cruciform', file: '/art/cruciform.jpg', aspect: 'portrait' },
+  { id: 'menagerie', title: 'Menagerie', file: '/art/menagerie.jpg', aspect: 'landscape' }
+];
+
+// Apps data
+const apps = [
+  { name: '137 Cipher', url: 'https://137-cipher.vercel.app', description: 'Encode messages using the fine structure constant' },
+  { name: '137 Geometry', url: 'https://137-geometry.vercel.app', description: 'Interactive sacred geometry visualizations' },
+  { name: '137 Resonance', url: 'https://137-resonance.vercel.app', description: 'Frequency and resonance patterns calculator' },
+  { name: '137 Cycles', url: 'https://137-cycles.vercel.app', description: 'Natural cycles and rhythm analysis' },
+  { name: 'Harmonic Arcana', url: 'https://harmonic-arcana.vercel.app', description: 'Musical harmony meets occult symbolism' },
+  { name: '137 Pad', url: 'https://137-pad.vercel.app', description: 'Sacred geometry note-taking interface' },
+  { name: 'Lyric Lab', url: 'https://lyric-lab.vercel.app', description: 'AI-assisted songwriting and structure' },
+  { name: 'The Book', url: 'https://the-book-amber.vercel.app', description: 'Digital grimoire of accumulated wisdom' },
+  { name: 'Speak23D', url: 'https://speak23d.vercel.app', description: 'Dimensional language exploration tool' }
+];
+
+// Philosophy lines
+const philosophyLines = [
+  'Perception is choice.',
+  'Choices change experience.',
+  'Experience is the point.',
+  'Love is the answer.'
+];
 
 export default function HomePage() {
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState(0);
-  const [dimensionalState, setDimensionalState] = useState({ dimension: 1.0, description: 'Beginning ascension...' });
-  const lenisRef = useRef<Lenis | null>(null);
   const goldenLineRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const galleryTrackRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const appsRef = useRef<HTMLDivElement>(null);
+  const philosophyRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Lenis smooth scrolling
-  useEffect(() => {
-    const lenis = new Lenis({
-      duration: T4 / 1000, // PHI seconds
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Sacred easing
-    });
-
-    lenisRef.current = lenis;
-
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-
-    requestAnimationFrame(raf);
-
-    // Track scroll progress, dimensional ascension, and active section
-    const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = Math.max(0, Math.min(1, scrollTop / docHeight));
-      
-      setScrollProgress(progress);
-      
-      // Calculate dimensional state and update CSS
-      const dimState = calculateDimensionalState(progress);
-      updateDimensionalCSS(dimState);
-      
-      setDimensionalState({
-        dimension: dimState.dimension,
-        description: getDimensionalDescription(dimState.dimension)
-      });
-      
-      // Determine active section (5 sections total)
-      const section = Math.floor(progress * 5);
-      setActiveSection(Math.min(4, section));
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      lenis.destroy();
-    };
-  }, []);
-
-  // Cleanup quantum manager on unmount
-  useEffect(() => {
-    return () => {
-      quantumManager.destroy();
-    };
-  }, []);
-
-  // Golden line extension effect
-  useEffect(() => {
+  useGSAP(() => {
+    // Golden line growth on scroll
     if (goldenLineRef.current) {
-      const lineLength = Math.min(100, scrollProgress * 200);
-      goldenLineRef.current.style.width = `${lineLength}px`;
+      gsap.fromTo(goldenLineRef.current, 
+        { width: 0 },
+        {
+          width: '200px',
+          scrollTrigger: {
+            trigger: heroRef.current,
+            start: 'top center',
+            end: 'bottom center',
+            scrub: true
+          }
+        }
+      );
     }
-  }, [scrollProgress]);
+
+    // Horizontal scroll gallery
+    if (galleryRef.current && galleryTrackRef.current) {
+      const galleryItems = gsap.utils.toArray('.gallery-item');
+      const galleryTrack = galleryTrackRef.current;
+      
+      gsap.to(galleryItems, {
+        xPercent: -100 * (galleryItems.length - 1),
+        ease: 'none',
+        scrollTrigger: {
+          trigger: galleryRef.current,
+          pin: true,
+          scrub: 1,
+          end: () => '+=' + (galleryTrack.scrollWidth - window.innerWidth),
+        }
+      });
+    }
+
+    // Apps grid stagger reveal
+    if (appsRef.current) {
+      const appCards = gsap.utils.toArray('.app-card');
+      gsap.fromTo(appCards, 
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          stagger: 0.1,
+          scrollTrigger: {
+            trigger: appsRef.current,
+            start: 'top 80%',
+            end: 'bottom 20%',
+          }
+        }
+      );
+    }
+
+    // Philosophy lines reveal
+    if (philosophyRef.current) {
+      const lines = gsap.utils.toArray('.philosophy-line');
+      lines.forEach((line, index) => {
+        gsap.fromTo(line as Element, 
+          { y: 30, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.8,
+            delay: index * 0.3,
+            scrollTrigger: {
+              trigger: philosophyRef.current,
+              start: 'top 70%',
+            }
+          }
+        );
+      });
+    }
+  }, []);
 
   return (
-    <div className="relative">
-      {/* Sacred background - always present */}
-      <SacredBackground />
-      
-      {/* Skip to content for accessibility */}
-      <div id="main-content" className="sr-only">137 Studio Main Content</div>
+    <div id="main-content" className="relative">
+      {/* SECTION 1: HERO / THRESHOLD */}
+      <section 
+        ref={heroRef}
+        className="relative min-h-screen flex items-center justify-center bg-void"
+        style={{ padding: `${S5}px ${S4}px` }}
+      >
+        {/* 137 watermark */}
+        <div 
+          className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none"
+          style={{
+            fontSize: 'min(30vw, 500px)',
+            lineHeight: '1'
+          }}
+        >
+          <span className="font-cinzel text-gold">137</span>
+        </div>
 
-      {/* SECTION 0: THE THRESHOLD */}
-      <section className="relative min-h-screen flex items-center justify-center bg-void">
+        {/* Main content */}
         <div className="text-center z-10">
-          {/* The 137 logo - subtle, large, breathing */}
-          <div 
-            className="absolute inset-0 flex items-center justify-center opacity-10 breathe pointer-events-none"
-            style={{
-              fontSize: 'min(40vw, 600px)',
-              lineHeight: '1'
-            }}
-          >
-            <span className="font-cinzel text-gold">137</span>
-          </div>
-          
-          {/* Main title - enormous, distinctive serif */}
           <h1 
-            className="relative font-cormorant font-light tracking-wider text-cream mb-8 leading-none"
+            className="font-cormorant font-light tracking-wider text-cream leading-none"
             style={{ 
-              fontSize: `clamp(${T4 * 2}rem, 12vw, ${T4 * 4}rem)`,
-              textShadow: '0 0 40px rgba(201, 168, 76, 0.1)'
+              fontSize: 'clamp(3rem, 8vw, 8rem)',
+              marginBottom: `${S4}px`
             }}
           >
             Michael MacDonald
           </h1>
           
-          {/* The golden line - invitation to scroll */}
+          {/* Golden line */}
           <div className="flex justify-center">
             <div 
               ref={goldenLineRef}
               className="h-px bg-gold transition-all duration-1000 ease-out"
               style={{
                 width: '0px',
-                boxShadow: '0 0 20px var(--gold-dim)'
+                boxShadow: '0 0 20px rgba(201, 168, 76, 0.3)'
               }}
             />
-          </div>
-          
-          {/* Subtle subtitle that appears on slight scroll */}
-          <div 
-            className={`
-              mt-8 font-crimson text-cream/70 text-lg tracking-wide italic
-              transition-all duration-${Math.floor(T4 * 1000)}
-              ${scrollProgress > 0.01 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-            `}
-          >
-            Artist • Developer • Philosopher • Sound Designer
-          </div>
-        </div>
-
-        {/* Scroll indicator (very subtle) */}
-        <div 
-          className={`
-            absolute bottom-16 left-1/2 transform -translate-x-1/2
-            transition-opacity duration-${Math.floor(T2 * 1000)}
-            ${scrollProgress < 0.05 ? 'opacity-40' : 'opacity-0'}
-          `}
-        >
-          <div className="w-px h-16 bg-gold/20 relative">
-            <div className="absolute bottom-0 w-full h-4 bg-gradient-to-t from-gold/40 to-transparent" />
           </div>
         </div>
       </section>
 
-      {/* SECTION 1: THE WORK - Constellation of creation */}
-      <WorkConstellation />
-
-      {/* SECTION 2: THE FACETS - Four equal windows */}
-      <FacetPanel />
-
-      {/* SECTION 3: THE TOOLS - Floating instruments */}
-      <ToolArtifact />
-
-      {/* SECTION 4: THE SIGNAL - Connection transmission */}
-      <SignalSection />
-
-      {/* Sacred navigation indicator (fixed) */}
-      <div className="fixed left-8 top-1/2 transform -translate-y-1/2 z-50 hidden lg:block">
-        <div className="flex flex-col space-y-4">
-          {[
-            { label: 'THRESHOLD', icon: '◈' },
-            { label: 'WORK', icon: '◊' },
-            { label: 'FACETS', icon: '⬢' },
-            { label: 'TOOLS', icon: '◯' },
-            { label: 'SIGNAL', icon: '△' }
-          ].map((section, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                const targetY = (index / 5) * (document.documentElement.scrollHeight - window.innerHeight);
-                lenisRef.current?.scrollTo(targetY);
+      {/* SECTION 2: ART GALLERY */}
+      <section 
+        ref={galleryRef}
+        className="relative h-screen bg-deep overflow-hidden"
+      >
+        <div 
+          ref={galleryTrackRef}
+          className="flex h-full items-center"
+          style={{ width: `${artworks.length * 100}vw` }}
+        >
+          {artworks.map((artwork, index) => (
+            <div 
+              key={artwork.id}
+              className="gallery-item flex-shrink-0 h-full flex items-center justify-center"
+              style={{ 
+                width: '100vw',
+                padding: `0 ${S6}px`
               }}
-              className={`
-                group relative w-3 h-3 border border-gold/40 rounded-full
-                transition-all duration-${Math.floor(T2 * 1000)}
-                ${activeSection === index ? 'bg-gold scale-125' : 'hover:bg-gold/20 hover:scale-110'}
-              `}
-              title={section.label}
             >
-              <span className="sr-only">{section.label}</span>
-              
-              {/* Tooltip */}
-              <div 
-                className={`
-                  absolute left-6 top-1/2 transform -translate-y-1/2
-                  bg-void border border-gold/30 px-3 py-1 rounded
-                  text-gold text-xs font-mono tracking-wider whitespace-nowrap
-                  opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                  pointer-events-none
-                `}
-              >
-                {section.icon} {section.label}
+              <div className="text-center group">
+                <div 
+                  className="relative mb-4 transition-transform duration-500 group-hover:scale-105"
+                  style={{ maxHeight: '80vh' }}
+                >
+                  <img 
+                    src={artwork.file} 
+                    alt={artwork.title}
+                    className="h-auto max-h-[80vh] w-auto object-contain"
+                  />
+                </div>
+                <p 
+                  className="text-gold font-cinzel tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ fontSize: `${S4}px` }}
+                >
+                  {artwork.title}
+                </p>
               </div>
-            </button>
+            </div>
           ))}
         </div>
-        
-        {/* Progress line */}
-        <div className="absolute left-1/2 top-0 w-px h-full bg-gold/10 -z-10">
+      </section>
+
+      {/* SECTION 3: APPS / TOOLS */}
+      <section 
+        ref={appsRef}
+        className="relative min-h-screen bg-void flex items-center justify-center"
+        style={{ padding: `${S7}px ${S5}px` }}
+      >
+        <div className="max-w-6xl mx-auto">
+          <h2 
+            className="text-center font-cinzel text-gold tracking-wider mb-16"
+            style={{ 
+              fontSize: 'clamp(2rem, 4vw, 3rem)',
+              marginBottom: `${S6}px`
+            }}
+          >
+            Digital Instruments
+          </h2>
+          
           <div 
-            className="w-full bg-gold/40 transition-all duration-300"
-            style={{ height: `${(activeSection + 1) * 20}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Sacred progress indicator with dimensional state (bottom) */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
-        <div className="text-center mb-2">
-          <div className="text-gold/80 text-xs font-cinzel tracking-wider">
-            DIMENSION {dimensionalState.dimension.toFixed(1)}
-          </div>
-          <div className="text-cream/60 text-xs font-crimson italic mt-1">
-            {dimensionalState.description}
-          </div>
-        </div>
-        <div className="flex items-center space-x-2 bg-void/80 border border-gold/20 rounded-full px-4 py-2 backdrop-blur-sm">
-          <span className="font-mono text-xs text-gold/60 tracking-wider">
-            {Math.floor(scrollProgress * 100)}%
-          </span>
-          <div className="w-24 h-px bg-gold/20 relative">
-            <div 
-              className="h-full bg-gold transition-all duration-300"
-              style={{ width: `${scrollProgress * 100}%` }}
-            />
-            {/* Dimensional transition markers */}
-            <div className="absolute inset-0 flex justify-between">
-              {[1, 2, 3, 4, 5].map(dim => (
-                <div
-                  key={dim}
-                  className={`w-px h-2 -translate-y-1/2 ${
-                    dimensionalState.dimension >= dim ? 'bg-gold' : 'bg-gold/30'
-                  }`}
-                  style={{ left: `${((dim - 1) / 4) * 100}%` }}
+            className="grid gap-6"
+            style={{ 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: `${S4}px`
+            }}
+          >
+            {apps.map((app, index) => (
+              <a
+                key={app.name}
+                href={app.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="app-card block border border-gold/30 bg-surface/50 rounded-lg p-6 transition-all duration-300 hover:border-gold hover:bg-surface/80 hover:scale-105"
+                style={{ 
+                  padding: `${S4}px`,
+                  borderRadius: `${S2}px`
+                }}
+              >
+                {/* Placeholder gradient */}
+                <div 
+                  className="w-full h-32 mb-4 rounded bg-gradient-to-br from-gold/20 to-gold/5"
+                  style={{ 
+                    height: `${S7}px`,
+                    marginBottom: `${S3}px`,
+                    borderRadius: `${S1}px`
+                  }}
                 />
-              ))}
-            </div>
-          </div>
-          <div className="text-gold/60 text-xs">
-            {activeSection + 1}/5
+                
+                <h3 
+                  className="font-cinzel text-gold mb-2"
+                  style={{ 
+                    fontSize: `${S4}px`,
+                    marginBottom: `${S2}px`
+                  }}
+                >
+                  {app.name}
+                </h3>
+                
+                <p 
+                  className="font-crimson text-cream/70 text-sm"
+                  style={{ fontSize: `${S3}px` }}
+                >
+                  {app.description}
+                </p>
+              </a>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Sacred metadata for screen readers */}
-      <div className="sr-only">
-        <h2>Navigation</h2>
-        <ul>
-          <li>Section 1: The Threshold - Introduction and presence</li>
-          <li>Section 2: The Work - Art constellation in sacred geometry</li>
-          <li>Section 3: The Facets - Four dimensions of creative work</li>
-          <li>Section 4: The Tools - Digital instruments and applications</li>
-          <li>Section 5: The Signal - Contact and connection</li>
-        </ul>
-      </div>
+      {/* SECTION 4: ABOUT / PHILOSOPHY */}
+      <section 
+        ref={philosophyRef}
+        className="relative min-h-screen bg-deep flex items-center justify-center"
+        style={{ padding: `${S7}px ${S5}px` }}
+      >
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 
+            className="font-cinzel text-gold tracking-wider mb-16"
+            style={{ 
+              fontSize: 'clamp(2rem, 4vw, 3rem)',
+              marginBottom: `${S6}px`
+            }}
+          >
+            Philosophy
+          </h2>
+          
+          <div className="space-y-8">
+            {philosophyLines.map((line, index) => (
+              <p 
+                key={index}
+                className="philosophy-line font-cormorant text-cream text-xl opacity-0"
+                style={{ 
+                  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+                  marginBottom: `${S4}px`
+                }}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 5: CONTACT */}
+      <section 
+        className="relative min-h-screen bg-void flex items-center justify-center"
+        style={{ padding: `${S7}px ${S5}px` }}
+      >
+        <div className="text-center">
+          <h2 
+            className="font-cinzel text-gold tracking-wider mb-12"
+            style={{ 
+              fontSize: 'clamp(2rem, 4vw, 3rem)',
+              marginBottom: `${S6}px`
+            }}
+          >
+            Send a Signal
+          </h2>
+          
+          <div className="space-y-6">
+            <a 
+              href="mailto:assiduous.mac@gmail.com"
+              className="block font-crimson text-cream/80 hover:text-cream transition-colors"
+              style={{ fontSize: `${S4}px` }}
+            >
+              assiduous.mac@gmail.com
+            </a>
+            
+            <a 
+              href="https://instagram.com/domnoval_art"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block font-crimson text-gold/60 hover:text-gold transition-colors"
+              style={{ fontSize: `${S3}px` }}
+            >
+              @domnoval_art
+            </a>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
