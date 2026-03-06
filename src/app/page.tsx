@@ -28,6 +28,11 @@ const artworks = [
   { id: 'menagerie', title: 'Menagerie', file: '/art/menagerie.jpg' },
   { id: 'blue-teeth', title: 'Blue Teeth', file: '/art/blue-teeth.jpg' },
   { id: 'orbit', title: 'Orbit', file: '/art/orbital.jpg' },
+  { id: 'broken-signal', title: 'Broken Signal', file: '/art/broken-signal.jpg' },
+  { id: 'ultraviolet-beast', title: 'Ultraviolet Beast', file: '/art/ultraviolet-beast.jpg' },
+  { id: 'the-delegate', title: 'The Delegate', file: '/art/the-delegate.jpg' },
+  { id: 'undertow', title: 'Undertow', file: '/art/undertow.jpg' },
+  { id: 'rosetta', title: 'Rosetta', file: '/art/rosetta.jpg' },
 ];
 
 const apps = [
