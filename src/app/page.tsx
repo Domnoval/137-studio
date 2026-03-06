@@ -27,6 +27,7 @@ const artworks = [
   { id: 'pink-skull', title: 'Pink Skull', file: '/art/pink-skull.jpg' },
   { id: 'menagerie', title: 'Menagerie', file: '/art/menagerie.jpg' },
   { id: 'blue-teeth', title: 'Blue Teeth', file: '/art/blue-teeth.jpg' },
+  { id: 'orbit', title: 'Orbit', file: '/art/orbital.jpg' },
 ];
 
 const apps = [

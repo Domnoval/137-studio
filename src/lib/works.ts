@@ -202,6 +202,26 @@ export const artworks: Artwork[] = [
     featured: false,
     order: 9,
   },
+  {
+    id: 'orbit',
+    title: 'Orbit',
+    file: '/art/orbital.jpg',
+    year: 2024,
+    medium: 'Acrylic on canvas',
+    status: 'available',
+    description: 'White gestural arcs sweep across a pitch-black field, tracing orbital paths through constellations of splatter. The monochrome palette strips everything to pure kinetic energy \u2014 brush against void, signal against silence.',
+    longDescription: 'Orbit reduces MacDonald\'s visual vocabulary to its most elemental: white paint on black ground. Sweeping circular arcs trace planetary paths while bold rectangular brushstrokes anchor the composition like architectural fragments floating in space. The splatter field reads as star dust, and the interplay between controlled geometry and chaotic dispersion suggests the tension between order and entropy that governs all orbital systems.',
+    tags: ['monochrome', 'gestural', 'abstract', 'minimal', 'orbital', 'black and white', 'kinetic'],
+    colors: ['#1A1A1A', '#E8E4DC', '#808080', '#C0C0C0', '#2A2A2A'],
+    influences: ['Franz Kline', 'Robert Motherwell', 'Sumi-e ink painting', 'Abstract Expressionism', 'Pierre Soulages'],
+    techniques: ['gestural brushwork', 'splatter', 'palette knife', 'circular arcs', 'monochrome palette'],
+    mood: ['cosmic', 'kinetic', 'meditative', 'stark', 'controlled', 'elegant'],
+    seoTitle: 'Orbit | Michael MacDonald | 137 Studio',
+    seoDescription: 'Orbit by Michael MacDonald \u2014 monochrome abstract painting with sweeping white arcs and splatter on black. Gestural fine art for sale.',
+    altText: 'Black and white abstract painting with sweeping white circular arcs and splatter on black ground by Michael MacDonald',
+    featured: true,
+    order: 10,
+  },
 ];
 
 // Helper to get featured works
