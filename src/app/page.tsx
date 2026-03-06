@@ -522,7 +522,7 @@ function HomePageInner() {
     <div style={{ background: '#0e0c0a' }}>
 
       {/* ═══ PHASE 1-2: Name → Studio 137 ═══ */}
-      <div ref={containerRef}>
+      <div ref={containerRef} style={{ position: "relative", zIndex: 1 }}>
         <section style={{
           position: 'relative', height: '100vh',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -623,6 +623,7 @@ function HomePageInner() {
       <div ref={cosmosRef} style={{
         position: 'relative', height: '100vh', overflow: 'hidden',
         background: '#0e0c0a', perspective: '800px', perspectiveOrigin: '50% 50%',
+        zIndex: 2,
       }}>
         <div className="cosmos-inner" style={{
           position: 'absolute', inset: 0, transformStyle: 'preserve-3d',
@@ -695,6 +696,7 @@ function HomePageInner() {
       <div ref={tvRef} style={{
         position: 'relative', height: '100vh', overflow: 'hidden',
         background: '#0a0808', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 3,
       }}>
         {/* Animated sacred glyphs — the Pillars of Creation effect */}
         <div className="tv-glyphs" style={{
@@ -744,6 +746,7 @@ function HomePageInner() {
         position: 'relative', height: '100vh', overflow: 'hidden',
         background: '#0a0808',
         perspective: '1200px', perspectiveOrigin: '50% 50%',
+        zIndex: 4,
       }}>
         {/* Wall textures */}
         <div style={{
@@ -836,6 +839,7 @@ function HomePageInner() {
 
       {/* ═══ PHILOSOPHY + CONTACT ═══ */}
       <section ref={philosophyRef} style={{
+        position: 'relative', zIndex: 5,
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '89px 34px', background: '#0e0c0a',
