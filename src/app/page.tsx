@@ -128,9 +128,9 @@ function HomePageInner() {
   const stars = useMemo(() => generateStars(120), []);
 
   const [selectedWork, setSelectedWork] = useState<string | null>(null);
-  const [cosmosUnlocked, setCosmosUnlocked] = useState(false);
-  const [cameraRotation, setCameraRotation] = useState({ x: 0, y: 0 });
-  const [cameraZoom, setCameraZoom] = useState(1);
+  const cosmosUnlockedRef = useRef(false);
+  const cameraRotationRef = useRef({ x: 0, y: 0 });
+  const cameraZoomRef = useRef(1);
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const lastTouches = useRef<{ dist: number } | null>(null);
@@ -165,6 +165,16 @@ function HomePageInner() {
   // Sphere positions for the art constellation
   const spherePositions = useMemo(() => {
     return artworks.map((_, i) => spherePosition(i, artworks.length));
+  }, []);
+
+  
+  const updateCosmosTransform = useCallback(() => {
+    const inner = cosmosRef.current?.querySelector('.cosmos-inner') as HTMLElement;
+    if (!inner) return;
+    const r = cameraRotationRef.current;
+    const z = cameraZoomRef.current;
+    inner.style.transform = 'rotateX(' + r.x + 'deg) rotateY(' + r.y + 'deg) scale(' + z + ')';
+    inner.style.cursor = 'grab';
   }, []);
 
   useGSAP(() => {
@@ -222,7 +232,7 @@ function HomePageInner() {
       scrollTrigger: {
         trigger: cosmosRef.current,
         start: 'top top',
-        end: '+=1200%',
+        end: '+=1800%',
         scrub: 2,
         pin: true,
           pinType: "transform",
@@ -282,8 +292,8 @@ function HomePageInner() {
         trigger: cosmosRef.current,
         start: 'top top',
         end: '+=1200%',
-        onLeave: () => requestAnimationFrame(() => setCosmosUnlocked(true)),
-        onEnterBack: () => requestAnimationFrame(() => setCosmosUnlocked(false)),
+        onLeave: () => { cosmosUnlockedRef.current = true; },
+        onEnterBack: () => { cosmosUnlockedRef.current = false; },
       });
     }
 
@@ -394,7 +404,7 @@ function HomePageInner() {
 
   // ═══ ORBIT CONTROLS — unlock after scroll completes ═══
   useEffect(() => {
-    if (!cosmosUnlocked || !cosmosRef.current) return;
+    if (!cosmosUnlockedRef.current || !cosmosRef.current) return;
     const el = cosmosRef.current;
 
     const onMouseDown = (e: MouseEvent) => {
@@ -408,10 +418,10 @@ function HomePageInner() {
       const dx = e.clientX - lastMouse.current.x;
       const dy = e.clientY - lastMouse.current.y;
       lastMouse.current = { x: e.clientX, y: e.clientY };
-      setCameraRotation(prev => ({
-        x: Math.max(-40, Math.min(40, prev.x - dy * 0.3)),
-        y: prev.y + dx * 0.3,
-      }));
+      const r = cameraRotationRef.current;
+      r.x = Math.max(-40, Math.min(40, r.x - dy * 0.3));
+      r.y = r.y + dx * 0.3;
+      updateCosmosTransform();
     };
     const onMouseUp = () => {
       isDragging.current = false;
@@ -420,7 +430,7 @@ function HomePageInner() {
     const onWheel = (e: WheelEvent) => {
       if (selectedWork) return;
       e.preventDefault();
-      setCameraZoom(prev => Math.max(0.4, Math.min(2.5, prev - e.deltaY * 0.001)));
+      cameraZoomRef.current = Math.max(0.4, Math.min(2.5, cameraZoomRef.current - e.deltaY * 0.001)); updateCosmosTransform();
     };
 
     // Touch handlers
@@ -440,17 +450,17 @@ function HomePageInner() {
         const dx = e.touches[0].clientX - lastMouse.current.x;
         const dy = e.touches[0].clientY - lastMouse.current.y;
         lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        setCameraRotation(prev => ({
-          x: Math.max(-40, Math.min(40, prev.x - dy * 0.3)),
-          y: prev.y + dx * 0.3,
-        }));
+        const r = cameraRotationRef.current;
+        r.x = Math.max(-40, Math.min(40, r.x - dy * 0.3));
+        r.y = r.y + dx * 0.3;
+        updateCosmosTransform();
       } else if (e.touches.length === 2 && lastTouches.current) {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const delta = dist - lastTouches.current.dist;
         lastTouches.current = { dist };
-        setCameraZoom(prev => Math.max(0.4, Math.min(2.5, prev + delta * 0.005)));
+        cameraZoomRef.current = Math.max(0.4, Math.min(2.5, cameraZoomRef.current + delta * 0.005)); updateCosmosTransform();
       }
     };
     const onTouchEnd = () => {
@@ -475,33 +485,37 @@ function HomePageInner() {
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
     };
-  }, [cosmosUnlocked, selectedWork]);
+  }, [selectedWork]);
 
-  // Animated CRT glyph field — reduced update frequency to prevent perf issues
-  const [glyphGrid, setGlyphGrid] = useState<string[]>(() => {
-    const glyphs = CRT_GLYPHS.split('');
-    const initial: string[] = [];
-    for (let i = 0; i < 200; i++) {
-      initial.push(glyphs[Math.floor(Math.random() * glyphs.length)]);
-    }
-    return initial;
-  });
-  const glyphMounted = useRef(true);
+  // CRT glyph field — NO React state, direct DOM manipulation to avoid re-renders
+  const glyphContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    glyphMounted.current = true;
+    const container = glyphContainerRef.current;
+    if (!container) return;
     const glyphs = CRT_GLYPHS.split('');
-    const interval = setInterval(() => {
-      if (!glyphMounted.current) return;
-      setGlyphGrid(prev => {
-        const next = [...prev];
-        for (let i = 0; i < 15; i++) {
-          const idx = Math.floor(Math.random() * 200);
-          next[idx] = glyphs[Math.floor(Math.random() * glyphs.length)];
-        }
-        return next;
-      });
-    }, 250);
-    return () => { glyphMounted.current = false; clearInterval(interval); };
+    // Build initial grid
+    const spans: HTMLSpanElement[] = [];
+    for (let i = 0; i < 200; i++) {
+      const span = document.createElement('span');
+      span.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+      const colors = ['#c41230', '#c41230', '#c41230', '#c41230', '#e8e4dc', '#d4a030'];
+      span.style.color = colors[i % colors.length];
+      span.style.opacity = String(0.2 + Math.random() * 0.5);
+      if (i % 3 === 0) span.style.textShadow = '0 0 10px currentColor';
+      container.appendChild(span);
+      spans.push(span);
+    }
+    let running = true;
+    const animate = () => {
+      if (!running) return;
+      for (let i = 0; i < 8; i++) {
+        const idx = Math.floor(Math.random() * 200);
+        spans[idx].textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+      }
+      setTimeout(() => requestAnimationFrame(animate), 300);
+    };
+    animate();
+    return () => { running = false; };
   }, []);
 
   return (
@@ -613,11 +627,7 @@ function HomePageInner() {
         <div className="cosmos-inner" style={{
           position: 'absolute', inset: 0, transformStyle: 'preserve-3d',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: cosmosUnlocked ? 'grab' : 'default',
-          ...(cosmosUnlocked ? {
-            transform: 'rotateX(' + cameraRotation.x + 'deg) rotateY(' + cameraRotation.y + 'deg) scale(' + cameraZoom + ')',
-            transition: isDragging.current ? 'none' : 'transform 0.1s ease-out',
-          } : {}),
+          
         }}>
           {/* Star field */}
           {stars.map((star, i) => (
@@ -679,18 +689,7 @@ function HomePageInner() {
       </div>
 
 
-        {/* Orbit controls hint */}
-        {cosmosUnlocked && !selectedWork && (
-          <div style={{
-            position: 'absolute', bottom: '24px', left: '50%',
-            transform: 'translateX(-50%)', zIndex: 20,
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '0.6rem', color: '#a09890',
-            letterSpacing: '0.15em', textTransform: 'uppercase',
-            opacity: 0.6, pointerEvents: 'none',
-            animation: 'fadeIn 1s ease-out',
-          }}>drag to orbit &middot; scroll to zoom &middot; click to inspect</div>
-        )}
+        
 
       {/* ═══ PHASE 4: THE TV PORTAL — pure CRT static + glyphs ═══ */}
       <div ref={tvRef} style={{
@@ -708,13 +707,7 @@ function HomePageInner() {
           pointerEvents: 'none', padding: '5vh 5vw',
           overflow: 'hidden',
         }}>
-          {glyphGrid.map((g, i) => (
-            <span key={i} style={{
-              opacity: 0.2 + Math.random() * 0.6,
-              color: i % 7 === 0 ? '#e8e4dc' : i % 5 === 0 ? '#d4a030' : '#c41230',
-              textShadow: i % 3 === 0 ? '0 0 10px currentColor' : 'none',
-            }}>{g}</span>
-          ))}
+          <div ref={glyphContainerRef} />
         </div>
 
         {/* CRT scanlines */}
