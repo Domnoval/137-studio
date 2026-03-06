@@ -6,15 +6,9 @@
 
 :root {
   --bg-void: #0e0c0a;
-  --bg-charcoal: #1a1a1e;
-  --bg-steel: #2a2d3a;
-  --bg-mauve: #3d2a3a;
-  --accent-red: #c41230;
-  --accent-magenta: #d946a8;
-  --accent-amber: #d4a030;
-  --accent-silver: #c0c0c8;
   --text-chalk: #e8e4dc;
   --text-faded: #a09890;
+  --accent-red: #c41230;
 }
 
 html { scroll-behavior: smooth; }
@@ -33,18 +27,23 @@ body {
   color: var(--text-chalk);
 }
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg-void); }
-::-webkit-scrollbar-thumb { background: var(--text-faded); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--text-faded); border-radius: 2px; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Responsive masonry columns */
+@media (max-width: 640px) {
+  .gallery-item img { min-height: 180px; object-fit: cover; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
