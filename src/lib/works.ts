@@ -1,179 +1,214 @@
-// Works Data - Michael's polymath portfolio in perfect balance
-// Art, Code, Philosophy, Music - each facet equally weighted
-
-export interface Work {
+export interface Artwork {
   id: string;
   title: string;
-  type: 'painting' | 'digital' | 'app' | '3d' | 'mixed';
-  aspect: 'portrait' | 'landscape' | 'square' | 'panoramic';
-  url?: string;
-  description?: string;
-  facet: 'art' | 'code' | 'philosophy' | 'sound';
+  file: string;
+  year: number;
+  medium: string;
+  dimensions?: string;
+  price?: number;
+  status: 'available' | 'sold' | 'nfs';
+  description: string;
+  longDescription: string;
+  tags: string[];
+  colors: string[];
+  influences: string[];
+  techniques: string[];
+  mood: string[];
+  seoTitle: string;
+  seoDescription: string;
+  altText: string;
+  featured: boolean;
+  order: number;
 }
 
-export const works: Work[] = [
-  // ART FACET - Physical and digital artworks
-  { 
-    id: 'floral-3', 
-    title: 'Floral Study III', 
-    type: 'painting', 
-    aspect: 'portrait',
-    facet: 'art',
-    description: 'Botanical exploration in sacred proportions'
+export const artworks: Artwork[] = [
+  {
+    id: 'totem',
+    title: 'Totem',
+    file: '/art/totem.jpg',
+    year: 2024,
+    medium: 'Acrylic and spray paint on canvas',
+    status: 'available',
+    description: 'A teeming column of interlocking eyes, faces, and animal-like forms recalls indigenous carved poles reimagined through a street-art lens. Spray-painted atmospheric washes behind crisp graphic outlines create a charged dialogue between primal iconography and contemporary urban energy.',
+    longDescription: 'Totem stacks a teeming column of interlocking eyes, faces, and animal-like forms into a vertical figure that recalls indigenous carved poles reimagined through a street-art lens. MacDonald layers spray-painted atmospheric washes behind crisp, graphic outlines, creating a charged dialogue between primal iconography and contemporary urban energy. Every eye watches. Every mouth speaks. The figure is both guardian and warning.',
+    tags: ['totemic', 'faces', 'eyes', 'street art', 'vertical', 'figurative', 'stacked forms'],
+    colors: ['#2E7EC7', '#A83B2A', '#D4A24C', '#1B7A5D', '#C86E9A'],
+    influences: ['Jean-Michel Basquiat', 'Pacific Northwest totem poles', 'CoBrA movement', 'Pablo Picasso'],
+    techniques: ['stenciling', 'spray paint layering', 'bold outlining', 'mixed media', 'gestural mark-making'],
+    mood: ['vigilant', 'totemic', 'cacophonous', 'ancestral', 'hallucinatory'],
+    seoTitle: 'Totem | Michael MacDonald | 137 Studio',
+    seoDescription: 'Totem by Michael MacDonald — a mixed-media painting stacking eyes, faces & animal forms into a vivid urban-totemic column. Contemporary art for sale.',
+    altText: 'Colorful vertical totem of stacked eyes, faces, and animal forms in blue, sienna, and gold by Michael MacDonald',
+    featured: true,
+    order: 1,
   },
-  { 
-    id: 'manyfaceddog', 
-    title: 'The Many-Faced Dog', 
-    type: 'painting', 
-    aspect: 'square',
-    facet: 'art',
-    description: 'Multiplicity of perspective in one being'
+  {
+    id: 'composite-head',
+    title: 'Composite Head',
+    file: '/art/composite-head.jpg',
+    year: 2024,
+    medium: 'Acrylic, spray paint, and marker on canvas',
+    status: 'available',
+    description: 'Dozens of nested sub-faces, eyes, and mechanical appendages fracture a monumental portrait, each vying for dominance within a single cranium. The graffiti-dusted background and white painted border create a frame-within-a-frame tension.',
+    longDescription: 'Composite Head fractures a monumental portrait into dozens of nested sub-faces, eyes, and mechanical appendages, each vying for dominance within a single cranium. The graffiti-dusted background and white painted border create a frame-within-a-frame tension, suggesting a specimen pinned between the gallery wall and the chaos of the subconscious. A Cubist archaeology of the self.',
+    tags: ['portrait', 'cubist', 'faces', 'eyes', 'composite', 'fragmented', 'street art'],
+    colors: ['#2B6FBF', '#9E3A24', '#D1A748', '#4CA895', '#C76FA0'],
+    influences: ['Picasso', 'Arcimboldo', 'Jean Dubuffet', 'KAWS', 'George Condo'],
+    techniques: ['heavy contour lines', 'spray paint misting', 'stencil patterning', 'cubist fragmentation', 'drip work'],
+    mood: ['fragmented', 'cerebral', 'restless', 'confrontational', 'layered'],
+    seoTitle: 'Composite Head | Michael MacDonald | 137 Studio',
+    seoDescription: 'Composite Head by Michael MacDonald — a Cubist mixed-media portrait of interlocking faces and eyes on a graffiti-layered ground. Contemporary art.',
+    altText: 'Cubist composite portrait with multiple nested faces and eyes in blue, rust, and amber by Michael MacDonald',
+    featured: true,
+    order: 2,
   },
-  { 
-    id: 'madness-arcitexy', 
-    title: 'The Madness & Arcitexy', 
-    type: 'painting', 
-    aspect: 'landscape',
-    facet: 'art',
-    description: 'Order emerging from chaos'
+  {
+    id: 'math-chaos',
+    title: 'Math Chaos',
+    file: '/art/math-chaos.jpg',
+    year: 2024,
+    medium: 'Spray paint and acrylic on canvas',
+    status: 'available',
+    description: 'Strata of spray-painted numerals, physics equations, and a central tessellated triangle grid glow magenta through veils of red and purple. The piece collapses the language of mathematics into pure visual sensation.',
+    longDescription: 'Math Chaos buries the viewer beneath strata of spray-painted numerals, physics equations, and a central tessellated triangle grid that glows magenta through veils of red and purple. The piece collapses the language of mathematics into pure visual sensation, suggesting that the universe\'s underlying order and its apparent chaos are one and the same. Numbers become texture. Equations become rhythm.',
+    tags: ['mathematics', 'equations', 'geometry', 'numbers', 'sacred geometry', 'abstract', 'triangles'],
+    colors: ['#D42B4E', '#C74BB5', '#2AAFBF', '#5E2D7A', '#1D9E7A'],
+    influences: ['RETNA', 'Jasper Johns', 'Bridget Riley', 'Joseph Beuys', 'Mark Tobey'],
+    techniques: ['spray paint stenciling', 'overlapping translucent layers', 'geometric tessellation', 'hand-painted equations', 'color-field gradients'],
+    mood: ['frenetic', 'cerebral', 'electric', 'saturated', 'pulsing'],
+    seoTitle: 'Math Chaos | Michael MacDonald | 137 Studio',
+    seoDescription: 'Math Chaos by Michael MacDonald — vibrant mixed-media painting layering equations, numerals & sacred geometry in magenta, red & cyan. Art for sale.',
+    altText: 'Dense layered painting of numbers, equations, and triangle grids in magenta, red, and cyan by Michael MacDonald',
+    featured: true,
+    order: 3,
   },
-  { 
-    id: 'neon-rabbit', 
-    title: 'Neon Rabbit', 
-    type: 'digital', 
-    aspect: 'portrait',
-    facet: 'art',
-    description: 'Digital luminescence meets organic form'
+  {
+    id: 'cruciform',
+    title: 'Cruciform',
+    file: '/art/cruciform.jpg',
+    year: 2024,
+    medium: 'Acrylic on canvas with combed texture',
+    status: 'available',
+    description: 'A smoldering field of crimson and maroon scored with sweeping combed arcs, its heavily worked surface evoking geological strata or ancient frescoes stripped back to plaster. A single stark white cross anchors the lower right.',
+    longDescription: 'Cruciform presents a smoldering field of crimson and maroon scored with sweeping combed arcs, its heavily worked surface evoking geological strata or ancient frescoes stripped back to plaster. A single stark white cross anchors the lower right, its pristine geometry offering a moment of stillness against the surrounding turbulence. Devotional and wounded in equal measure.',
+    tags: ['abstract', 'cross', 'textured', 'devotional', 'crimson', 'meditative'],
+    colors: ['#7A2318', '#A83E2B', '#3D9E8B', '#4A2630', '#F0EDE4'],
+    influences: ['Antoni Tapies', 'Anselm Kiefer', 'Gerhard Richter', 'Alberto Burri', 'Byzantine iconography'],
+    techniques: ['combed texture', 'heavy impasto', 'sgraffito', 'transparent glazing', 'subtractive removal'],
+    mood: ['solemn', 'brooding', 'excavated', 'devotional', 'meditative', 'wounded'],
+    seoTitle: 'Cruciform | Michael MacDonald | 137 Studio',
+    seoDescription: 'Cruciform by Michael MacDonald — textured abstract painting in deep crimson with a white cross motif. Mixed media on canvas. Contemporary fine art.',
+    altText: 'Dark crimson textured abstract painting with combed arcs and a white cross in lower right by Michael MacDonald',
+    featured: false,
+    order: 4,
   },
-  { 
-    id: 'repent-300', 
-    title: 'Repent 300', 
-    type: 'painting', 
-    aspect: 'landscape',
-    facet: 'art',
-    description: 'Numerology meets spiritual introspection'
+  {
+    id: 'chaos-garden',
+    title: 'Chaos Garden',
+    file: '/art/chaos-garden.jpg',
+    year: 2024,
+    medium: 'Spray paint, acrylic, and stencil on canvas',
+    status: 'available',
+    description: 'An impossibly dense ecosystem of stenciled flowers, mandala rosettes, hieroglyphic creatures, and gestural scrawl across a dark atmospheric ground. Every square inch rewards closer inspection.',
+    longDescription: 'Chaos Garden cultivates an impossibly dense ecosystem of stenciled flowers, mandala rosettes, hieroglyphic creatures, and gestural scrawl across a dark, atmospheric ground. Every square inch rewards closer inspection — cat faces, arrows, numbers, and botanical motifs compete for light like plants on a jungle floor, forming MacDonald\'s most maximalist statement on the beauty of visual overload.',
+    tags: ['maximalist', 'floral', 'mandala', 'stencil', 'nocturnal', 'dense', 'botanical'],
+    colors: ['#1DA65E', '#3C8EDE', '#D43A5C', '#E8C84A', '#1C1C1C'],
+    influences: ['Ryan McGinness', 'Takashi Murakami', 'Barry McGee', 'Keith Haring', 'Islamic patterning'],
+    techniques: ['multi-layer stenciling', 'spray paint', 'marker detailing', 'transparent wash overlays', 'pattern-on-pattern density'],
+    mood: ['teeming', 'psychedelic', 'nocturnal', 'encyclopedic', 'playful', 'cryptic'],
+    seoTitle: 'Chaos Garden | Michael MacDonald | 137 Studio',
+    seoDescription: 'Chaos Garden by Michael MacDonald — a dense mixed-media painting of stenciled flowers, mandalas & glyphs in green, blue & pink. Contemporary art.',
+    altText: 'Dense mixed-media painting with stenciled flowers, mandalas, and glyphs in green, blue, and pink by Michael MacDonald',
+    featured: true,
+    order: 5,
   },
-  { 
-    id: 'triptych', 
-    title: 'UV Triptych', 
-    type: 'mixed', 
-    aspect: 'panoramic',
-    facet: 'art',
-    description: 'Three perspectives of hidden light'
+  {
+    id: 'teal-skull',
+    title: 'Teal Skull',
+    file: '/art/teal-skull.jpg',
+    year: 2024,
+    medium: 'Acrylic and marker on canvas',
+    status: 'available',
+    description: 'A monumental cranium in luminous teal linework against a deep cobalt field, its interior teeming with cryptic symbols and tribal geometry. The unblinking red-centered eye anchors the composition with almost accusatory intensity.',
+    longDescription: 'Teal Skull presents a monumental cranium rendered in luminous teal linework against a deep cobalt field, its interior teeming with cryptic symbols and tribal geometry that suggest a mind in constant, restless motion. The unblinking red-centered eye anchors the composition with an almost accusatory intensity, while paint drips at the canvas edge betray the urgency of MacDonald\'s process.',
+    tags: ['skull', 'teal', 'portrait', 'tribal', 'geometric', 'street art', 'eye'],
+    colors: ['#2ED8C4', '#1A5FB4', '#1C1C1C', '#E8412A', '#FFFFFF'],
+    influences: ['Jean-Michel Basquiat', 'KAWS', 'Day of the Dead', 'CoBrA movement', 'Keith Haring'],
+    techniques: ['bold continuous linework', 'layered acrylic washes', 'splatter', 'sgraffito', 'impasto'],
+    mood: ['electric', 'frenetic', 'hypnotic', 'confrontational', 'cerebral', 'raw'],
+    seoTitle: 'Teal Skull | Michael MacDonald | 137 Studio',
+    seoDescription: 'Teal Skull by Michael MacDonald — a vivid mixed media skull painting with electric teal linework, street art energy & raw neo-expressionist power.',
+    altText: 'Large teal-outlined skull with red eye on deep blue background filled with abstract symbols by Michael MacDonald',
+    featured: true,
+    order: 6,
   },
-  { 
-    id: 'spectrum', 
-    title: 'SPECTRUM', 
-    type: '3d', 
-    aspect: 'landscape',
-    facet: 'art',
-    description: 'Dimensional exploration of frequency'
+  {
+    id: 'pink-skull',
+    title: 'Pink Skull',
+    file: '/art/pink-skull.jpg',
+    year: 2024,
+    medium: 'Spray paint and acrylic on canvas',
+    status: 'available',
+    description: 'A skull erupts from a blackened ground in furious loops of neon magenta spray paint, its grinning teeth and hollow eyes emerging and dissolving in a haze of aerosol and gesture. The sky-blue border frames the chaos with street-level defiance.',
+    longDescription: 'Pink Skull erupts from a blackened ground in furious loops of neon magenta spray paint, its grinning teeth and hollow eyes emerging and dissolving in a haze of aerosol and gesture. The sky-blue border and gold graffiti tag at lower right frame the chaos with a wink of street-level defiance, bridging gallery wall and alley wall in a single confrontational image.',
+    tags: ['skull', 'spray paint', 'magenta', 'graffiti', 'punk', 'neon', 'street art'],
+    colors: ['#FF2D9B', '#2A2A2A', '#6DC8E8', '#D8A0D8', '#E8D42A'],
+    influences: ['Basquiat', 'Cy Twombly', 'punk zine aesthetics', 'Julian Schnabel', 'SAMO'],
+    techniques: ['spray paint aerosol', 'loose gestural brushwork', 'layered overpainting', 'crosshatch', 'drip and splatter', 'graffiti tagging'],
+    mood: ['aggressive', 'punk', 'anarchic', 'urgent', 'volatile', 'defiant'],
+    seoTitle: 'Pink Skull | Michael MacDonald | 137 Studio',
+    seoDescription: 'Pink Skull by Michael MacDonald — neon magenta spray paint skull on black, raw graffiti-inspired mixed media with punk energy and street art edge.',
+    altText: 'Hot pink spray-painted skull on black background with blue border and graffiti tag by Michael MacDonald',
+    featured: false,
+    order: 7,
   },
-  
-  // CODE FACET - Sacred geometry applications
-  { 
-    id: '137-cipher', 
-    title: '137 Cipher', 
-    type: 'app', 
-    aspect: 'landscape', 
-    url: 'https://137-cipher.vercel.app',
-    facet: 'code',
-    description: 'Encode messages using the fine structure constant'
+  {
+    id: 'menagerie',
+    title: 'Menagerie',
+    file: '/art/menagerie.jpg',
+    year: 2024,
+    medium: 'Mixed media, stencil, and spray paint on canvas',
+    status: 'available',
+    description: 'A maximalist fever dream in which stenciled mandalas, folkloric creatures, numerical notations, and invented hieroglyphs compete for space across an impossibly layered surface. A visual archaeology where each stratum partially obscures the last.',
+    longDescription: 'Menagerie is a maximalist fever dream in which stenciled mandalas, folkloric creatures, numerical notations, and invented hieroglyphs compete for space across an impossibly layered surface. MacDonald builds a visual archaeology — each stratum of pattern and mark partially obscuring the last — creating a work that rewards prolonged looking and refuses any single reading.',
+    tags: ['maximalist', 'mandala', 'creatures', 'stencil', 'layered', 'encyclopedic', 'mythic'],
+    colors: ['#00A86B', '#3B8FE3', '#D44B7A', '#E8C840', '#1C1C1C'],
+    influences: ['Basquiat', 'Takashi Murakami', 'Barry McGee', 'Kenny Scharf', 'outsider art'],
+    techniques: ['stencil work', 'multi-layer overpainting', 'marker and paint-pen', 'spray paint', 'scratched notation'],
+    mood: ['kaleidoscopic', 'dense', 'mythic', 'cryptic', 'playful', 'obsessive'],
+    seoTitle: 'Menagerie | Michael MacDonald | 137 Studio',
+    seoDescription: 'Menagerie by Michael MacDonald — dense mixed media painting layering mandalas, creatures & graffiti symbols in a kaleidoscopic neo-expressionist field.',
+    altText: 'Densely layered mixed media painting with stenciled flowers, animal figures, numbers, and symbols by Michael MacDonald',
+    featured: false,
+    order: 8,
   },
-  { 
-    id: '137-geometry', 
-    title: '137 Geometry', 
-    type: 'app', 
-    aspect: 'landscape', 
-    url: 'https://137-geometry.vercel.app',
-    facet: 'code',
-    description: 'Interactive sacred geometry visualizations'
+  {
+    id: 'blue-teeth',
+    title: 'Blue Teeth',
+    file: '/art/blue-teeth.jpg',
+    year: 2024,
+    medium: 'Acrylic and marker on canvas',
+    status: 'available',
+    description: 'A panoramic procession of grinning, grimacing creatures in bold black line over washes of electric blue. The frieze-like composition evokes both ancient narrative scrolls and a punk-rock concert poster.',
+    longDescription: 'Blue Teeth unfurls as a panoramic procession of grinning, grimacing creatures rendered in bold black line over washes of electric blue, their oversized teeth gnashing in unison across the wide-format canvas. The frieze-like composition evokes both ancient narrative scrolls and a punk-rock concert poster, balancing menace and dark humor in MacDonald\'s signature vocabulary of eyes, teeth, and raw gesture.',
+    tags: ['panoramic', 'skulls', 'teeth', 'frieze', 'blue', 'creatures', 'humor', 'wide format'],
+    colors: ['#4AAFE0', '#1A1A1A', '#FFFFFF', '#E03030', '#F0A030'],
+    influences: ['Basquiat', 'Philip Guston', 'CoBrA movement', 'Hieronymus Bosch', 'Chicago Imagists'],
+    techniques: ['heavy black outline', 'acrylic wash', 'panoramic composition', 'repeated motif', 'drip painting', 'crosshatching'],
+    mood: ['carnivalesque', 'manic', 'tribal', 'riotous', 'humorous', 'menacing'],
+    seoTitle: 'Blue Teeth | Michael MacDonald | 137 Studio',
+    seoDescription: 'Blue Teeth by Michael MacDonald — panoramic mixed media painting of grinning skull creatures in bold blue, black & red with raw street art intensity.',
+    altText: 'Wide panoramic painting of multiple grinning blue skull-like creatures with large white teeth by Michael MacDonald',
+    featured: false,
+    order: 9,
   },
-  { 
-    id: '137-resonance', 
-    title: '137 Resonance', 
-    type: 'app', 
-    aspect: 'landscape', 
-    url: 'https://137-resonance.vercel.app',
-    facet: 'code',
-    description: 'Frequency and resonance patterns calculator'
-  },
-  { 
-    id: '137-cycles', 
-    title: '137 Cycles', 
-    type: 'app', 
-    aspect: 'landscape', 
-    url: 'https://137-cycles.vercel.app',
-    facet: 'code',
-    description: 'Natural cycles and rhythm analysis'
-  },
-  { 
-    id: '137-pad', 
-    title: '137 Pad', 
-    type: 'app', 
-    aspect: 'landscape',
-    facet: 'code',
-    description: 'Sacred geometry note-taking interface'
-  },
-  
-  // SOUND FACET - Music and frequency work
-  { 
-    id: 'harmonic-arcana', 
-    title: 'Harmonic Arcana', 
-    type: 'app', 
-    aspect: 'landscape', 
-    url: 'https://harmonic-arcana.vercel.app',
-    facet: 'sound',
-    description: 'Musical harmony meets occult symbolism'
-  },
-  { 
-    id: 'lyric-lab', 
-    title: 'Lyric Lab', 
-    type: 'app', 
-    aspect: 'landscape',
-    facet: 'sound',
-    description: 'AI-assisted songwriting and structure'
-  },
-  
-  // PHILOSOPHY FACET - Conceptual works
-  { 
-    id: 'the-book', 
-    title: 'The Book', 
-    type: 'app', 
-    aspect: 'landscape',
-    facet: 'philosophy',
-    description: 'Digital grimoire of accumulated wisdom'
-  },
-  { 
-    id: 'speak23d', 
-    title: 'Speak23D', 
-    type: 'app', 
-    aspect: 'landscape',
-    facet: 'philosophy',
-    description: 'Dimensional language exploration tool'
-  }
 ];
 
-// Get works by facet for balanced presentation
-export const worksByFacet = {
-  art: works.filter(w => w.facet === 'art'),
-  code: works.filter(w => w.facet === 'code'),
-  philosophy: works.filter(w => w.facet === 'philosophy'),
-  sound: works.filter(w => w.facet === 'sound')
-};
+// Helper to get featured works
+export const featuredWorks = artworks.filter(a => a.featured);
 
-// Featured constellation works - balanced mix from all facets
-export const constellationWorks = [
-  works.find(w => w.id === 'floral-3')!,
-  works.find(w => w.id === '137-cipher')!,
-  works.find(w => w.id === 'manyfaceddog')!,
-  works.find(w => w.id === 'harmonic-arcana')!,
-  works.find(w => w.id === 'neon-rabbit')!,
-  works.find(w => w.id === '137-geometry')!,
-  works.find(w => w.id === 'spectrum')!,
-  works.find(w => w.id === 'the-book')!,
-  works.find(w => w.id === 'triptych')!,
-  works.find(w => w.id === '137-resonance')!,
-  works.find(w => w.id === 'madness-arcitexy')!,
-  works.find(w => w.id === '137-cycles')!
-];
+// Helper to get all unique tags
+export const allTags = [...new Set(artworks.flatMap(a => a.tags))];
+
+// Helper to get all unique influences
+export const allInfluences = [...new Set(artworks.flatMap(a => a.influences))];
