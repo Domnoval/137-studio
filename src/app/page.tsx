@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import gsap from 'gsap';
 import { artworks as worksData } from '@/lib/works';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -91,7 +91,30 @@ const BRAND_TEXT = 'Studio 137';
 // CRT glyph characters for the static effect
 const CRT_GLYPHS = '\u2234\u2235\u2206\u2207\u221E\u03B1\u03B2\u03B3\u03B4\u03C0\u03C6\u03C8\u2609\u263D\u2640\u2642\u2660\u2663\u2665\u2666\u2720\u2721\u2726\u2727\u273A\u2756\u25B3\u25BD\u25C7\u2B22\u2295\u2297\u2299\u22C5\u2261\u2245';
 
-export default function HomePage() {
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ background: '#0e0c0a', color: '#e8e4dc', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontFamily: "'Cinzel', serif" }}>
+          <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>137</h1>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem', color: '#a09890' }}>Something broke. Refresh to try again.</p>
+          <button onClick={() => window.location.reload()} style={{ marginTop: '2rem', padding: '12px 24px', background: 'none', border: '1px solid #c41230', color: '#e8e4dc', cursor: 'pointer', fontFamily: "'Cinzel', serif" }}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function HomePageInner() {
   const [heroImage, setHeroImage] = useState('');
   const [loaded, setLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -450,29 +473,31 @@ export default function HomePage() {
     };
   }, [cosmosUnlocked, selectedWork]);
 
-  // Animated CRT glyph field
-  const [glyphGrid, setGlyphGrid] = useState<string[]>([]);
-  useEffect(() => {
+  // Animated CRT glyph field — reduced update frequency to prevent perf issues
+  const [glyphGrid, setGlyphGrid] = useState<string[]>(() => {
     const glyphs = CRT_GLYPHS.split('');
-    const gridSize = 200;
     const initial: string[] = [];
-    for (let i = 0; i < gridSize; i++) {
+    for (let i = 0; i < 200; i++) {
       initial.push(glyphs[Math.floor(Math.random() * glyphs.length)]);
     }
-    setGlyphGrid(initial);
-
+    return initial;
+  });
+  const glyphMounted = useRef(true);
+  useEffect(() => {
+    glyphMounted.current = true;
+    const glyphs = CRT_GLYPHS.split('');
     const interval = setInterval(() => {
+      if (!glyphMounted.current) return;
       setGlyphGrid(prev => {
         const next = [...prev];
-        // Randomly change ~10% of glyphs each tick
-        for (let i = 0; i < 20; i++) {
-          const idx = Math.floor(Math.random() * gridSize);
+        for (let i = 0; i < 15; i++) {
+          const idx = Math.floor(Math.random() * 200);
           next[idx] = glyphs[Math.floor(Math.random() * glyphs.length)];
         }
         return next;
       });
-    }, 150);
-    return () => clearInterval(interval);
+    }, 250);
+    return () => { glyphMounted.current = false; clearInterval(interval); };
   }, []);
 
   return (
@@ -1005,4 +1030,8 @@ export default function HomePage() {
       })()}
     </div>
   );
+}
+
+export default function HomePage() {
+  return <ErrorBoundary><HomePageInner /></ErrorBoundary>;
 }
