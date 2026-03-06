@@ -18,21 +18,21 @@ const heroImages = [
 ];
 
 const artworks = [
-  { id: 'totem', title: 'Totem', file: '/art/totem.jpg' },
-  { id: 'composite-head', title: 'Composite Head', file: '/art/composite-head.jpg' },
   { id: 'math-chaos', title: 'Math Chaos', file: '/art/math-chaos.jpg' },
-  { id: 'cruciform', title: 'Cruciform', file: '/art/cruciform.jpg' },
-  { id: 'chaos-garden', title: 'Chaos Garden', file: '/art/chaos-garden.jpg' },
   { id: 'teal-skull', title: 'Teal Skull', file: '/art/teal-skull.jpg' },
+  { id: 'rosetta', title: 'Rosetta', file: '/art/rosetta.jpg' },
+  { id: 'chaos-garden', title: 'Chaos Garden', file: '/art/chaos-garden.jpg' },
+  { id: 'undertow', title: 'Undertow', file: '/art/undertow.jpg' },
+  { id: 'ultraviolet-beast', title: 'Ultraviolet Beast', file: '/art/ultraviolet-beast.jpg' },
+  { id: 'composite-head', title: 'Composite Head', file: '/art/composite-head.jpg' },
+  { id: 'the-delegate', title: 'The Delegate', file: '/art/the-delegate.jpg' },
+  { id: 'totem', title: 'Totem', file: '/art/totem.jpg' },
+  { id: 'orbit', title: 'Orbit', file: '/art/orbital.jpg' },
+  { id: 'blue-teeth', title: 'Blue Teeth', file: '/art/blue-teeth.jpg' },
+  { id: 'cruciform', title: 'Cruciform', file: '/art/cruciform.jpg' },
   { id: 'pink-skull', title: 'Pink Skull', file: '/art/pink-skull.jpg' },
   { id: 'menagerie', title: 'Menagerie', file: '/art/menagerie.jpg' },
-  { id: 'blue-teeth', title: 'Blue Teeth', file: '/art/blue-teeth.jpg' },
-  { id: 'orbit', title: 'Orbit', file: '/art/orbital.jpg' },
   { id: 'broken-signal', title: 'Broken Signal', file: '/art/broken-signal.jpg' },
-  { id: 'ultraviolet-beast', title: 'Ultraviolet Beast', file: '/art/ultraviolet-beast.jpg' },
-  { id: 'the-delegate', title: 'The Delegate', file: '/art/the-delegate.jpg' },
-  { id: 'undertow', title: 'Undertow', file: '/art/undertow.jpg' },
-  { id: 'rosetta', title: 'Rosetta', file: '/art/rosetta.jpg' },
 ];
 
 const apps = [
