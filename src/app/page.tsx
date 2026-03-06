@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import gsap from 'gsap';
+import { artworks as worksData } from '@/lib/works';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 
@@ -102,6 +103,12 @@ export default function HomePage() {
   const philosophyRef = useRef<HTMLDivElement>(null);
 
   const stars = useMemo(() => generateStars(120), []);
+
+  const [selectedWork, setSelectedWork] = useState<string | null>(null);
+
+  const getWorkData = useCallback((id: string) => {
+    return worksData.find(w => w.id === id);
+  }, []);
 
   useEffect(() => {
     setHeroImage(heroImages[Math.floor(Math.random() * heroImages.length)]);
@@ -497,6 +504,7 @@ export default function HomePage() {
               opacity: 0, willChange: 'transform, opacity', cursor: 'pointer',
               transition: 'filter 0.3s',
             }}
+              onClick={() => setSelectedWork(art.id)}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.filter = 'brightness(1.2)';
                 (e.currentTarget as HTMLElement).style.zIndex = '100';
@@ -718,6 +726,164 @@ export default function HomePage() {
           marginTop: '89px', opacity: 0.5,
         }}>137 Studio &copy; 2026</p>
       </section>
+    
+      {/* ═══ PAINTING DETAIL MODAL ═══ */}
+      {selectedWork && (() => {
+        const work = getWorkData(selectedWork);
+        if (!work) return null;
+        return (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedWork(null); }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 9999,
+              background: 'rgba(10, 8, 8, 0.95)',
+              backdropFilter: 'blur(20px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px',
+              animation: 'fadeIn 0.3s ease-out',
+              cursor: 'pointer',
+              overflow: 'auto',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '1200px', width: '100%',
+                display: 'flex', flexDirection: 'row', gap: '48px',
+                alignItems: 'flex-start', cursor: 'default',
+              }}
+            >
+              {/* Painting */}
+              <div style={{ flex: '1 1 60%', minWidth: 0 }}>
+                <img
+                  src={work.file} alt={work.altText}
+                  style={{
+                    width: '100%', height: 'auto',
+                    maxHeight: '80vh', objectFit: 'contain',
+                    border: '1px solid rgba(232, 228, 220, 0.08)',
+                  }}
+                />
+              </div>
+
+              {/* Info panel */}
+              <div style={{
+                flex: '0 0 320px', paddingTop: '20px',
+              }}>
+                <h2 style={{
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+                  color: '#e8e4dc', margin: '0 0 8px 0',
+                  letterSpacing: '0.04em',
+                }}>{work.title}</h2>
+
+                <p style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '0.7rem', color: '#a09890',
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  margin: '0 0 24px 0',
+                }}>{work.medium} &middot; {work.year}</p>
+
+                <div style={{
+                  width: '40px', height: '1px',
+                  background: '#c41230', margin: '0 0 24px 0',
+                  boxShadow: '0 0 10px rgba(196, 18, 48, 0.3)',
+                }} />
+
+                <p style={{
+                  fontFamily: "'Crimson Text', Georgia, serif",
+                  fontSize: '1.05rem', color: '#c8c4bc',
+                  lineHeight: 1.7, margin: '0 0 24px 0',
+                }}>{work.longDescription}</p>
+
+                {/* Color palette */}
+                <div style={{
+                  display: 'flex', gap: '6px', margin: '0 0 24px 0',
+                }}>
+                  {work.colors.map((color, i) => (
+                    <div key={i} style={{
+                      width: '24px', height: '24px',
+                      background: color, borderRadius: '2px',
+                      border: '1px solid rgba(232, 228, 220, 0.15)',
+                    }} />
+                  ))}
+                </div>
+
+                {/* Tags */}
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap', gap: '6px',
+                  margin: '0 0 32px 0',
+                }}>
+                  {work.tags.slice(0, 5).map((tag) => (
+                    <span key={tag} style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '0.55rem', color: '#a09890',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      padding: '4px 10px',
+                      border: '1px solid rgba(160, 152, 144, 0.2)',
+                    }}>{tag}</span>
+                  ))}
+                </div>
+
+                {/* Status + Price */}
+                <div style={{ margin: '0 0 24px 0' }}>
+                  {work.price ? (
+                    <p style={{
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: '1.5rem', color: '#e8e4dc',
+                      margin: '0 0 4px 0',
+                    }}>{'$' + work.price.toLocaleString()}</p>
+                  ) : null}
+                  <p style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '0.65rem',
+                    color: work.status === 'available' ? '#4ade80' : work.status === 'sold' ? '#c41230' : '#a09890',
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    margin: 0,
+                  }}>{work.status === 'nfs' ? 'Not for sale' : work.status}</p>
+                </div>
+
+                {/* Inquiry button */}
+                {work.status === 'available' && (
+                  <a
+                    href={'mailto:the37thmover@gmail.com?subject=Inquiry: ' + work.title + '&body=I am interested in ' + work.title + ' by Michael MacDonald.'}
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: '0.85rem', color: '#e8e4dc',
+                      letterSpacing: '0.1em',
+                      padding: '14px 32px',
+                      border: '1px solid #c41230',
+                      textDecoration: 'none',
+                      transition: 'background 0.3s, color 0.3s',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = '#c41230';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}
+                  >Inquire</a>
+                )}
+
+                {/* Close button */}
+                <button
+                  onClick={() => setSelectedWork(null)}
+                  style={{
+                    position: 'absolute', top: '24px', right: '24px',
+                    background: 'none', border: 'none',
+                    color: '#a09890', fontSize: '1.5rem',
+                    cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace",
+                    padding: '8px',
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#e8e4dc'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#a09890'; }}
+                >&times;</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
