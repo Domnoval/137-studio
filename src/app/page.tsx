@@ -50,11 +50,11 @@ function spherePosition(index: number, total: number) {
   // Fibonacci sphere for even distribution
   const phi = Math.acos(1 - 2 * (index + 0.5) / total);
   const theta = Math.PI * (1 + Math.sqrt(5)) * index;
-  const radius = 42;
+  const radius = 80;
   return {
     x: radius * Math.sin(phi) * Math.cos(theta),
-    y: radius * Math.sin(phi) * Math.sin(theta) * 0.6,
-    z: radius * Math.cos(phi),
+    y: radius * Math.sin(phi) * Math.sin(theta) * 0.5,
+    z: radius * Math.cos(phi) * 0.6,
   };
 }
 
@@ -216,8 +216,8 @@ export default function HomePage() {
       tl2.to(art, {
         x: sPos.x + 'vw',
         y: sPos.y + 'vh',
-        z: sPos.z * 10,
-        scale: 0.35,
+        z: sPos.z * 15,
+        scale: 0.45,
         opacity: 0.85,
         duration: SETTLE_DURATION,
         ease: 'power1.inOut',
