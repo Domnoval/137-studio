@@ -105,6 +105,12 @@ export default function HomePage() {
   const stars = useMemo(() => generateStars(120), []);
 
   const [selectedWork, setSelectedWork] = useState<string | null>(null);
+  const [cosmosUnlocked, setCosmosUnlocked] = useState(false);
+  const [cameraRotation, setCameraRotation] = useState({ x: 0, y: 0 });
+  const [cameraZoom, setCameraZoom] = useState(1);
+  const isDragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+  const lastTouches = useRef<{ dist: number } | null>(null);
 
   const getWorkData = useCallback((id: string) => {
     return worksData.find(w => w.id === id);
@@ -245,6 +251,15 @@ export default function HomePage() {
         duration: 0.25,
         ease: 'none',
       }, totalArtTime);
+
+      // When scroll reaches end, unlock free orbit controls
+      ScrollTrigger.create({
+        trigger: cosmosRef.current,
+        start: 'top top',
+        end: '+=1200%',
+        onLeave: () => setCosmosUnlocked(true),
+        onEnterBack: () => setCosmosUnlocked(false),
+      });
     }
 
     // ═══ PHASE 4: THE TV PORTAL (no frame image — pure CRT static) ═══
@@ -349,6 +364,91 @@ export default function HomePage() {
     });
 
   }, [loaded, spherePositions]);
+
+  // ═══ ORBIT CONTROLS — unlock after scroll completes ═══
+  useEffect(() => {
+    if (!cosmosUnlocked || !cosmosRef.current) return;
+    const el = cosmosRef.current;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (selectedWork) return;
+      isDragging.current = true;
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      el.style.cursor = 'grabbing';
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const dx = e.clientX - lastMouse.current.x;
+      const dy = e.clientY - lastMouse.current.y;
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      setCameraRotation(prev => ({
+        x: Math.max(-40, Math.min(40, prev.x - dy * 0.3)),
+        y: prev.y + dx * 0.3,
+      }));
+    };
+    const onMouseUp = () => {
+      isDragging.current = false;
+      el.style.cursor = 'grab';
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (selectedWork) return;
+      e.preventDefault();
+      setCameraZoom(prev => Math.max(0.4, Math.min(2.5, prev - e.deltaY * 0.001)));
+    };
+
+    // Touch handlers
+    const onTouchStart = (e: TouchEvent) => {
+      if (selectedWork) return;
+      if (e.touches.length === 1) {
+        isDragging.current = true;
+        lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouches.current = { dist: Math.sqrt(dx * dx + dy * dy) };
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && isDragging.current) {
+        const dx = e.touches[0].clientX - lastMouse.current.x;
+        const dy = e.touches[0].clientY - lastMouse.current.y;
+        lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        setCameraRotation(prev => ({
+          x: Math.max(-40, Math.min(40, prev.x - dy * 0.3)),
+          y: prev.y + dx * 0.3,
+        }));
+      } else if (e.touches.length === 2 && lastTouches.current) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const delta = dist - lastTouches.current.dist;
+        lastTouches.current = { dist };
+        setCameraZoom(prev => Math.max(0.4, Math.min(2.5, prev + delta * 0.005)));
+      }
+    };
+    const onTouchEnd = () => {
+      isDragging.current = false;
+      lastTouches.current = null;
+    };
+
+    el.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('touchend', onTouchEnd);
+
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [cosmosUnlocked, selectedWork]);
 
   // Animated CRT glyph field
   const [glyphGrid, setGlyphGrid] = useState<string[]>([]);
@@ -484,6 +584,11 @@ export default function HomePage() {
         <div className="cosmos-inner" style={{
           position: 'absolute', inset: 0, transformStyle: 'preserve-3d',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: cosmosUnlocked ? 'grab' : 'default',
+          ...(cosmosUnlocked ? {
+            transform: 'rotateX(' + cameraRotation.x + 'deg) rotateY(' + cameraRotation.y + 'deg) scale(' + cameraZoom + ')',
+            transition: isDragging.current ? 'none' : 'transform 0.1s ease-out',
+          } : {}),
         }}>
           {/* Star field */}
           {stars.map((star, i) => (
@@ -543,6 +648,20 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+
+        {/* Orbit controls hint */}
+        {cosmosUnlocked && !selectedWork && (
+          <div style={{
+            position: 'absolute', bottom: '24px', left: '50%',
+            transform: 'translateX(-50%)', zIndex: 20,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '0.6rem', color: '#a09890',
+            letterSpacing: '0.15em', textTransform: 'uppercase',
+            opacity: 0.6, pointerEvents: 'none',
+            animation: 'fadeIn 1s ease-out',
+          }}>drag to orbit &middot; scroll to zoom &middot; click to inspect</div>
+        )}
 
       {/* ═══ PHASE 4: THE TV PORTAL — pure CRT static + glyphs ═══ */}
       <div ref={tvRef} style={{
