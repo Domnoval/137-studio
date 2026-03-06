@@ -184,6 +184,7 @@ function HomePageInner() {
         end: '+=250%',
         scrub: 1,
         pin: true,
+          pinType: "transform",
       },
     });
 
@@ -224,6 +225,7 @@ function HomePageInner() {
         end: '+=1200%',
         scrub: 2,
         pin: true,
+          pinType: "transform",
       },
     });
 
@@ -280,8 +282,8 @@ function HomePageInner() {
         trigger: cosmosRef.current,
         start: 'top top',
         end: '+=1200%',
-        onLeave: () => setCosmosUnlocked(true),
-        onEnterBack: () => setCosmosUnlocked(false),
+        onLeave: () => requestAnimationFrame(() => setCosmosUnlocked(true)),
+        onEnterBack: () => requestAnimationFrame(() => setCosmosUnlocked(false)),
       });
     }
 
@@ -301,6 +303,7 @@ function HomePageInner() {
         end: '+=300%',
         scrub: 1,
         pin: true,
+          pinType: "transform",
       },
     });
 
@@ -347,6 +350,7 @@ function HomePageInner() {
         end: '+=500%',
         scrub: 1,
         pin: true,
+          pinType: "transform",
       },
     });
 
