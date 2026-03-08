@@ -23,7 +23,7 @@ const gallery = [
   { id: 'teal-skull', file: '/art/teal-skull.jpg' },
   { id: 'rosetta', file: '/art/rosetta.jpg' },
   { id: 'chaos-garden', file: '/art/chaos-garden.jpg' },
-  { id: 'undertow', file: '/art/undertow.jpg' },
+  { id: 'on-purpose-accidents', file: '/art/undertow.jpg' },
   { id: 'ultraviolet-beast', file: '/art/ultraviolet-beast.jpg' },
   { id: 'composite-head', file: '/art/composite-head.jpg' },
   { id: 'the-delegate', file: '/art/the-delegate.jpg' },
