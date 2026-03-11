@@ -19,6 +19,8 @@ export interface Artwork {
   altText: string;
   featured: boolean;
   order: number;
+  printUrl?: string;
+  printSizes?: string[];
 }
 
 export const artworks: Artwork[] = [

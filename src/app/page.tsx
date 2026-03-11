@@ -518,17 +518,41 @@ function HomePageInner() {
                   letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 16px',
                 }}>{work.status === 'nfs' ? 'Not for sale' : work.status}</p>
                 {work.status === 'available' && (
-                  <a
-                    href={'mailto:the37thmover@gmail.com?subject=Inquiry: ' + work.title + '&body=I am interested in ' + work.title + ' by Michael MacDonald.'}
-                    style={{
-                      display: 'inline-block', fontFamily: "'Cinzel', Georgia, serif",
-                      fontSize: '0.8rem', color: '#e8e4dc', letterSpacing: '0.08em',
-                      padding: '12px 28px', border: '1px solid #c41230',
-                      textDecoration: 'none', transition: 'background 0.3s',
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#c41230'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                  >Inquire</a>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <a
+                      href={'mailto:the37thmover@gmail.com?subject=Inquiry: ' + work.title + '&body=I am interested in the original "' + work.title + '" by Michael MacDonald.%0A%0APlease let me know about pricing and availability.'}
+                      style={{
+                        display: 'inline-block', fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: '0.8rem', color: '#e8e4dc', letterSpacing: '0.08em',
+                        padding: '12px 28px', border: '1px solid #c41230',
+                        textDecoration: 'none', transition: 'background 0.3s',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#c41230'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >Inquire About Original</a>
+                    {work.printUrl && (
+                      <a
+                        href={work.printUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-block', fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: '0.8rem', color: '#e8e4dc', letterSpacing: '0.08em',
+                          padding: '12px 28px', border: '1px solid rgba(232, 228, 220, 0.3)',
+                          textDecoration: 'none', transition: 'all 0.3s',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#e8e4dc'; (e.currentTarget as HTMLElement).style.background = 'rgba(232, 228, 220, 0.08)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(232, 228, 220, 0.3)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >Buy Print</a>
+                    )}
+                    {work.printSizes && (
+                      <p style={{
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: '0.5rem',
+                        color: '#a09890', letterSpacing: '0.08em',
+                        margin: '4px 0 0', width: '100%',
+                      }}>Available sizes: {work.printSizes.join(' \u00B7 ')}</p>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => setSelectedWork(null)}
