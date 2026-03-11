@@ -516,7 +516,7 @@ function HomePageInner() {
                   fontFamily: "'JetBrains Mono', monospace", fontSize: '0.6rem',
                   color: work.status === 'available' ? '#4ade80' : '#c41230',
                   letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 16px',
-                }}>{work.status === 'nfs' ? 'Not for sale' : work.status}</p>
+                }}>{work.status === 'sold' ? 'Original Sold' : work.status === 'nfs' ? 'Not for sale' : work.status}</p>
                 {work.status === 'available' && (
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <a
