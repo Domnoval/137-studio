@@ -199,6 +199,8 @@ export class GameEngine {
   }
 
   launch() {
+    if (!this.matterModule || !this.playerBody) return;
+    
     if (!this.gameState.gameStarted) {
       this.gameState.gameStarted = true;
       this.gameState.currentTarotCard = this.drawRandomTarotCard();
@@ -207,16 +209,13 @@ export class GameEngine {
       this.applyTarotEffect(this.gameState.currentTarotCard);
     }
     
-    // Make player dynamic and launch upward
-    if (this.playerBody) {
-      this.playerBody.isStatic = false;
-      if (this.matterModule) this.matterModule.Body.setStatic(this.playerBody, false);
-      const force = 0.02;
-      this.playerBody.force = { 
-        x: (Math.random() - 0.5) * force * 0.3, 
-        y: -force 
-      };
-    }
+    // Make player dynamic and launch upward with velocity (not force)
+    const M = this.matterModule;
+    M.Body.setStatic(this.playerBody, false);
+    M.Body.setVelocity(this.playerBody, { 
+      x: (Math.random() - 0.5) * 3, 
+      y: -15 
+    });
   }
 
   private applyTarotEffect(card: TarotCard) {
