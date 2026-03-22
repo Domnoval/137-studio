@@ -314,7 +314,9 @@ export class GameEngine {
       this.matterModule.Body.setPosition(this.playerBody, { x: 300, y: 750 });
       this.matterModule.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
     }
+    const savedBumpers = this.gameState.bumpers;
     this.gameState = this.createInitialState();
+    this.gameState.bumpers = savedBumpers;
     this.gameState.highScore = parseInt(localStorage.getItem('137-game-high-score') || '0');
     if (this.playerBody) {
       this.playerBody.position.x = this.gameState.playerPos.x;
@@ -341,6 +343,7 @@ export class GameEngine {
     // Check collisions with bumpers
     this.bumperBodies.forEach((body, index) => {
       const bumper = this.gameState.bumpers[index];
+      if (!bumper) return;
       const dx = this.gameState.playerPos.x - bumper.x;
       const dy = this.gameState.playerPos.y - bumper.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
