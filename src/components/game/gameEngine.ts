@@ -285,11 +285,10 @@ export class GameEngine {
     this.gameState.showDeathMessage = Date.now() + 2000;
     
     // Reset player position
-    if (this.playerBody) {
-      this.playerBody.position.x = this.gameState.playerPos.x;
-      this.playerBody.position.y = this.gameState.playerPos.y;
-      this.playerBody.velocity.x = 0;
-      this.playerBody.velocity.y = 0;
+    if (this.playerBody && this.matterModule) {
+      this.matterModule.Body.setStatic(this.playerBody, true);
+      this.matterModule.Body.setPosition(this.playerBody, { x: 300, y: 750 });
+      this.matterModule.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
     }
     
     if (this.gameState.lives <= 0) {
@@ -327,12 +326,12 @@ export class GameEngine {
   }
 
   update(deltaTime: number) {
-    if (!this.matterEngine || this.gameState.gameOver) return;
+    if (!this.matterEngine || !this.playerBody || this.gameState.gameOver) return;
     
     const now = Date.now();
     
     // Update Matter.js physics
-    Matter.Engine.update(this.matterEngine, deltaTime);
+    if (this.matterModule) this.matterModule.Engine.update(this.matterEngine, deltaTime);
     
     // Update player position from physics
     if (this.playerBody) {
@@ -367,7 +366,9 @@ export class GameEngine {
     });
     
     // Update obstacles
+    if (!this.gameState.playerPos) return;
     this.gameState.obstacles.forEach(obstacle => {
+      if (!obstacle) return;
       obstacle.x += obstacle.vx * deltaTime / 16;
       if (obstacle.x < -30) obstacle.x = this.canvas.width + 30;
       if (obstacle.x > this.canvas.width + 30) obstacle.x = -30;
@@ -385,7 +386,7 @@ export class GameEngine {
     // Update glyphs and magnet effect
     const magnetEffect = this.gameState.effects.find(e => e.type === 'magnet');
     this.gameState.glyphs.forEach(glyph => {
-      if (glyph.collected) return;
+      if (!glyph || glyph.collected) return;
       
       // Magnet effect
       if (magnetEffect && now < magnetEffect.endTime) {
