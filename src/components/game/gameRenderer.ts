@@ -174,7 +174,7 @@ export class GameRenderer {
     
     // Lives
     this.ctx.textAlign = 'right';
-    const livesText = '♦'.repeat(lives);
+    const livesText = '\u25C7'.repeat(Math.max(0, lives));
     this.ctx.fillText(livesText, this.canvas.width - 20 * this.scale, 30 * this.scale);
     
     // Tarot card
