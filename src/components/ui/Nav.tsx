@@ -6,6 +6,7 @@ import Link from "next/link";
 const NAV_ITEMS = [
   { label: "Featured", href: "/featured" },
   { label: "Gallery", href: "/gallery" },
+  { label: "Voice", href: "/sing" },
   { label: "Lyrics", href: "/lyrics" },
   { label: "Shop", href: "/shop" },
   { label: "About", href: "/about" },
