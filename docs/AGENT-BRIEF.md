@@ -1,13 +1,13 @@
-# 137 Studio ? Agent Brief
+# 137 Studio — Agent Brief
 # READ THIS FIRST. Every subagent must follow this.
 
 ## What Is This
-Personal website for Michael MacDonald ? artist, coder, philosopher.
+Personal website for Michael MacDonald — artist, coder, philosopher.
 NOT a portfolio template. NOT a corporate site. The site IS the art.
 
 ## The Experience
 Single-page scroll journey through multiple dimensions:
-- Phase 1 (0-5%): Arrival ? name + hero art on warm dark
+- Phase 1 (0-5%): Arrival — name + hero art on warm dark
 - Phase 2 (5-15%): Pin + Z-dive into 3D space
 - Phase 3 (15-60%): Art slabs floating in cosmos, apps between them
 - Phase 4 (60-75%): Everything contracts into sacred geometry
