@@ -61,7 +61,7 @@ function fibSpiralPos(index: number) {
 }
 
 const NAME_TEXT = 'Michael MacDonald';
-const BRAND_TEXT = 'Studio 137';
+const BRAND_TEXT = '137 Studio';
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
   constructor(props: {children: React.ReactNode}) {
@@ -108,6 +108,21 @@ function HomePageInner() {
     img.onload = () => setLoaded(true);
     img.src = heroImage;
   }, [heroImage]);
+
+  // Modal ↔ body-scroll-lock + Esc-to-close. Keeps background scroll frozen
+  // while a work is open and lets keyboard users dismiss the overlay.
+  useEffect(() => {
+    if (!selectedWork) return;
+    document.body.classList.add('modal-open');
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedWork(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.classList.remove('modal-open');
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [selectedWork]);
 
   const nameLetters = useMemo(() => NAME_TEXT.split('').map((char, i) => ({
     char, id: 'name-' + i, spiral: fibSpiralPos(i),
@@ -292,22 +307,21 @@ function HomePageInner() {
       </div>
 
       {/* ═══ GALLERY — masonry grid ═══ */}
-      <section ref={galleryRef} style={{
+      <section id="gallery" ref={galleryRef} style={{
         padding: 'clamp(40px, 8vw, 100px) clamp(16px, 4vw, 60px)',
         maxWidth: '1600px', margin: '0 auto',
       }}>
-        <div style={{
-          columns: 'clamp(1, 3, 3)',
-          columnCount: 3,
-          columnGap: '16px',
-        }}>
+        <div className="masonry">
           {gallery.map((art) => {
             const work = getWorkData(art.id);
+            const label = work?.title || art.id;
             return (
-              <div
+              <button
                 key={art.id}
+                type="button"
                 className="gallery-item"
                 onClick={() => setSelectedWork(art.id)}
+                aria-label={`Open details for ${label}`}
                 style={{
                   breakInside: 'avoid',
                   marginBottom: '16px',
@@ -315,6 +329,14 @@ function HomePageInner() {
                   position: 'relative',
                   overflow: 'hidden',
                   opacity: 0,
+                  display: 'block',
+                  width: '100%',
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'inherit',
+                  textAlign: 'left',
+                  font: 'inherit',
                 }}
               >
                 <img
@@ -357,7 +379,7 @@ function HomePageInner() {
                     margin: '4px 0 0',
                   }}>{work?.medium || ''}</p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -455,6 +477,9 @@ function HomePageInner() {
         if (!work) return null;
         return (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={work.title}
             onClick={(e) => { if (e.target === e.currentTarget) setSelectedWork(null); }}
             style={{
               position: 'fixed', inset: 0, zIndex: 9999,
@@ -559,7 +584,9 @@ function HomePageInner() {
                   </div>
                 )}
                 <button
+                  type="button"
                   onClick={() => setSelectedWork(null)}
+                  aria-label="Close"
                   style={{
                     position: 'fixed', top: '20px', right: '20px',
                     background: 'none', border: 'none', color: '#a09890',

@@ -36,9 +36,28 @@ body {
   to { opacity: 1; }
 }
 
-/* Responsive masonry columns */
-@media (max-width: 640px) {
-  .gallery-item img { min-height: 180px; object-fit: cover; }
+/* Cross-page anchor targets (e.g. /#gallery from another route)
+ * need some breathing room so the sticky nav doesn't clip the top. */
+[id] {
+  scroll-margin-top: 80px;
+}
+
+/* Responsive multi-column masonry for the works grid.
+ * Replaces the old hard-coded column-count: 3 that cramped mobile. */
+.masonry {
+  column-count: 1;
+  column-gap: 16px;
+}
+@media (min-width: 640px) {
+  .masonry { column-count: 2; }
+}
+@media (min-width: 1024px) {
+  .masonry { column-count: 3; }
+}
+
+/* Lock body scroll while a modal is open. Applied imperatively from React. */
+body.modal-open {
+  overflow: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
