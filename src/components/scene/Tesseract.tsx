@@ -44,11 +44,13 @@ function project4Dto3D(v: number[], dist: number): THREE.Vector3 {
 const HYPER_VERTS = buildHypercubeVertices();
 const HYPER_EDGES = buildHypercubeEdges(HYPER_VERTS);
 
-function TesseractWireframe({ opacity }: { opacity: number }) {
+function TesseractWireframe({ opacityRef }: { opacityRef: React.RefObject<number> }) {
   const geomRef = useRef<THREE.BufferGeometry>(null);
   const matRef = useRef<THREE.LineBasicMaterial>(null);
   const angleRef = useRef({ xw: 0, yz: 0 });
-  const positions = useMemo(() => new Float32Array(HYPER_EDGES.length * 6), []);
+  // Use a ref for the position buffer so it can be mutated per-frame
+  // without violating the react-hooks/immutability rule.
+  const positionsRef = useRef<Float32Array>(new Float32Array(HYPER_EDGES.length * 6));
 
   useFrame((_s, delta) => {
     angleRef.current.xw += delta * 0.5;
@@ -61,6 +63,7 @@ function TesseractWireframe({ opacity }: { opacity: number }) {
       return project4Dto3D(r, 3);
     });
 
+    const positions = positionsRef.current;
     for (let i = 0; i < HYPER_EDGES.length; i++) {
       const [a, b] = HYPER_EDGES[i];
       const pa = projected[a];
@@ -74,13 +77,13 @@ function TesseractWireframe({ opacity }: { opacity: number }) {
       geomRef.current.setAttribute("position", new THREE.BufferAttribute(positions.slice(), 3));
       geomRef.current.computeBoundingSphere();
     }
-    if (matRef.current) matRef.current.opacity = opacity;
+    if (matRef.current) matRef.current.opacity = opacityRef.current;
   });
 
   return (
     <lineSegments>
       <bufferGeometry ref={geomRef} />
-      <lineBasicMaterial ref={matRef} color={WARM_GOLD} transparent opacity={opacity} depthWrite={false} />
+      <lineBasicMaterial ref={matRef} color={WARM_GOLD} transparent opacity={0} depthWrite={false} />
     </lineSegments>
   );
 }
@@ -127,7 +130,6 @@ export function GoldenTesseract() {
   const wireRef = useRef<THREE.Mesh>(null);
   const morphRef = useRef(0);
   const [active, setActive] = useState(false);
-  const cubeMatsRef = useRef<THREE.MeshPhysicalMaterial[]>([]);
 
   const faceTextures = useMemo(() => {
     if (typeof document === "undefined") return [];
@@ -136,7 +138,7 @@ export function GoldenTesseract() {
 
   const cubeMaterials = useMemo(() => {
     if (faceTextures.length === 0) return undefined;
-    const mats = faceTextures.map((tex) =>
+    return faceTextures.map((tex) =>
       new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(WARM_GOLD),
         transmission: 0.7,
@@ -151,19 +153,17 @@ export function GoldenTesseract() {
         side: THREE.DoubleSide,
       })
     );
-    cubeMatsRef.current = mats;
-    return mats;
   }, [faceTextures]);
 
   const handleOver = useCallback(() => setActive(true), []);
   const handleOut = useCallback(() => setActive(false), []);
   const handleClick = useCallback(() => setActive((a) => !a), []);
 
-  useFrame((_s, delta) => {
+  useFrame((state, delta) => {
     morphRef.current = THREE.MathUtils.lerp(morphRef.current, active ? 1 : 0, 0.05);
     const m = morphRef.current;
     const rotY = delta * 0.06;
-    const rotX = Math.sin(Date.now() * 0.00015) * 0.06;
+    const rotX = Math.sin(state.clock.elapsedTime * 0.15) * 0.06;
 
     if (meshRef.current) {
       meshRef.current.rotation.y += rotY;
@@ -174,8 +174,13 @@ export function GoldenTesseract() {
       wireRef.current.rotation.x = rotX;
     }
 
-    for (const mat of cubeMatsRef.current) {
-      mat.opacity = 0.75 * (1 - m);
+    if (cubeMaterials) {
+      for (const mat of cubeMaterials) {
+        // THREE.js materials are intended to be mutated per-frame to
+        // animate properties like opacity. Safe despite the rule.
+        // eslint-disable-next-line react-hooks/immutability
+        mat.opacity = 0.75 * (1 - m);
+      }
     }
   });
 
@@ -190,7 +195,7 @@ export function GoldenTesseract() {
         <boxGeometry args={[2, 2, 2]} />
         <meshBasicMaterial color={WARM_GOLD} wireframe transparent opacity={0.35} />
       </mesh>
-      <TesseractWireframe opacity={morphRef.current} />
+      <TesseractWireframe opacityRef={morphRef} />
     </group>
   );
 }

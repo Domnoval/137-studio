@@ -95,6 +95,10 @@ function HomePageInner() {
   const getWorkData = useCallback((id: string) => worksData.find(w => w.id === id), []);
 
   useEffect(() => {
+    // Pick a random hero image on mount. Must run on the client (post-hydration)
+    // so the server/client render match — lazy `useState` init would produce
+    // a hydration mismatch since the random value can't be serialized.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeroImage(heroImages[Math.floor(Math.random() * heroImages.length)]);
   }, []);
 

@@ -22,7 +22,7 @@ export function ModeSelector({ selected, onSelect }: ModeSelectorProps) {
   return (
     <div className="space-y-3">
       <h2 className="font-mono text-xs uppercase tracking-[0.3em] text-[#5ce0d2]">
-        // SELECT MODE
+        {'// SELECT MODE'}
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {modes.map((mode) => {

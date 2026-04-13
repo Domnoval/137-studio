@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { AudioEngine, type RecordingResult } from '@/lib/sing/audio-engine';
-import { PitchDetector, type PitchData } from '@/lib/sing/pitch-detection';
+import { PitchDetector, type PitchData, type PitchHistory } from '@/lib/sing/pitch-detection';
 import { scorePerformance, type VocalScore } from '@/lib/sing/scoring';
 import { PitchVisualizer } from '@/components/sing/PitchVisualizer';
 import { WaveformDisplay } from '@/components/sing/WaveformDisplay';
@@ -24,8 +24,12 @@ export default function StudioPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPitch, setCurrentPitch] = useState<PitchData>(NULL_PITCH);
+  // Lifted to state so render never reads refs directly.
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [pitchHistory, setPitchHistory] = useState<PitchHistory[]>([]);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recording, setRecording] = useState<RecordingResult | null>(null);
+  const [recordingTimestamp, setRecordingTimestamp] = useState<number>(0);
   const [score, setScore] = useState<VocalScore | null>(null);
   const [vocalVolume, setVocalVolume] = useState(1);
   const [backingVolume, setBackingVolume] = useState(0.7);
@@ -47,12 +51,17 @@ export default function StudioPage() {
 
       if (analyser && ctx) {
         detector.attach(analyser, ctx.sampleRate);
-        detector.subscribe(setCurrentPitch);
+        detector.subscribe((pitch) => {
+          setCurrentPitch(pitch);
+          // Mirror the detector's rolling history in state.
+          setPitchHistory(detector.getHistory());
+        });
         detector.start();
       }
 
       audioEngineRef.current = engine;
       pitchDetectorRef.current = detector;
+      setAnalyserNode(analyser ?? null);
       setIsInitialized(true);
     } catch (err) {
       setError(
@@ -99,6 +108,7 @@ export default function StudioPage() {
     const result = await audioEngineRef.current.stopRecording();
     setIsRecording(false);
     setRecording(result);
+    setRecordingTimestamp(Date.now());
 
     // Score the performance
     const history = pitchDetectorRef.current?.getHistory() ?? [];
@@ -127,6 +137,7 @@ export default function StudioPage() {
     setScore(null);
     setRecordingDuration(0);
     pitchDetectorRef.current?.clearHistory();
+    setPitchHistory([]);
   }, [recording]);
 
   const handleBackingTrackUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,7 +216,7 @@ export default function StudioPage() {
 
         {/* Waveform */}
         <WaveformDisplay
-          analyserNode={audioEngineRef.current?.getAnalyserNode() ?? null}
+          analyserNode={analyserNode}
           isActive={isRecording || isPlaying}
           peaks={recording?.peaks}
           variant={isRecording ? 'live' : 'static'}
@@ -226,7 +237,7 @@ export default function StudioPage() {
           {recording && (
             <a
               href={recording.url}
-              download={`137voice-recording-${Date.now()}.webm`}
+              download={`137voice-recording-${recordingTimestamp}.webm`}
               className="font-mono text-[10px] text-[#a09890] uppercase tracking-wider border border-[#2a2825] rounded px-4 py-2 hover:border-[#5ce0d2]/30 hover:text-[#5ce0d2] transition-all"
             >
               Download Recording
@@ -255,7 +266,7 @@ export default function StudioPage() {
         {/* Vocal Coach */}
         <VocalCoach
           currentPitch={currentPitch}
-          history={pitchDetectorRef.current?.getHistory() ?? []}
+          history={pitchHistory}
           isRecording={isRecording}
         />
 

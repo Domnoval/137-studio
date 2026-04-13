@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 const CHAKRAS = [
   { color: "#FF0000", name: "Root" },
@@ -31,8 +31,11 @@ export function AnkhCursor() {
   const [currentChakra, setCurrentChakra] = useState(0);
   const [isExploding, setIsExploding] = useState(false);
   const [particles, setParticles] = useState<Particle[]>([]);
+  // Wall-clock tick — updated by the rAF loop so pulse animations
+  // can reference it from render without calling Date.now() during render.
+  const [now, setNow] = useState(0);
 
-  const lastMoveRef = useRef(Date.now());
+  const lastMoveRef = useRef<number>(0);
   const animRef = useRef<number>(0);
   const pidRef = useRef(0);
 
@@ -89,13 +92,20 @@ export function AnkhCursor() {
   useEffect(() => {
     if (isTouchDevice) return;
 
+    // Seed lastMoveRef lazily inside the effect so Date.now() is never
+    // called during render.
+    if (lastMoveRef.current === 0) lastMoveRef.current = Date.now();
+
     const animate = () => {
+      const current = Date.now();
+      setNow(current);
+
       setCursorPos((prev) => ({
         x: prev.x + (mousePos.x - prev.x) * 0.15,
         y: prev.y + (mousePos.y - prev.y) * 0.15,
       }));
 
-      const timeSinceMove = Date.now() - lastMoveRef.current;
+      const timeSinceMove = current - lastMoveRef.current;
       const idleSec = timeSinceMove / 1000;
       setIdleTime(idleSec);
 
@@ -154,7 +164,7 @@ export function AnkhCursor() {
   const ankhScale = isHovering
     ? 1.3
     : isExploding
-    ? 1.5 + Math.sin(Date.now() * 0.02) * 0.3
+    ? 1.5 + Math.sin(now * 0.02) * 0.3
     : 1 + kundaliniPhase * 0.3;
   const glowIntensity = isExploding ? 30 : kundaliniPhase * 15;
   const ankhGlow = isIdle
@@ -188,7 +198,7 @@ export function AnkhCursor() {
 
       {chakraTrail.map((chakra, i) => {
         const yOff = 30 - i * 8;
-        const pulse = Math.sin(Date.now() * 0.005 + i * 0.5) * 0.3 + 0.7;
+        const pulse = Math.sin(now * 0.005 + i * 0.5) * 0.3 + 0.7;
         return (
           <div
             key={`chakra-${i}`}

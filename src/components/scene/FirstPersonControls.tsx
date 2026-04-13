@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -17,8 +17,18 @@ interface MoveTarget {
   active: boolean;
 }
 
+// Settings — hoisted to module scope so they're stable across renders
+// and don't need to appear in hook dep arrays.
+const MOVE_SPEED = 4.0;
+const MOUSE_SENSITIVITY = 0.002;
+const DAMPING = 0.82;
+const CLICK_MOVE_SPEED = 3.0;
+const ARRIVAL_THRESHOLD = 0.5;
+const BOUNDS = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
+const FLOOR_Y = 1.6;
+
 export function FirstPersonControls() {
-  const { camera, gl, raycaster, scene } = useThree();
+  const { camera, gl, raycaster } = useThree();
   const moveState = useRef<MovementState>({
     forward: false,
     backward: false,
@@ -35,17 +45,6 @@ export function FirstPersonControls() {
   // Smooth head bob
   const bobPhase = useRef(0);
   const isMoving = useRef(false);
-
-  // Settings
-  const MOVE_SPEED = 4.0;
-  const MOUSE_SENSITIVITY = 0.002;
-  const DAMPING = 0.82;
-  const CLICK_MOVE_SPEED = 3.0;
-  const ARRIVAL_THRESHOLD = 0.5;
-
-  // Room boundaries
-  const BOUNDS = { minX: -11, maxX: 11, minZ: -11, maxZ: 11 };
-  const FLOOR_Y = 1.6;
 
   // Click-to-move handler (when pointer is NOT locked)
   const handleClickToMove = useCallback(
