@@ -254,7 +254,6 @@ export default function LyricsPage() {
               <LyricsOutput
                 lyrics={lyrics}
                 algorithm={algorithm!}
-                context={buildContext()}
                 isGenerating={isGenerating}
                 onRegenerate={handleGenerate}
                 onRefineSection={handleRefineSection}

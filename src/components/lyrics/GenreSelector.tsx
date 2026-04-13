@@ -17,7 +17,7 @@ export function GenreSelector({ selected, onSelect }: GenreSelectorProps) {
   return (
     <div className="space-y-3">
       <h2 className="font-mono text-xs uppercase tracking-[0.3em] text-[#5ce0d2]">
-        // SELECT GENRE
+        {'// SELECT GENRE'}
       </h2>
 
       {/* Category filters */}

@@ -12,7 +12,7 @@ export function AlgorithmDisplay({ algorithm }: AlgorithmDisplayProps) {
   return (
     <div className="space-y-4">
       <h2 className="font-mono text-xs uppercase tracking-[0.3em] text-[#5ce0d2]">
-        // ALGORITHM OUTPUT
+        {'// ALGORITHM OUTPUT'}
       </h2>
 
       {/* Parameters grid */}

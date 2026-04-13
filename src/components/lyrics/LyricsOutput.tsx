@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { type AlgorithmOutput, type SongContext, formatForSuno } from '@/lib/lyrics/engine';
+import { type AlgorithmOutput } from '@/lib/lyrics/engine';
 
 interface LyricsOutputProps {
   lyrics: string;
   algorithm: AlgorithmOutput;
-  context: SongContext;
   isGenerating: boolean;
   onRegenerate: () => void;
   onRefineSection: (section: string, instruction: string) => void;
@@ -15,7 +14,6 @@ interface LyricsOutputProps {
 export function LyricsOutput({
   lyrics,
   algorithm,
-  context,
   isGenerating,
   onRegenerate,
   onRefineSection,
@@ -45,7 +43,7 @@ export function LyricsOutput({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-mono text-xs uppercase tracking-[0.3em] text-[#5ce0d2]">
-          // OUTPUT
+          {'// OUTPUT'}
         </h2>
         <div className="flex gap-2">
           <button

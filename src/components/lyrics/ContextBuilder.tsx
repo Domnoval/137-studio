@@ -58,7 +58,7 @@ export function ContextBuilder(props: ContextBuilderProps) {
   return (
     <div className="space-y-6">
       <h2 className="font-mono text-xs uppercase tracking-[0.3em] text-[#5ce0d2]">
-        // DEEP CONTEXT
+        {'// DEEP CONTEXT'}
       </h2>
 
       {/* Core Message */}

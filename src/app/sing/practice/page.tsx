@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { AudioEngine } from '@/lib/sing/audio-engine';
-import { PitchDetector, type PitchData, noteToFrequency } from '@/lib/sing/pitch-detection';
+import { PitchDetector, type PitchData, type PitchHistory, noteToFrequency } from '@/lib/sing/pitch-detection';
 import { WARM_UP_EXERCISES, type WarmUpExercise } from '@/lib/sing/song-library';
 import { PitchVisualizer } from '@/components/sing/PitchVisualizer';
 import { WaveformDisplay } from '@/components/sing/WaveformDisplay';
@@ -20,6 +20,9 @@ export default function PracticePage() {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentPitch, setCurrentPitch] = useState<PitchData>(NULL_PITCH);
+  // Lifted to state so render never reads refs directly.
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [pitchHistory, setPitchHistory] = useState<PitchHistory[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<WarmUpExercise | null>(null);
   const [exerciseActive, setExerciseActive] = useState(false);
   const [currentTargetIdx, setCurrentTargetIdx] = useState(0);
@@ -39,19 +42,28 @@ export default function PracticePage() {
 
       if (analyser && ctx) {
         detector.attach(analyser, ctx.sampleRate);
-        detector.subscribe(setCurrentPitch);
+        detector.subscribe((pitch) => {
+          setCurrentPitch(pitch);
+          // Keep a mirror of the detector's rolling history in state.
+          setPitchHistory(detector.getHistory());
+        });
         detector.start();
       }
 
       audioEngineRef.current = engine;
       pitchDetectorRef.current = detector;
+      setAnalyserNode(analyser ?? null);
       setIsInitialized(true);
     } catch {
       setError('Failed to initialize audio. Please check microphone permissions.');
     }
   }, []);
 
-  // Check if current pitch matches target note
+  // Check if current pitch matches target note — this effect legitimately
+  // bridges an external audio source (pitch detector) into React state, which
+  // is exactly the "sync external system" use case effects are for. The
+  // conditional setHitNotes call guarantees the cascade bottoms out.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!exerciseActive || !selectedExercise?.targetNotes) return;
     const targetNote = selectedExercise.targetNotes[currentTargetIdx];
@@ -77,6 +89,7 @@ export default function PracticePage() {
       }, 400);
     }
   }, [currentPitch, exerciseActive, selectedExercise, currentTargetIdx]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Cleanup
   useEffect(() => {
@@ -92,6 +105,7 @@ export default function PracticePage() {
     setCurrentTargetIdx(0);
     setHitNotes(new Set());
     pitchDetectorRef.current?.clearHistory();
+    setPitchHistory([]);
   };
 
   const stopExercise = () => {
@@ -146,7 +160,7 @@ export default function PracticePage() {
 
         {/* Waveform */}
         <WaveformDisplay
-          analyserNode={audioEngineRef.current?.getAnalyserNode() ?? null}
+          analyserNode={analyserNode}
           isActive={true}
           variant="live"
           className="h-16 rounded-lg border border-[#2a2825] bg-[#141210]"
@@ -225,7 +239,7 @@ export default function PracticePage() {
         {/* Vocal Coach */}
         <VocalCoach
           currentPitch={currentPitch}
-          history={pitchDetectorRef.current?.getHistory() ?? []}
+          history={pitchHistory}
           isRecording={true}
         />
 

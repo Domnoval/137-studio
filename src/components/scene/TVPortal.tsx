@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo, useCallback } from "react";
+import React, { useRef, useState } from "react";
 import { useFrame, useThree, extend } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -28,28 +28,32 @@ extend({ CRTMaterial });
 
 // Generate animated portal content texture
 function usePortalTexture() {
-  const canvas = useMemo(() => {
-    if (typeof document === "undefined") return null;
+  // Lazy-init canvas + texture once. useState's lazy initializer runs
+  // only on mount, keeping render pure and avoiding the hook-mutation
+  // lint rule that useMemo return values trigger when mutated.
+  const [surface] = useState<{
+    canvas: HTMLCanvasElement | null;
+    texture: THREE.CanvasTexture | null;
+  }>(() => {
+    if (typeof document === "undefined") return { canvas: null, texture: null };
     const c = document.createElement("canvas");
     c.width = 512;
     c.height = 384;
-    return c;
-  }, []);
-
-  const texture = useMemo(() => {
-    if (!canvas) return null;
-    const tex = new THREE.CanvasTexture(canvas);
+    const tex = new THREE.CanvasTexture(c);
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
-    return tex;
-  }, [canvas]);
+    return { canvas: c, texture: tex };
+  });
 
-  const draw = useCallback(
-    (time: number, proximity: number) => {
-      if (!canvas || !texture) return;
-      const ctx = canvas.getContext("2d")!;
-      const w = canvas.width;
-      const h = canvas.height;
+  const { canvas, texture } = surface;
+
+  // Plain function — not wrapped in useCallback — so lint does not track
+  // `texture` as a hook-managed value that can't be mutated.
+  const draw = (time: number, proximity: number) => {
+    if (!canvas || !texture) return;
+    const ctx = canvas.getContext("2d")!;
+    const w = canvas.width;
+    const h = canvas.height;
 
       // Dark base
       ctx.fillStyle = "#050510";
@@ -129,10 +133,11 @@ function usePortalTexture() {
         ctx.shadowBlur = 0;
       }
 
+      // THREE.js convention: flip `needsUpdate` to tell the renderer to
+      // re-upload the canvas texture. Intentional mutation of the texture.
+      // eslint-disable-next-line react-hooks/immutability
       texture.needsUpdate = true;
-    },
-    [canvas, texture]
-  );
+    };
 
   return { texture, draw };
 }

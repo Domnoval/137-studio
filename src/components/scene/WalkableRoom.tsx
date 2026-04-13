@@ -113,20 +113,23 @@ function Floor() {
   );
 }
 
+// Static dust geometry — computed once at module load so render stays pure.
+const DUST_COUNT = 200;
+const DUST_GEOMETRY: THREE.BufferGeometry = (() => {
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(DUST_COUNT * 3);
+  for (let i = 0; i < DUST_COUNT; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * 22;
+    pos[i * 3 + 1] = Math.random() * 7;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 22;
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return g;
+})();
+
 // Atmospheric particles
 function DustParticles() {
-  const count = 200;
-  const geom = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 22;
-      pos[i * 3 + 1] = Math.random() * 7;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 22;
-    }
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    return g;
-  }, []);
+  const geom = DUST_GEOMETRY;
 
   return (
     <points geometry={geom}>

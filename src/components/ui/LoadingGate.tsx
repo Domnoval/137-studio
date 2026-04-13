@@ -9,10 +9,15 @@ export function LoadingGate({ children }: { children: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Hydration-safe: server renders the welcome screen, then on the client
+    // we check localStorage and skip it if the user has already entered.
+    // Using lazy `useState` init here would cause a hydration mismatch.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (typeof window !== "undefined" && localStorage.getItem("137-entered")) {
       setEntered(true);
       setVisible(false);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const handleEnter = () => {

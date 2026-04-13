@@ -1,5 +1,5 @@
 // Canvas rendering utilities
-import { COLORS, SACRED_GLYPHS } from './gameData';
+import { COLORS } from './gameData';
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
@@ -83,7 +83,6 @@ export class GameRenderer {
     this.ctx.lineWidth = 2 * this.scale;
     
     const height = size * Math.sin(Math.PI / 3);
-    const yOffset = pointUp ? -height / 2 : height / 2;
     const sign = pointUp ? -1 : 1;
     
     this.ctx.beginPath();

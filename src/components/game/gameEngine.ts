@@ -1,5 +1,7 @@
 // Game engine and physics
-import Matter from 'matter-js';
+// Type-only import — the matter-js module is loaded dynamically via
+// `await import('matter-js')` so the runtime bundle stays lazy.
+import type * as Matter from 'matter-js';
 import { TAROT_CARDS, DEATH_MESSAGES, SCORING, SCORE_MILESTONES, ZODIAC_PLANETS, SACRED_GLYPHS } from './gameData';
 
 export interface GameState {
@@ -48,7 +50,7 @@ export interface Glyph {
 export interface Effect {
   type: string;
   endTime: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface TarotCard {
@@ -61,12 +63,10 @@ export interface TarotCard {
 export class GameEngine {
   private canvas: HTMLCanvasElement;
   private gameState: GameState;
-  private animationId?: number;
-  private lastTime = 0;
-  private matterEngine: any;
-  private matterModule: any;
-  private playerBody: any;
-  private bumperBodies: any[] = [];
+  private matterEngine: Matter.Engine | null = null;
+  private matterModule: typeof Matter | null = null;
+  private playerBody: Matter.Body | null = null;
+  private bumperBodies: Matter.Body[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -112,8 +112,10 @@ export class GameEngine {
     };
   }
 
-  private createBumpers(MatterJS: any) {
-    
+  private createBumpers(MatterJS: typeof Matter) {
+    if (!this.matterEngine) return;
+    const engine = this.matterEngine;
+
     this.gameState.bumpers = [];
     this.bumperBodies = [];
     
@@ -158,7 +160,7 @@ export class GameEngine {
       }
       
       this.bumperBodies.push(body);
-      MatterJS.World.add(this.matterEngine.world, body);
+      MatterJS.World.add(engine.world, body);
     });
   }
 
