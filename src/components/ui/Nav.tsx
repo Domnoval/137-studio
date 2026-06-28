@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Lyrics", href: "/lyrics" },
   { label: "Play", href: "/play" },
   { label: "RNG", href: "/rng" },
+  { label: "Greenbook", href: "/greenbook" },
 ];
 
 export function Nav() {
