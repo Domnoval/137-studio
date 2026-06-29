@@ -9,6 +9,9 @@
   --text-chalk: #e8e4dc;
   --text-faded: #a09890;
   --accent-red: #c41230;
+  --accent-amber: #d4a030; /* form / Blueprint voice (Genesis) */
+  --accent-signal: #46e0c8; /* life / signal voice — sanctioned Codex token */
+  --text-glow: #ffffff;
 }
 
 html { scroll-behavior: smooth; }
