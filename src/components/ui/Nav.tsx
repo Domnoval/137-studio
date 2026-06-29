@@ -9,6 +9,7 @@ type NavItem = { label: string; href: string };
 // Anything not-yet-built stays out of the Nav until it ships.
 const NAV_ITEMS: NavItem[] = [
   { label: "Works", href: "/#gallery" },
+  { label: "Genesis", href: "/genesis" },
   { label: "Voice", href: "/sing" },
   { label: "Lyrics", href: "/lyrics" },
   { label: "Play", href: "/play" },
