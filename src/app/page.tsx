@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { artworks as worksData } from '@/lib/works';
+import { artworks as worksData, galleryWorks } from '@/lib/works';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -18,23 +18,9 @@ const heroImages = [
   '/art/hero-red-eye.png',
 ];
 
-const gallery = [
-  { id: 'math-chaos', file: '/art/math-chaos.jpg' },
-  { id: 'teal-skull', file: '/art/teal-skull.jpg' },
-  { id: 'rosetta', file: '/art/rosetta.jpg' },
-  { id: 'chaos-garden', file: '/art/chaos-garden.jpg' },
-  { id: 'on-purpose-accidents', file: '/art/undertow.jpg' },
-  { id: 'ultraviolet-beast', file: '/art/ultraviolet-beast.jpg' },
-  { id: 'composite-head', file: '/art/composite-head.jpg' },
-  { id: 'the-delegate', file: '/art/the-delegate.jpg' },
-  { id: 'totem', file: '/art/totem.jpg' },
-  { id: 'orbit', file: '/art/orbital.jpg' },
-  { id: 'blue-teeth', file: '/art/blue-teeth.jpg' },
-  { id: 'cruciform', file: '/art/cruciform.jpg' },
-  { id: 'pink-skull', file: '/art/pink-skull.jpg' },
-  { id: 'menagerie', file: '/art/menagerie.jpg' },
-  { id: 'broken-signal', file: '/art/broken-signal.jpg' },
-];
+// Sourced from works.ts so newly added art appears automatically and the
+// curated masonry order stays intact. (See galleryWorks in lib/works.)
+const gallery = galleryWorks.map((w) => ({ id: w.id, file: w.file }));
 
 const apps = [
   { name: '137 Cipher', url: 'https://137-cipher.vercel.app', desc: 'Ancient script translator' },
