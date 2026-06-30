@@ -11,17 +11,29 @@ export interface Artwork {
   longDescription: string;
   tags: string[];
   colors: string[];
-  influences: string[];
-  techniques: string[];
-  mood: string[];
-  seoTitle: string;
-  seoDescription: string;
   altText: string;
   featured: boolean;
   order: number;
+  // Optional enrichment — fill in as desired; the UI degrades gracefully.
+  influences?: string[];
+  techniques?: string[];
+  mood?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
   printUrl?: string;
   printSizes?: string[];
+  /** Set false to keep a piece out of the homepage grid (e.g. missing file). */
+  inGallery?: boolean;
+  /** Shop grouping, when wired to products. */
+  collection?: 'prints' | 'journals' | 'shows' | 'originals';
 }
+
+/**
+ * Standard print sizes offered in the shop. New originals default to these;
+ * each Artwork can override via `printSizes`. Used to scaffold shop products
+ * keyed to size.
+ */
+export const STANDARD_PRINT_SIZES = ['8×10', '11×14', '16×20', '18×24', '24×36'];
 
 export const artworks: Artwork[] = [
   {
@@ -283,6 +295,9 @@ export const artworks: Artwork[] = [
     altText: 'Tall cubist figure in amber, magenta, and black with elongated neck on lavender background by Michael MacDonald',
     featured: false,
     order: 13,
+    // Source file in public/art is a corrupt 1×1 px image — hidden from the
+    // grid until a full-resolution version is re-uploaded.
+    inGallery: false,
   },
   {
     id: 'undertow',
@@ -333,4 +348,28 @@ export const featuredWorks = artworks.filter(a => a.featured);
 export const allTags = [...new Set(artworks.flatMap(a => a.tags))];
 
 // Helper to get all unique influences
-export const allInfluences = [...new Set(artworks.flatMap(a => a.influences))];
+export const allInfluences = [...new Set(artworks.flatMap(a => a.influences ?? []))];
+
+/**
+ * The homepage gallery, sourced from this file so new art auto-appears.
+ * `GALLERY_ORDER` preserves the curated masonry sequence; any artwork not
+ * listed there (e.g. freshly uploaded pieces) is appended by `order`, and
+ * anything flagged `inGallery: false` is excluded.
+ */
+const GALLERY_ORDER = [
+  'math-chaos', 'teal-skull', 'rosetta', 'chaos-garden', 'undertow',
+  'ultraviolet-beast', 'composite-head', 'totem', 'orbit', 'blue-teeth',
+  'cruciform', 'pink-skull', 'menagerie', 'broken-signal',
+];
+
+export const galleryWorks: Artwork[] = (() => {
+  const byId = new Map(artworks.map((a) => [a.id, a]));
+  const curated = GALLERY_ORDER
+    .map((id) => byId.get(id))
+    .filter((a): a is Artwork => Boolean(a) && a!.inGallery !== false);
+  const curatedIds = new Set(curated.map((a) => a.id));
+  const extras = artworks
+    .filter((a) => a.inGallery !== false && !curatedIds.has(a.id))
+    .sort((a, b) => a.order - b.order);
+  return [...curated, ...extras];
+})();
