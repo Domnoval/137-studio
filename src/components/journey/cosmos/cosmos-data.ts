@@ -29,6 +29,9 @@ export const CAM_CONTRACT_DRIFT = 6; // slow push during contraction
 export const SIGIL_Z = CAM_END_Z - CAM_CONTRACT_DRIFT - 13; // sigil plane ahead of resting camera
 export const CAM_RETURN_PUSH = 26; // return: camera flies THROUGH the sigil
 
+/** THE DIVE is a real fall: the rig is 17 units further back and drops in. */
+export const CAM_DIVE_PREROLL = 17;
+
 export interface SlabPlacement {
   work: Artwork;
   index: number;
@@ -44,6 +47,20 @@ export interface SlabPlacement {
   /** unique float phase */
   phase: number;
   floatSpeed: number;
+  /**
+   * The slab's OWN pose as the subject of a WIDE beat — not "facing the
+   * camera". A painting that turns square-on the instant it owns the frame is
+   * a sticker on a plane; these are volumes standing in a space, so the camera
+   * passes them at an angle and their perspective visibly shears. Radians,
+   * applied in YXZ so yaw is around world up.
+   */
+  yaw: number;
+  pitch: number;
+  roll: number;
+  /** Per-work deviation from the formation plane in the PULL-BACK. */
+  fYaw: number;
+  fPitch: number;
+  fRoll: number;
 }
 
 const sorted = [...artworks].sort((a, b) => a.order - b.order);
@@ -68,6 +85,14 @@ export const SLABS: SlabPlacement[] = sorted.map((work, i) => {
     height: 3.35 + (work.featured ? 0.55 : 0) + ((i * 7) % 3) * 0.14,
     phase: i * 1.7 + 0.61,
     floatSpeed: 0.5 + ((i * 13) % 5) * 0.07,
+    // consecutive beats shear in OPPOSITE directions, so two WIDE shots taken
+    // 15% of the journey apart can never read as the same card field
+    yaw: (i % 2 === 0 ? 1 : -1) * (0.30 + ((i * 5) % 4) * 0.042),
+    pitch: (i % 3 === 0 ? 1 : -1) * (0.098 + ((i * 3) % 3) * 0.03),
+    roll: (i % 2 === 0 ? 1 : -1) * (0.016 + ((i * 7) % 3) * 0.013),
+    fYaw: (i % 2 === 0 ? -1 : 1) * (0.068 + ((i * 11) % 3) * 0.029),
+    fPitch: (i % 4 < 2 ? 1 : -1) * (0.03 + ((i * 5) % 3) * 0.021),
+    fRoll: (i % 3 === 0 ? 1 : -1) * (0.012 + ((i * 3) % 4) * 0.008),
   };
 });
 
@@ -119,6 +144,66 @@ export function shotMix(cp: number, out: ShotMix): ShotMix {
   return out;
 }
 
+/* ------------------------------------------------------- the descent curve */
+// A camera that covers the corridor at a constant rate is a value being
+// scrubbed. This chapter is FLOWN, and the pacing is CUT TO THE SHOTS rather
+// than to an arbitrary oscillator:
+//
+//   WIDE      you are travelling. The establishing constellation goes by at
+//             ~1.45x the mean rate — fast enough that the near-field passes
+//             have something to be fast against.
+//   MACRO     you are inside a canvas. The rig all but stops: ~0.85x.
+//   PULL-BACK you are arriving. ~0.65x, decelerating into the composed figure.
+//
+// Because the profile is expressed through shotMix() the accelerations land
+// exactly on the cuts by construction, and the SHOT_BLEND ramps give each
+// change of pace a real ease rather than a step.
+//
+// The position curve is the normalised cumulative integral of that profile,
+// built once as a table. It is monotone and pinned to 0 and 1, so the corridor
+// still starts and ends exactly where the staging expects; and speed is read
+// from the same table rather than differenced across frames, so it is
+// frame-rate independent and still correct when the scroll is parked.
+
+const CURVE_N = 512;
+const posTable = new Float32Array(CURVE_N + 1);
+const speedTable = new Float32Array(CURVE_N + 1);
+
+(() => {
+  const m: ShotMix = { wide: 1, macro: 0, pullback: 0 };
+  const raw = new Float32Array(CURVE_N + 1);
+  for (let i = 0; i <= CURVE_N; i++) {
+    shotMix(i / CURVE_N, m);
+    raw[i] = 0.62 + 0.76 * m.wide + 0.2 * m.macro;
+  }
+  let acc = 0;
+  posTable[0] = 0;
+  for (let i = 1; i <= CURVE_N; i++) {
+    acc += (raw[i] + raw[i - 1]) / 2 / CURVE_N;
+    posTable[i] = acc;
+  }
+  for (let i = 0; i <= CURVE_N; i++) {
+    posTable[i] /= acc;
+    speedTable[i] = raw[i] / acc; // mean 1 by construction
+  }
+})();
+
+function sampleTable(table: Float32Array, cp: number): number {
+  const x = Math.min(1, Math.max(0, cp)) * CURVE_N;
+  const i = Math.min(CURVE_N - 1, Math.floor(x));
+  return table[i] + (table[i + 1] - table[i]) * (x - i);
+}
+
+/** 0-1 position along the corridor at cosmos-phase progress `cp`. */
+export function descentCurve(cp: number): number {
+  return sampleTable(posTable, cp);
+}
+
+/** Rate of travel at `cp`, normalised so 1 = the corridor's mean rate. */
+export function descentSpeed(cp: number): number {
+  return sampleTable(speedTable, cp);
+}
+
 /* ---------------------------------------------------- pull-back formation */
 
 /** Distance ahead of the camera at which the composed triangle is assembled. */
@@ -165,6 +250,118 @@ function buildFormation(n: number): FormationSlot[] {
 }
 
 export const FORMATION: FormationSlot[] = buildFormation(SLABS.length);
+
+/* ------------------------------------------- the formation's SECOND vantage */
+// The composed triangle is the best frame in the chapter, so it is not thrown
+// away — it is walked around. Once the figure has been read square-on, the rig
+// drops BELOW it and closes: the plane tilts back, yaws off-axis, and every
+// work in it turns with the plane. Same formation, genuinely different vantage
+// — and the works nearest the base shear past the bottom of the frame as we
+// come up under them.
+
+/** Cosmos-phase window over which the second vantage takes over. */
+export const VANTAGE_IN = 0.855;
+export const VANTAGE_OUT = 1.0;
+/** Distance to the formation at the end of the move (from FORMATION_D). */
+export const VANTAGE_D = 11.2;
+/** Plane tilt (about X, negative = top rakes AWAY: we are underneath). */
+export const VANTAGE_PITCH = -0.46;
+/** Plane yaw (about Y) — the triangle is no longer square to the lens. */
+export const VANTAGE_YAW = 0.19;
+/** How far the formation's centre rises in frame, as a fraction of its own height. */
+export const VANTAGE_RISE = 0.11;
+
+/* ------------------------------------------------------ near-field passes */
+// The difference between a flown camera and a zoomed one is what happens at
+// the EDGE of the lens. These are full-size canvases hung off the corridor
+// axis: they enter small near the frame edge, swell as the rig closes, shear
+// hard across the periphery, and leave the frame sideways. They never fade in
+// place and they never cross the middle of the picture — a per-frame edge gate
+// (see NearPass.tsx) keeps them out of the staged subject's third entirely.
+
+export interface NearPlate {
+  file: string;
+  x: number;
+  y: number;
+  z: number;
+  /** plate height in world units — deliberately large; these are close */
+  height: number;
+  yaw: number;
+  pitch: number;
+  roll: number;
+  /** extra roll per world unit of approach: the plate turns as it goes by */
+  spin: number;
+  /** peak opacity — these are periphery, never the subject */
+  alpha: number;
+}
+
+/**
+ * Cosmos-phase moments at which a pass should be HAPPENING. Chosen inside the
+ * two WIDE windows (0–0.159 and 0.341–0.523) and spaced about one visible
+ * window apart, so a pass is punctuation — one canvas at a time raking the
+ * periphery — rather than a hail of them.
+ */
+const NEAR_VIEW_CP = [0.02, 0.07, 0.115, 0.33, 0.375, 0.42, 0.465];
+/** How far ahead of the camera a plate sits at the moment it is seen. */
+const NEAR_LEAD = 9.5;
+/**
+ * Three more in the DIVE pre-roll, as fractions of the pre-roll above the
+ * mouth of the corridor. They are what makes the handover read as a FALL: the
+ * hero image parts and there is already something blowing past the lens.
+ */
+const NEAR_DIVE_Z = [0.72, 0.45, 0.28];
+
+function nearPrng(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const NEAR_PLATES: NearPlate[] = (() => {
+  const rnd = nearPrng(1370);
+  const span = CAM_END_Z - CAM_START_Z;
+  const out: NearPlate[] = [];
+  const zAt = (cp: number) => CAM_START_Z + span * descentCurve(cp);
+  const zs = [
+    ...NEAR_DIVE_Z.map((f) => CAM_START_Z + CAM_DIVE_PREROLL * f),
+    ...NEAR_VIEW_CP.map((cp) => zAt(cp) - NEAR_LEAD),
+  ];
+  for (let k = 0; k < zs.length; k++) {
+    // strongly off-axis, alternating sides, flattened like the helix so most
+    // of them rake the left and right edges rather than the top and bottom
+    const ang = k * GOLDEN_ANGLE * 1.7 + 0.85;
+    const radius = 6.2 + (k % 3) * 1.1 + rnd() * 0.7;
+    // Through the DIVE the hero image still owns the left of the picture, so
+    // the pre-roll plates are placed by side rather than by the helix angle:
+    // a plate blowing past behind the artwork is a plate nobody sees.
+    const dive = k < NEAR_DIVE_Z.length;
+    const side = dive ? (k % 2 === 0 ? 1 : -1) : Math.cos(ang) >= 0 ? 1 : -1;
+    // Tighter radius through the pre-roll: the rig is still far from the
+    // corridor wall there, so a plate hung as wide as a corridor plate would
+    // sail past entirely outside the frustum and be paid for but never seen.
+    const x = dive ? side * (4.9 + (k % 2) * 0.8) : Math.cos(ang) * radius;
+    const y = Math.sin(ang) * radius * (dive ? 0.26 : 0.5);
+    out.push({
+      file: sorted[(k * 5 + 2) % sorted.length].file,
+      x,
+      y,
+      z: zs[k],
+      height: 5.2 + (k % 4) * 1.3 + rnd() * 0.8,
+      // inner edge turned toward the lens: a poster on a wall you drive past
+      yaw: -side * (0.5 + rnd() * 0.26),
+      pitch: (y >= 0 ? 1 : -1) * (0.1 + rnd() * 0.12),
+      roll: (k % 2 === 0 ? 1 : -1) * (0.05 + rnd() * 0.08),
+      spin: (k % 2 === 0 ? -1 : 1) * (0.009 + rnd() * 0.009),
+      alpha: 0.3 + rnd() * 0.12,
+    });
+  }
+  return out;
+})();
 
 /** Which slab is nearest a given camera z (the subject sits SWEET_D ahead). */
 export function nearestSlabIndex(camZ: number): number {

@@ -35,6 +35,7 @@ import {
   catchlightStrokes,
   dripStrokes,
   BASE_X0,
+  BASE_X1,
   BASE_Y,
 } from './cosmos/sigil-form';
 
@@ -43,27 +44,32 @@ const CHALK = '#e8e4dc';
 const RED = '#c41230';
 const MONO = "'JetBrains Mono', monospace";
 
-// Global-progress windows. The mark resolves by ~0.728, pulses at ~0.723,
-// holds to 0.752, then rushes/dissolves; the veil closes behind it and hands
-// a matched void to the RETURN's ground turnover (which starts at 0.799).
-const LINE_IN_START = 0.698;
-const LINE_IN_END = 0.724;
-const LINE_OUT_START = 0.750;
-const LINE_OUT_END = 0.772;
-const VEIL_START = 0.768;
-const VEIL_END = 0.79;
+// Global-progress windows, retimed with Sigil.tsx so the site has exactly ONE
+// apex. 0.60–0.71 is pure velocity (no mark at all), the mark strikes on
+// 0.70–0.76, and 0.76–0.78 is the apex: full luminance, full scale, and the
+// constant set on it as a MEASURED DIMENSION LINE locked to the mark's own base
+// — a scale anchor, not a floating caption. Then the rush, and the veil hands a
+// matched void to the RETURN's ground turnover (which starts at 0.799).
+const LINE_IN_START = 0.742;
+const LINE_IN_END = 0.762;
+const LINE_OUT_START = 0.782;
+const LINE_OUT_END = 0.798;
+const VEIL_START = 0.782;
+const VEIL_END = 0.8;
 
-// Mobile / no-WebGL beat (there is no 3D climax to hang off).
-// The container ramp used to run 0.638→0.716, which held the WHOLE flat mark
-// under 50% opacity for half the beat — on a phone the only frame anyone sees
-// of the climax was a near-invisible grey wireframe. The ground now arrives
-// fast (it is a cover, not a reveal) and the STROKES carry the reveal, so the
-// mark is legible chalk-on-void from the moment it starts writing.
-const M_IN_START = 0.628;
-const M_IN_END = 0.66;
-const M_PULSE = 0.712;
-const M_OUT_START = 0.756;
-const M_OUT_END = 0.782;
+// Mobile / no-WebGL beat. There is no warp and no 3D climax on the phone, so
+// the flat mark owns the whole contraction band on its own clock: it strikes on
+// fast, and then the APEX SITS at ~0.66–0.75 — which is where the phone's own
+// capture cadence lands. Previously the write-on ran to 0.70 and the caption to
+// 0.706, so a phone at 0.667 caught a two-thirds-drawn grey wireframe with no
+// type on it: the emptiest frame in the set. It is now the loudest.
+const M_IN_START = 0.624;
+const M_IN_END = 0.644;
+const M_PULSE = 0.67;
+const M_PULSE_SIGMA = 0.014;
+const M_OUT_START = 0.754;
+const M_OUT_END = 0.78;
+const M_CAP: [number, number] = [0.646, 0.662];
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const win = (p: number, a: number, b: number) => smooth(clamp01((p - a) / (b - a)));
@@ -99,26 +105,33 @@ const FLAT = (() => {
   const b = strokeBounds(all);
   const padX = 0.06;
   const padTop = 0.10;
-  // room under the base line for the caption
-  const capGap = 0.30;
-  const capSize = 0.155;
-  const capY = -BASE_Y + capGap + capSize;
+  // room under the base line for the MEASURE: a dimension rule spanning the
+  // mark's own base, ticked at both ends, with the constant set on its left
+  // terminal and the chapter name on its right. This is the scale anchor.
+  const ruleY = -BASE_Y + 0.2;
+  const tick = 0.055;
+  const capGap = 0.13;
+  const capSize = 0.135;
+  const capY = ruleY + capGap + capSize;
   const minY = -b.y1 - padTop;
   const maxY = Math.max(-b.y0, capY + capSize * 0.4) + 0.16;
   const groups: FlatGroup[] = [
-    { key: 'armature', d: join(armature), color: CHALK, a: 0.628, b: 0.66, opacity: 0.94 },
-    { key: 'socket', d: join(socket), color: CHALK, a: 0.64, b: 0.672, opacity: 0.96 },
-    { key: 'lashes', d: join(lashes), color: CHALK, a: 0.652, b: 0.68, opacity: 0.8 },
-    { key: 'iris', d: join(iris), color: RED, a: 0.658, b: 0.686, opacity: 1 },
-    { key: 'glint', d: join(glint), color: CHALK, a: 0.668, b: 0.692, opacity: 0.9 },
-    { key: 'drips', d: join(drips), color: CHALK, a: 0.674, b: 0.7, opacity: 0.4 },
+    { key: 'armature', d: join(armature), color: CHALK, a: 0.626, b: 0.642, opacity: 0.96 },
+    { key: 'socket', d: join(socket), color: CHALK, a: 0.632, b: 0.648, opacity: 0.98 },
+    { key: 'lashes', d: join(lashes), color: CHALK, a: 0.638, b: 0.652, opacity: 0.84 },
+    { key: 'iris', d: join(iris), color: RED, a: 0.642, b: 0.656, opacity: 1 },
+    { key: 'glint', d: join(glint), color: CHALK, a: 0.648, b: 0.66, opacity: 0.92 },
+    { key: 'drips', d: join(drips), color: CHALK, a: 0.65, b: 0.662, opacity: 0.44 },
   ];
   return {
     groups,
     viewBox: `${(b.x0 - padX).toFixed(3)} ${minY.toFixed(3)} ${(b.x1 - b.x0 + padX * 2).toFixed(3)} ${(maxY - minY).toFixed(3)}`,
     capX: BASE_X0,
+    capX1: BASE_X1,
     capY,
     capSize,
+    ruleY,
+    tick,
     aspect: (b.x1 - b.x0 + padX * 2) / (maxY - minY),
   };
 })();
@@ -126,12 +139,14 @@ const FLAT = (() => {
 export function Contraction() {
   const { reducedMotion, isMobile, webglOk } = useJourney();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const lineRef = useRef<HTMLSpanElement>(null);
+  const lineRef = useRef<HTMLDivElement>(null);
   const veilRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const groupRefs = useRef<Record<string, SVGPathElement | null>>({});
-  const capRef = useRef<SVGTextElement>(null);
+  const capRef = useRef<SVGGElement>(null);
+  const ruleRef = useRef<HTMLDivElement>(null);
+  const mRuleRef = useRef<SVGLineElement>(null);
 
   // The 3D path is live only when Cosmos itself mounts the canvas.
   const flat = isMobile || !webglOk || reducedMotion;
@@ -167,29 +182,36 @@ export function Contraction() {
       const svg = svgRef.current;
       if (!wrap || !line || !veil || !mob || !svg) return;
 
-      // ---- the constant: α ≈ 1/137.035999, locked to the mark's base ----
+      // ---- the measure: a dimension rule spanning the mark's own base, with
+      // the constant on its left terminal and the chapter name on its right.
+      // Locked to the projected base every frame, so it IS the scale anchor.
       const tin = win(p, LINE_IN_START, LINE_IN_END);
       const tout = win(p, LINE_OUT_START, LINE_OUT_END);
       let o: number;
       if (reducedMotion) {
-        o = p >= LINE_IN_START && p <= LINE_OUT_END ? 0.85 : 0;
+        o = p >= LINE_IN_START && p <= LINE_OUT_END ? 0.92 : 0;
         line.style.opacity = o.toFixed(3);
         line.style.filter = 'none';
         line.style.transform = 'none';
       } else {
-        o = tin * (1 - tout) * 0.9;
+        o = tin * (1 - tout);
         line.style.opacity = o.toFixed(4);
-        const blur = (1 - tin) * 5 + tout * 7;
+        const blur = (1 - tin) * 4 + tout * 7;
         line.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
-        line.style.transform = `translateY(${((1 - tin) * 10 - tout * 14).toFixed(2)}px)`;
-        line.style.letterSpacing = `${(0.25 + tout * 0.22).toFixed(3)}em`;
+        line.style.transform = `translateY(${((1 - tin) * 12 - tout * 16).toFixed(2)}px)`;
       }
+      // the rule draws itself out from the left terminal as the measure arrives
+      if (ruleRef.current) ruleRef.current.style.transform = `scaleX(${tin.toFixed(4)})`;
       if (!flatRef.current && contraction.live) {
-        // baseline-locked: a golden-ratio gap under the mark's base line,
-        // left-aligned to the base's left corner
-        line.style.left = `${contraction.baseX.toFixed(1)}px`;
-        line.style.width = `${contraction.baseW.toFixed(1)}px`;
-        line.style.top = `${(contraction.baseY + 34).toFixed(1)}px`;
+        // clamped clear of the HUD rail on the right and the phase mark on the
+        // left — the measure can never touch either, at any viewport
+        const sx0 = 56;
+        const sx1 = window.innerWidth - 116;
+        const x0 = Math.max(sx0, contraction.baseX);
+        const x1 = Math.min(sx1, contraction.baseX + contraction.baseW);
+        line.style.left = `${x0.toFixed(1)}px`;
+        line.style.width = `${Math.max(160, x1 - x0).toFixed(1)}px`;
+        line.style.top = `${(contraction.baseY + 40).toFixed(1)}px`;
       }
       const wantWrap = o > 0.001 && !flatRef.current;
       if (wantWrap !== wrapShown) {
@@ -202,14 +224,15 @@ export function Contraction() {
         const min = win(p, M_IN_START, M_IN_END);
         const mout = win(p, M_OUT_START, M_OUT_END);
         const mo = min * (1 - mout);
-        const d = (p - M_PULSE) / 0.012;
+        const d = (p - M_PULSE) / M_PULSE_SIGMA;
         const pulse = reducedMotion ? 0 : Math.exp(-d * d);
         mob.style.opacity = mo.toFixed(4);
         // the same cold → warm ground swing the 3D climax gets
-        const cool = win(p, M_IN_START, M_IN_START + 0.04);
-        const warm = win(p, 0.674, 0.714);
+        const cool = win(p, M_IN_START, M_IN_START + 0.03);
+        const warm = win(p, 0.646, 0.686);
         mob.style.background = mixGround(cool, warm);
-        svg.style.transform = `scale(${(0.965 + min * 0.035 + pulse * 0.03).toFixed(4)})`;
+        // max 1.015 — the pulse must not push the mark's box into the rail reserve
+        svg.style.transform = `scale(${(0.94 + min * 0.045 + pulse * 0.03).toFixed(4)})`;
         for (const g of flatGroups) {
           const el = groupRefs.current[g.key];
           if (!el) continue;
@@ -219,8 +242,10 @@ export function Contraction() {
         }
         const cap = capRef.current;
         if (cap) {
-          const t = reducedMotion ? (p >= 0.706 ? 1 : 0) : win(p, 0.68, 0.706);
-          cap.style.opacity = (t * 0.82 * (1 - win(p, M_OUT_START, M_OUT_START + 0.02))).toFixed(3);
+          const t = reducedMotion ? (p >= M_CAP[1] ? 1 : 0) : win(p, M_CAP[0], M_CAP[1]);
+          cap.style.opacity = (t * 0.92 * (1 - win(p, M_OUT_START, M_OUT_START + 0.02))).toFixed(3);
+          const mr = mRuleRef.current;
+          if (mr) mr.style.transform = `scaleX(${t.toFixed(4)})`;
         }
         const wantMob = mo > 0.002;
         if (wantMob !== mobShown) {
@@ -284,6 +309,14 @@ export function Contraction() {
           opacity: 0,
           visibility: 'hidden',
           pointerEvents: 'none',
+          // THE RAIL IS INVIOLABLE. The flat mark used to be centred in the full
+          // viewport at 95vw, which put its right vertex at x=373.8 on a 390px
+          // phone — straight through the HUD rail's 55px reserve (x≥335). It is
+          // now centred inside a box that clears the rail on the right and the
+          // phase mark on the left, so no vertex can ever reach either.
+          paddingRight: 'clamp(70px, 18vw, 128px)',
+          paddingLeft: 'clamp(16px, 4.5vw, 64px)',
+          boxSizing: 'border-box',
         }}
       >
         <svg
@@ -292,10 +325,11 @@ export function Contraction() {
           preserveAspectRatio="xMidYMid meet"
           fill="none"
           style={{
-            // the mark is wider than it is tall, so on a phone it is the
-            // VIEWPORT WIDTH that binds — fill it, and let the height follow
-            width: `min(${(72 * FLAT.aspect).toFixed(2)}vh, 95vw)`,
-            height: `min(72vh, ${(95 / FLAT.aspect).toFixed(2)}vw)`,
+            // the mark is wider than it is tall, so inside the padded box it is
+            // the WIDTH that binds — fill it, and let the height follow
+            width: `min(100%, ${(70 * FLAT.aspect).toFixed(2)}vh)`,
+            height: 'auto',
+            maxHeight: '70vh',
             overflow: 'visible',
             willChange: 'transform',
           }}
@@ -312,23 +346,67 @@ export function Contraction() {
               style={{ opacity: 0 }}
             />
           ))}
-          <text
-            ref={capRef}
-            x={FLAT.capX}
-            y={FLAT.capY}
-            fill={CHALK}
-            fontFamily={MONO}
-            fontSize={FLAT.capSize}
-            fontWeight={300}
-            letterSpacing="0.25em"
-            style={{ opacity: 0 }}
-          >
-            α ≈ 1/137.035999
-          </text>
+          {/* THE MEASURE — a dimension rule spanning the mark's own base,
+              ticked at both terminals, carrying the constant. It is the scale
+              anchor the apex frame was missing: without it the mark floats at
+              no size at all. */}
+          <g ref={capRef} style={{ opacity: 0 }}>
+            <line
+              ref={mRuleRef}
+              x1={FLAT.capX}
+              y1={FLAT.ruleY}
+              x2={FLAT.capX1}
+              y2={FLAT.ruleY}
+              stroke={RED}
+              strokeWidth={0.012}
+              style={{ transformOrigin: `${FLAT.capX}px ${FLAT.ruleY}px`, transform: 'scaleX(0)' }}
+            />
+            <line
+              x1={FLAT.capX}
+              y1={FLAT.ruleY - FLAT.tick}
+              x2={FLAT.capX}
+              y2={FLAT.ruleY + FLAT.tick}
+              stroke={RED}
+              strokeWidth={0.012}
+            />
+            <line
+              x1={FLAT.capX1}
+              y1={FLAT.ruleY - FLAT.tick}
+              x2={FLAT.capX1}
+              y2={FLAT.ruleY + FLAT.tick}
+              stroke={RED}
+              strokeWidth={0.012}
+            />
+            <text
+              x={FLAT.capX}
+              y={FLAT.capY}
+              fill={CHALK}
+              fontFamily={MONO}
+              fontSize={FLAT.capSize}
+              fontWeight={300}
+              letterSpacing="0.2em"
+            >
+              α ≈ 1/137.035999
+            </text>
+            <text
+              x={FLAT.capX1}
+              y={FLAT.capY}
+              textAnchor="end"
+              fill="#a09890"
+              fontFamily={MONO}
+              fontSize={FLAT.capSize * 0.82}
+              fontWeight={300}
+              letterSpacing="0.24em"
+            >
+              THE CONSTANT
+            </text>
+          </g>
         </svg>
       </div>
 
-      {/* The constant — one mono line, locked to the 3D mark's base. */}
+      {/* THE MEASURE — the constant set on a dimension rule that spans the 3D
+          mark's projected base, ticked at both terminals. Same device as the
+          flat path, same device family as the works' curator captions. */}
       <div
         ref={wrapRef}
         data-phase="contraction"
@@ -341,24 +419,69 @@ export function Contraction() {
           pointerEvents: 'none',
         }}
       >
-        <span
+        <div
           ref={lineRef}
+          data-role="apex-measure"
           style={{
             position: 'absolute',
             left: 0,
             top: '80%',
-            textAlign: 'left',
-            fontFamily: MONO,
-            fontWeight: 300,
-            fontSize: '0.72rem',
-            letterSpacing: '0.25em',
-            color: CHALK,
+            width: '40%',
             opacity: 0,
             willChange: 'opacity, transform, filter',
           }}
         >
-          α ≈ 1/137.035999
-        </span>
+          <div style={{ position: 'relative', height: '1px' }}>
+            <div
+              ref={ruleRef}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: RED,
+                transformOrigin: '0 50%',
+                transform: 'scaleX(0)',
+              }}
+            />
+            <i
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: '-4px',
+                width: '1px',
+                height: '9px',
+                background: RED,
+              }}
+            />
+            <i
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '-4px',
+                width: '1px',
+                height: '9px',
+                background: RED,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              marginTop: '13px',
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: '21px',
+              fontFamily: MONO,
+              fontWeight: 300,
+            }}
+          >
+            <span style={{ fontSize: '0.8rem', letterSpacing: '0.22em', color: CHALK }}>
+              α ≈ 1/137.035999
+            </span>
+            <span style={{ fontSize: '0.62rem', letterSpacing: '0.26em', color: '#a09890' }}>
+              THE CONSTANT
+            </span>
+          </div>
+        </div>
       </div>
     </>
   );

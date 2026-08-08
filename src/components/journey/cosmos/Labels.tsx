@@ -48,6 +48,7 @@ import { phaseProgress } from '../journey-utils';
 import { cosmosShared, rectsOverlap, smoothstep, type ScreenRect } from './shared';
 import { APP_NODES, SLABS, shotMix, type ShotMix } from './cosmos-data';
 import { pushExclusion, resetExclusion } from './exclusion';
+import { appAnchor, makeAppAnchor } from './app-anchor';
 
 /** Which app node the pointer is over (-1 = none). AppsConstellation reads it. */
 export const appHover = { index: -1 };
@@ -103,6 +104,16 @@ const CSS = `
 .cx-app:hover .cx-app-rule { width:26px; opacity:1; }
 .cx-lead { position:absolute; height:1px; transform-origin:0 50%;
            background:rgba(160,168,190,.26); }
+
+/* ---- the SECOND split screen: the same device, inverted ---- */
+/* A hairline on the divide turns the dark half from leftover panel into a
+   measured margin; the plate number fills it at a whisper so the negative
+   space is composed rather than empty. Neither adds a colour. */
+.cx-divide { position:absolute; width:1px; top:0; left:0;
+             background:rgba(232,228,220,.16); }
+.cx-ghost { position:absolute; top:0; left:0; white-space:nowrap;
+            font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
+            letter-spacing:.005em; color:#e8e4dc; }
 `;
 
 interface Label {
@@ -119,6 +130,11 @@ interface ArtLabel extends Label {
   dot: HTMLDivElement;
   title: HTMLDivElement;
   meta: HTMLDivElement;
+  divide: HTMLDivElement;
+  ghost: HTMLDivElement;
+  ghostText: string;
+  ghostW: number;
+  ghostH: number;
   shownIndex: number;
 }
 
@@ -126,9 +142,12 @@ interface AppLabel extends Label {
   lead: HTMLDivElement;
 }
 
-/** Candidate plate offsets (top-left relative to anchor), in preference order. */
-function appCandidates(w: number, h: number, out: number[][]): number[][] {
-  const g = 34;
+/**
+ * Candidate plate offsets (top-left relative to anchor), in preference order.
+ * `g` is the clearance the plate must keep from the anchor — it is the docked
+ * wire's own projected radius plus air, so the name never sits on the solid.
+ */
+function appCandidates(w: number, h: number, out: number[][], g: number): number[][] {
   out.length = 0;
   out.push([g, -h / 2]);
   out.push([-g - w, -h / 2]);
@@ -155,6 +174,7 @@ function rawScroll(): number {
 const scratch = { x0: 0, y0: 0, x1: 0, y1: 0 };
 const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
 const anchorV = new THREE.Vector3();
+const anchorOut = makeAppAnchor();
 const candBuf: number[][] = [];
 const artCands: number[][] = [];
 const mix: ShotMix = { wide: 1, macro: 0, pullback: 0 };
@@ -218,7 +238,13 @@ export function Labels() {
         tick.className = 'cx-tick';
         const dot = document.createElement('div');
         dot.className = 'cx-dot';
-        root.append(body, tick, dot);
+        const divide = document.createElement('div');
+        divide.className = 'cx-divide';
+        divide.style.opacity = '0';
+        const ghost = document.createElement('div');
+        ghost.className = 'cx-ghost';
+        ghost.style.opacity = '0';
+        root.append(divide, ghost, body, tick, dot);
         artRef.current = {
           root,
           body,
@@ -226,6 +252,11 @@ export function Labels() {
           dot,
           title,
           meta,
+          divide,
+          ghost,
+          ghostText: '',
+          ghostW: 0,
+          ghostH: 0,
           w: 0,
           h: 0,
           opacity: 0,
@@ -357,7 +388,16 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
     // raw scroll, so labels must clear the stage on the same clock or a caption
     // can still be up when the sigil starts drawing.
     const rawCp = phaseProgress(rawP, 'contraction');
-    shotMix(phaseProgress(p, 'cosmos'), mix);
+    const cosP = phaseProgress(p, 'cosmos');
+    shotMix(cosP, mix);
+    // THE SPLIT SCREEN MAY NOT BE STATED TWICE THE SAME WAY.
+    // There are exactly two macro shots (cosmos 0.159–0.341 and 0.523–0.727)
+    // and they had pixel-identical type architecture: caption pinned to the top
+    // of the clear column, 550px of dead near-black under it. The second one now
+    // INVERTS — the caption drops to the baseline and runs flush to the safe
+    // right edge, a hairline states the divide, and the plate number fills the
+    // panel at a whisper. Same components, different composition.
+    const secondMacro = cosP > 0.45;
     // At a cut the caption does not slide across the frame — it goes out and
     // comes back at the new anchor. An edit, not a drift.
     const settle = Math.max(mix.wide, mix.macro, mix.pullback);
@@ -436,10 +476,22 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
       }
       const g = CLEAR + heroRect.pad;
       artCands.length = 0;
-      if (isMacro) {
-        // MACRO: the canvas bleeds off three edges and leaves a clear column on
-        // the right. The label lives at the TOP of it — the eye lands high and
-        // right, the opposite corner from the WIDE shot it just left.
+      if (isMacro && secondMacro) {
+        // MACRO II: the axis is mirrored. The caption sits on the BASELINE of
+        // the clear column and runs flush to the safe right edge, so the eye
+        // enters low-right instead of high-left and the panel above it is
+        // measured space rather than leftover.
+        const col = heroRect.x1 + g + 12;
+        artCands.push([Math.max(col, sx1 - art.w), sy1 - art.h]);
+        artCands.push([col, sy1 - art.h]);
+        artCands.push([Math.max(col, sx1 - art.w), sy1 - art.h - 110]);
+        artCands.push([col, sy1 - art.h - 110]);
+        artCands.push([col, sy0 + 30]);
+        artCands.push([sx0, sy1 - art.h]);
+      } else if (isMacro) {
+        // MACRO I: the canvas bleeds off three edges and leaves a clear column
+        // on the right. The label lives at the TOP of it — the eye lands high
+        // and right, the opposite corner from the WIDE shot it just left.
         const col = heroRect.x1 + g + 12;
         artCands.push([col, sy0 + 30]);
         artCands.push([sx1 - art.w, sy0 + 30]);
@@ -515,6 +567,45 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
             art.dot.style.opacity = '0';
           }
 
+          // ---- MACRO II furniture: the divide hairline + the plate number ----
+          if (isMacro && secondMacro) {
+            const dx = Math.round(heroRect.x1 + heroRect.pad + 26);
+            if (dx > sx0 && dx < sx1 - 60) {
+              art.divide.style.transform = `translate(${dx}px, ${sy0}px)`;
+              art.divide.style.height = `${Math.round(sy1 - sy0)}px`;
+              art.divide.style.opacity = '1';
+            } else {
+              art.divide.style.opacity = '0';
+            }
+            const num = `${String(heroIndex + 1).padStart(2, '0')}/${String(
+              SLABS.length,
+            ).padStart(2, '0')}`;
+            if (art.ghostText !== num) {
+              art.ghostText = num;
+              art.ghost.textContent = num;
+              const gr = art.ghost.getBoundingClientRect();
+              art.ghostW = gr.width;
+              art.ghostH = gr.height;
+            }
+            const gx = Math.round(Math.max(dx + 34, x));
+            const gy = Math.round(H * 0.3);
+            if (
+              art.ghostW > 0 &&
+              gx + art.ghostW < sx1 + 12 &&
+              gy + art.ghostH < y - 28
+            ) {
+              art.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
+              art.ghost.style.opacity = '0.085';
+              placed.push({ x0: gx, y0: gy, x1: gx + art.ghostW, y1: gy + art.ghostH });
+              pushExclusion(gx, gy, gx + art.ghostW, gy + art.ghostH);
+            } else {
+              art.ghost.style.opacity = '0';
+            }
+          } else {
+            art.divide.style.opacity = '0';
+            art.ghost.style.opacity = '0';
+          }
+
           art.root.style.opacity = target.toFixed(3);
           art.opacity = target;
           placed.push({ x0: x, y0: y, x1: x + art.w, y1: y + art.h });
@@ -580,19 +671,24 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
         hide(label);
         continue;
       }
+      // ---- THE CALLOUT'S OWN SILHOUETTE MUST BE INSIDE THE SAFE FRAME ----
+      // The chip was placed by candidate offsets, which the safe frame already
+      // guarantees — but the WIREFRAME SOLID it names is a 3D object whose
+      // projection was never checked at all. That is the whole bug: one module
+      // amputated by the left edge, the identical module one shot later sitting
+      // comfortably at x=278. app-anchor.ts docks the node into the same inset
+      // the type obeys and refuses the callout outright when it cannot; the
+      // wire in AppsConstellation reads the same docked point, so chip, leader
+      // and solid are always one object, always whole, on every viewport.
       const node = APP_NODES[i];
-      anchorV.set(node.x, node.y, node.z).project(state.camera);
-      if (anchorV.z > 1) {
+      const anc = appAnchor(node, state.camera, W, H, anchorV, anchorOut);
+      if (!anc.ok) {
         hide(label);
         continue;
       }
-      const ax = (anchorV.x * 0.5 + 0.5) * W;
-      const ay = (-anchorV.y * 0.5 + 0.5) * H;
-      if (ax < -160 || ax > W + 160 || ay < -160 || ay > H + 160) {
-        hide(label);
-        continue;
-      }
-      const cands = appCandidates(label.w, label.h, candBuf);
+      const ax = anc.x;
+      const ay = anc.y;
+      const cands = appCandidates(label.w, label.h, candBuf, Math.max(34, anc.r + 16));
       let done = false;
       for (const [ox, oy] of cands) {
         const x = ax + ox;
@@ -617,7 +713,10 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
         label.root.style.opacity = bestVis.toFixed(3);
         label.opacity = bestVis;
         placed.push({ x0: x, y0: y, x1: x + label.w, y1: y + label.h });
+        // the wire is part of the callout: nothing else may land on it either
+        placed.push({ x0: ax - anc.r, y0: ay - anc.r, x1: ax + anc.r, y1: ay + anc.r });
         pushExclusion(x, y, x + label.w, y + label.h);
+        pushExclusion(ax - anc.r, ay - anc.r, ax + anc.r, ay + anc.r);
         appActive.index = i;
         appActive.o = bestVis;
         done = true;

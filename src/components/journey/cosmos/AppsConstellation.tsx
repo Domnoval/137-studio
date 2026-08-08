@@ -15,6 +15,7 @@ import { phaseProgress } from '../journey-utils';
 import { smoothstep } from './shared';
 import { APP_NODES, shotMix, type AppNode, type ShotMix } from './cosmos-data';
 import { appActive, appHover } from './Labels';
+import { appAnchor, makeAppAnchor } from './app-anchor';
 
 const WIRE_DIM = new THREE.Color('#6a7186');
 const WIRE_HOT = new THREE.Color('#e8e4dc');
@@ -32,8 +33,11 @@ const GEOMETRIES = [
 function Node({ node, index }: { node: AppNode; index: number }) {
   const { progressRef } = useJourney();
   const [hover, setHover] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const heat = useRef(0);
+  const docked = useMemo(() => new THREE.Vector3(node.x, node.y, node.z), [node]);
+  const anchor = useMemo(() => makeAppAnchor(), []);
 
   const material = useMemo(
     () =>
@@ -49,8 +53,16 @@ function Node({ node, index }: { node: AppNode; index: number }) {
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 1 / 20);
     const mesh = meshRef.current;
-    if (!mesh) return;
+    const group = groupRef.current;
+    if (!mesh || !group) return;
     const t = state.clock.elapsedTime;
+
+    // The callout's position is COMPOSED, not inherited: app-anchor docks it
+    // into the same safe frame the type obeys (and refuses it when docking
+    // would be a lie), so the wire can never be cut by a viewport edge or reach
+    // the HUD rail. Labels.tsx reads the identical anchor in the same frame.
+    const anc = appAnchor(node, state.camera, state.size.width, state.size.height, docked, anchor);
+    if (anc.ok) group.position.copy(docked);
     mesh.rotation.x = t * 0.13 + node.phase;
     mesh.rotation.y = t * 0.19 + node.phase;
     mesh.position.y = Math.sin(t * 0.4 + node.phase) * 0.08;
@@ -75,7 +87,9 @@ function Node({ node, index }: { node: AppNode; index: number }) {
     mat.opacity = o;
     mesh.scale.setScalar(1 + heat.current * 0.2);
     // hard unmount at the chapter boundary — nothing here fades into CONTRACTION
-    mesh.visible = p < CHAPTER_END && o > 0.004;
+    // — and never, on any viewport, a wire that a frame edge or the HUD rail
+    // would cut through.
+    mesh.visible = p < CHAPTER_END && o > 0.004 && anc.ok;
   });
 
   const open = (e: ThreeEvent<MouseEvent>) => {
@@ -94,7 +108,7 @@ function Node({ node, index }: { node: AppNode; index: number }) {
   };
 
   return (
-    <group position={[node.x, node.y, node.z]}>
+    <group ref={groupRef} position={[node.x, node.y, node.z]}>
       <mesh ref={meshRef} geometry={GEOMETRIES[node.kind]} material={material} />
       {/* generous invisible hit target */}
       <mesh onClick={open} onPointerOver={over} onPointerOut={out} visible={false}>

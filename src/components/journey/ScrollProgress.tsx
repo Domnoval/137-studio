@@ -7,6 +7,17 @@
 // and a 000-137 depth counter. Label crossfades on phase change (journey.css).
 // Contract kept: `export function ScrollProgress()` — fixed, zIndex 82,
 // pointer-events none, driven by useJourney().progress.
+//
+// THE LIGHT ACT. The rail does not own its own colour any more. Track, unlit
+// ticks, counter and chapter label read the --jp-track / --jp-ink-* tokens
+// declared in journey.css, which Finale scrubs on <html> across the inversion.
+// The counter and the label take SEPARATE ink tokens on purpose: the ground
+// wipes in from the bottom edge, so it reaches the two ends of the rail about
+// half a second apart and one flat value would strand one of them mid-grey.
+// When the ground turns bone the whole gauge redraws dark-on-cream — the rail
+// belongs to the world, not to a reserved black channel cut out of it.
+// Crimson (fill, lit ticks, phase index) is constant: it is legible on both
+// grounds and it is the one colour the system lets stay put.
 
 import { useJourney } from './JourneyContext';
 import { PHASES, PHASE_ORDER, clamp01, type PhaseName } from './journey-utils';
@@ -30,8 +41,11 @@ const INDEX: Record<PhaseName, string> = {
 // Phase boundaries (skip 0): 0.08 / 0.18 / 0.62 / 0.78
 const TICKS = PHASE_ORDER.slice(1).map((name) => PHASES[name].start);
 
-const CHALK_DIM = 'rgba(232, 228, 220, 0.16)';
-const FADED = '#a09890';
+// Ground-aware tokens (journey.css defines the void-ground defaults; Finale
+// interpolates them to their bone-ground values across the inversion).
+const TRACK = 'var(--jp-track, rgba(232, 228, 220, 0.16))';
+const INK_TOP = 'var(--jp-ink-top, #a09890)'; // depth counter
+const INK_BOT = 'var(--jp-ink-bot, #a09890)'; // chapter label
 const RED = '#c41230';
 const MONO = "'JetBrains Mono', monospace";
 
@@ -65,7 +79,7 @@ export function ScrollProgress() {
           fontWeight: 300,
           fontSize: '0.6rem',
           letterSpacing: '0.15em',
-          color: FADED,
+          color: INK_TOP,
           fontVariantNumeric: 'tabular-nums',
           textAlign: 'right',
         }}
@@ -81,7 +95,7 @@ export function ScrollProgress() {
           bottom: 178,
           right: 21,
           width: 2,
-          background: CHALK_DIM,
+          background: TRACK,
         }}
       >
         {/* red fill — the descent */}
@@ -105,7 +119,7 @@ export function ScrollProgress() {
               right: 4,
               width: 8,
               height: 1,
-              background: p >= t ? RED : CHALK_DIM,
+              background: p >= t ? RED : TRACK,
               transition: 'background 0.618s ease',
             }}
           />
@@ -118,7 +132,7 @@ export function ScrollProgress() {
             right: 4,
             width: 8,
             height: 1,
-            background: p >= 0.995 ? RED : CHALK_DIM,
+            background: p >= 0.995 ? RED : TRACK,
             transition: 'background 0.618s ease',
           }}
         />
@@ -137,7 +151,7 @@ export function ScrollProgress() {
           fontSize: '0.6rem',
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
-          color: FADED,
+          color: INK_BOT,
           writingMode: 'vertical-rl',
           whiteSpace: 'nowrap',
         }}

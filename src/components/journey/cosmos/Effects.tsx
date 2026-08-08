@@ -26,12 +26,26 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { Effect, EffectAttribute, BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
 import { contraction } from './contraction-state';
+import { stage } from './stage-state';
+
+/**
+ * Edge aberration borrowed by the DESCENT itself on the fast stretches of the
+ * corridor and through THE DIVE: the standing whisper of channel separation,
+ * opened up about fourfold and pushed further out toward the corners.
+ *
+ * Deliberately NOT the 12-tap radial smear the CONTRACTION uses. That is a
+ * full-screen convolution, and spending it on ~40% of the chapter to buy an
+ * effect nobody should be able to name is the wrong trade — the near-field
+ * passes carry the speed, this only tells the edges of the lens about it.
+ */
+const RUSH_ABERRATION = 2.6;
 
 const GRADE_FRAG = /* glsl */ `
   uniform vec2 uCenter;
   uniform float uWarp;
   uniform float uCool;
   uniform float uVig;
+  uniform float uRush;
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     vec2 d = uv - uCenter;
@@ -41,8 +55,11 @@ const GRADE_FRAG = /* glsl */ `
     vec3 col;
 
     if (uWarp < 0.003) {
-      // resting frame — the standing edge aberration, nothing else
-      vec2 shift = vec2(0.00045, 0.0003 * aspect);
+      // resting frame — the standing edge aberration, opened up on the fast
+      // stretches of the descent (uRush) and nothing else. The radial gate
+      // stays put: this brightens the CORNERS of the lens, it does not creep
+      // inward across the artwork.
+      vec2 shift = vec2(0.00045, 0.0003 * aspect) * uRush;
       float dm = max(distance(uv, vec2(0.5)) * 2.0 - 0.42, 0.0);
       col = vec3(
         texture2D(inputBuffer, uv + shift * dm).r,
@@ -111,6 +128,7 @@ class ContractionGradeEffect extends Effect {
         ['uWarp', new THREE.Uniform(0)],
         ['uCool', new THREE.Uniform(0)],
         ['uVig', new THREE.Uniform(0)],
+        ['uRush', new THREE.Uniform(1)],
       ]),
     });
   }
@@ -120,6 +138,8 @@ class ContractionGradeEffect extends Effect {
     if (c) (c.value as THREE.Vector2).set(contraction.cx, contraction.cy);
     const w = this.uniforms.get('uWarp');
     if (w) w.value = contraction.warp;
+    const rush = this.uniforms.get('uRush');
+    if (rush) rush.value = 1 + stage.rush * (RUSH_ABERRATION - 1);
     const cool = this.uniforms.get('uCool');
     if (cool) cool.value = contraction.cool;
     const vig = this.uniforms.get('uVig');

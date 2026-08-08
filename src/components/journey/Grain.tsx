@@ -8,6 +8,14 @@
 // reads as film grain rather than pixel noise. Static under reduced motion.
 // Contract kept: `export function Grain()` — fixed overlay zIndex 80,
 // pointer-events none, opacity ~0.06.
+//
+// THE LIGHT ACT. Overlay noise is not symmetric about mid-grey: on the void
+// ground it modulates a near-black plate by ~0.6%, on the bone ground of the
+// return it modulates by ~1.8% — the same plate that reads as film on black
+// reads as dirt on cream. So the opacity is a token (--jp-grain, journey.css)
+// that Finale scrubs down across the inversion, which keeps the tooth of the
+// grain constant while the ground turns over. Blend mode never switches: a
+// mid-transit change of blend mode would pop on the wipe edge.
 
 import { useEffect, useRef } from 'react';
 
@@ -100,7 +108,7 @@ export function Grain() {
         height: '100%',
         zIndex: 80,
         pointerEvents: 'none',
-        opacity: 0.06,
+        opacity: 'var(--jp-grain, 0.06)',
         mixBlendMode: 'overlay',
       }}
     />

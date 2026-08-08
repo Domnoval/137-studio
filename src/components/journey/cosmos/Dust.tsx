@@ -26,7 +26,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
-import { smoothstep } from './shared';
+import { cosmosShared, smoothstep } from './shared';
 import { CAM_START_Z, SIGIL_Z } from './cosmos-data';
 import { markTargets, spiralOuterFirst, TRI_CY } from './sigil-form';
 
@@ -72,6 +72,7 @@ const VERT = /* glsl */ `
   uniform float uSpiral;
   uniform float uSigil;
   uniform float uPx;
+  uniform vec2 uSway;
   attribute vec3 aSpiral;
   attribute vec3 aSigil;
   attribute float aSeed;
@@ -93,6 +94,11 @@ const VERT = /* glsl */ `
     pos.x += sin(uTime * 0.11 + aSeed * 43.0) * 0.4 * free;
     pos.y += cos(uTime * 0.08 + aSeed * 67.0) * 0.34 * free;
     pos.z += sin(uTime * 0.05 + aSeed * 23.0) * 0.3 * free;
+    // CURSOR PARALLAX. The layers carry different drift amplitudes because they
+    // sit at genuinely different depths, so pushing them by aDrift separates
+    // them exactly as real parallax would: the near motes slide, the far veil
+    // barely moves. Small on purpose — if it reads as a wobble it is too much.
+    pos.xy -= uSway * aDrift * 0.36 * (1.0 - s1);
     pos = mix(pos, aSpiral, s1);
     pos = mix(pos, aSigil, s2);
     vec4 mv = modelViewMatrix * vec4(pos, 1.0);
@@ -240,6 +246,7 @@ export function Dust() {
         uSpiral: { value: 0 },
         uSigil: { value: 0 },
         uPx: { value: 130 },
+        uSway: { value: new THREE.Vector2(0, 0) },
       },
       transparent: true,
       depthWrite: false,
@@ -261,6 +268,9 @@ export function Dust() {
     m.uniforms.uSpiral.value = smoothstep(0.02, 0.36, cp);
     m.uniforms.uSigil.value = smoothstep(0.38, 0.70, cp);
     m.uniforms.uPx.value = state.size.height * state.viewport.dpr * 0.1;
+    // the spring-damped cursor the camera rig integrates — one source of truth,
+    // so the field and the lens never disagree about where the viewer is
+    (m.uniforms.uSway.value as THREE.Vector2).set(cosmosShared.swayX, cosmosShared.swayY);
   });
 
   return (

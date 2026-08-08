@@ -7,11 +7,24 @@
 // track; inside it a fixed full-viewport stage crossfades five composed
 // frames, each of which owns the whole viewport:
 //
-//   01  Perception is choice.        ┐  four philosophy moments, Cormorant
-//   02  Choices change experience.   │  Garamond 300 at 7vw / 12vw mobile,
-//   03  Experience is the point.     │  set on a fixed editorial grid with a
-//   04  The rest is arithmetic.      ┘  mono index and a red rule above.
+//   01  Matter holds together …      ┐  four philosophy moments, Cormorant
+//   02  No theory derives it. …      │  Garamond 300 at 7.6vw / 13.5vw mobile,
+//   03  Shift it a little …          │  set on a fixed editorial grid with a
+//   04  Which is why we look. …      ┘  mono index and a red rule above.
 //   ——  the closer: name, contact, the colophon plate, the 137 whisper.
+//
+// THE COPY. These four lines used to be the four aphorisms from AGENT-BRIEF —
+// "Perception is choice / Choices change experience / Experience is the point /
+// Love is the answer." True to the source, but at 7.6vw on the climax of the
+// descent they read as fortune-cookie: any site could have said them. Mean-
+// while the site's actual idea — α ≈ 1/137.035999, the thing that gave it its
+// name, its 000→137 counter and its colophon — was buried at 10pt in a footer
+// column. So the constant IS the manifesto now, and the footer's "α ≈
+// 1/137.035999 / the fine-structure constant" stops being the place the idea
+// hides and becomes the caption that names what you just read. The voice of
+// the source is kept — perception, measurement, the choice to look — but it
+// is spent on the one claim only this site can make: the number that makes
+// matter possible is the number nobody can derive.
 //
 // THE INVERSION. This chapter is the one place the ground turns over: the void
 // gives way to a bone (#e8e4dc) plane and the type is set in void black on it,
@@ -20,10 +33,18 @@
 // discipline: bone and void are already the two ends of the system, crimson
 // stays the only accent, no third colour enters.
 //
-// The bone plane stops 55px short of the right edge. That channel belongs to
-// the depth rail (ScrollProgress reserves exactly that width) — the rail is the
-// best-made object on the site and it is not being asked to survive an
-// inverted ground, so the ground goes around it and the gauge keeps its dark.
+// The bone plane is FULL BLEED — every viewport edge. It used to stop 55px
+// short of the right edge to leave the depth rail its own dark channel, which
+// meant the best move in the scroll arrived as a cream panel jammed against a
+// 57px black band with a red line in it: a layout, not a world turning over.
+// The rail survives an inverted ground perfectly well — it just has to be told
+// about it. So this component scrubs the --jp-* chrome tokens on <html>
+// (contract documented in journey.css) and the rail, its ticks, the depth
+// counter, the chapter label, the grain plate and the scrollbar all redraw
+// dark-on-cream with it. Because the ground WIPES rather than fades, those
+// tokens are sampled from the ground under each element rather than from one
+// global number — see the chrome contract in the effect below. The cursor
+// needs no token at all: mix-blend-mode: difference inverts it for free.
 //
 // TIMING. Two rules govern the schedule:
 //   1. Consecutive lines never share a position — 01/03 sit high on the plate,
@@ -55,12 +76,16 @@ const MONO = "'JetBrains Mono', monospace";
 const SERIF = "'Cormorant Garamond', Georgia, serif";
 const CINZEL = "'Cinzel', Georgia, serif";
 
-// The four lines are fixed by the build contract. Do not re-author them.
+/** The manifesto. Four sentences, one argument, told in the order a person
+ *  actually arrives at it: what the number does, that nothing explains it,
+ *  what it costs to move it, and what that leaves us with. See THE COPY above
+ *  — this is the AGENT-BRIEF philosophy made specific, not replaced. Each line
+ *  is set to break to at most two visual lines at 7.6vw / 13.5vw. */
 const LINES = [
-  'Perception is choice.',
-  'Choices change experience.',
-  'Experience is the point.',
-  'Love is the answer.',
+  'Matter holds together at one number: 1/137.035999.',
+  'No theory derives it. It can only be measured.',
+  'Shift it a little and nothing survives to notice.',
+  'Which is why we look. Perception is the instrument.',
 ];
 
 /** [fade-in start, fade-in end, fade-out start, fade-out end] in return-phase time.
@@ -70,19 +95,30 @@ const LINES = [
  *  steep exit ramp (pow 0.32 below) means a frame caught mid-handover shows one
  *  landing line and at most a faint ghost of the one leaving. */
 const CUES: [number, number, number, number][] = [
-  [0.1, 0.128, 0.25, 0.272], // 01 — high (lands as the bone ground completes)
+  [0.08, 0.1, 0.25, 0.272], // 01 — high (strikes on the instant the wipe tops out)
   [0.25, 0.272, 0.425, 0.447], // 02 — low   (hands over from 01)
   [0.425, 0.447, 0.6, 0.622], // 03 — high  (hands over from 02)
   [0.6, 0.622, 0.718, 0.74], // 04 — low   (hands over from 03)
   [0.756, 0.826, 2, 2], // the closer — owns 95→100% and stays
 ];
 
-/** The inversion window, in return-phase time. Both edges land on empty beats.
- *  IN is pulled tight against the first line: the contraction veil is solid at
- *  0.798 global and the ground now completes at 0.806, with 01 landing at 0.808.
- *  The old schedule left ~1% of the track showing a bare half-lit ground with
- *  nothing on it — a flat mid-grey frame that read as a loading state. */
-const GROUND_IN: [number, number] = [0.065, 0.1];
+/** The inversion window, in return-phase time.
+ *
+ *  THE WIPE NOW OVERLAPS BOTH NEIGHBOURS, BECAUSE A GAP EITHER SIDE OF IT IS AN
+ *  EMPTY FRAME. The previous schedule (0.065→0.100, line 01 from 0.100) had the
+ *  sigil's veil finished at global ~0.797 and the first sentence not starting
+ *  until 0.802 — measured at global 0.800 the viewport was a bare cream field
+ *  with nothing on it but the rail. Half a percent of the track, and exactly
+ *  the kind of frame a scrubbing juror stops on.
+ *
+ *  So the bone ground now STARTS while the sigil is still dissolving (r 0.045 =
+ *  global 0.790, veil still at ~0.6 — the ground literally comes up under the
+ *  mark), tops out at r 0.080 = global 0.7976, and line 01 strikes on from that
+ *  instant over a short 0.020 ramp so it is already past 0.7 ink by 0.800 and
+ *  fully rested by 0.802. There is no beat anywhere in the hand-off with an
+ *  empty stage, and the ink still never has to cross the moving wipe edge —
+ *  the ground is whole before the first glyph is legible. */
+const GROUND_IN: [number, number] = [0.045, 0.08];
 const GROUND_OUT: [number, number] = [0.74, 0.756];
 
 /** Ink pair, void-ground → bone-ground. Interpolated with the inversion. */
@@ -90,6 +126,15 @@ const INK_DARK = [232, 228, 220]; // chalk, on void
 const INK_LIGHT = [14, 12, 10]; // void, on bone
 const MUTE_DARK = [160, 152, 144]; // faded, on void
 const MUTE_LIGHT = [56, 51, 46]; // soft void, on bone
+
+/** Rail track hairline: chalk-at-16% on void → void-at-20% on bone. Kept
+ *  translucent rather than resolved to a flat tone so it stays correct across
+ *  the wipe edge, where the plane behind it is two different grounds at once. */
+const TRACK_DARK = [232, 228, 220, 0.16];
+const TRACK_LIGHT = [14, 12, 10, 0.2];
+/** Grain plate: overlay noise bites ~3x harder on bone than on void. */
+const GRAIN_DARK = 0.06;
+const GRAIN_LIGHT = 0.036;
 
 const CSS = `
 .fin-stage {
@@ -100,18 +145,18 @@ const CSS = `
   pointer-events: none;
   --fin-ink: ${CHALK};
   --fin-mute: ${FADED};
-  --fin-rail: 55px;
   --fin-pad-l: clamp(24px, 10vw, 190px);
   --fin-pad-r: clamp(76px, 10vw, 190px);
 }
-/* The inverted ground. Stops short of the depth rail's reserved channel.
+/* The inverted ground. FULL BLEED — it owns every edge of the viewport, and
+   the depth rail redraws on top of it (see the header note on --jp-* tokens).
    It arrives as a WIPE from the bottom edge, never as a cross-fade: fading a
    bone plane up over void spends its whole transit as a flat mid-grey field
    with nothing on it, which reads as a loading screen. A rising edge is a
    move — the ground comes up under you as the descent surfaces. */
 .fin-ground {
   position: absolute;
-  inset: 0 var(--fin-rail) 0 0;
+  inset: 0;
   background: ${CHALK};
   opacity: 0;
   will-change: clip-path;
@@ -301,7 +346,6 @@ const CSS = `
 
 @media (max-width: 767px) {
   .fin-stage {
-    --fin-rail: 36px;
     --fin-pad-l: 25px;
     --fin-pad-r: 61px;
   }
@@ -337,15 +381,14 @@ export function Finale() {
     let interactive: boolean | null = null;
     let lastInv = -1;
     let maxScroll = 1;
+    let viewH = 900;
     let age = 999;
 
     const raw = (): number => {
       if (age++ > 30) {
         age = 0;
-        maxScroll = Math.max(
-          document.documentElement.scrollHeight - window.innerHeight,
-          1,
-        );
+        viewH = Math.max(window.innerHeight, 1);
+        maxScroll = Math.max(document.documentElement.scrollHeight - viewH, 1);
       }
       return clamp01(window.scrollY / maxScroll);
     };
@@ -354,7 +397,49 @@ export function Finale() {
     const win = (t: number, a: number, b: number) => smooth(clamp01((t - a) / (b - a)));
     const mix = (a: number[], b: number[], t: number) =>
       `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`;
+    /** Same, but carrying the alpha channel — for hairlines that must stay
+     *  translucent so they read correctly on BOTH sides of the wipe edge. */
+    const mixa = (a: number[], b: number[], t: number) =>
+      `rgba(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)},${(a[3] + (b[3] - a[3]) * t).toFixed(3)})`;
     const span = end - start;
+
+    // ---- the chrome contract ----
+    // Every fixed element outside this component reads these off <html>.
+    //
+    // The ground does not cross-fade, it WIPES — so for the two beats the edge
+    // is in transit the viewport is genuinely two grounds at once, and a single
+    // global inversion number is wrong for anything that is not at the edge's
+    // own height. Driving the whole rail off it put the depth counter (y≈40) at
+    // 3.1:1 on cream for the length of the exit wipe: the counter was already
+    // standing on bone while the token still thought the world was dark.
+    // So each opaque piece of chrome is inverted by the ground under IT —
+    // coverage sampled at that element's own y — and the translucent hairlines
+    // (rail track, ticks) keep an alpha so they stay correct on both sides of
+    // the edge at once. At rest this collapses to exactly the global value.
+    const SOFT = 90; // px the ink takes to turn over as the edge sweeps past it
+    const root = document.documentElement;
+    const applyChrome = (gin: number, gout: number, inv: number) => {
+      const h = viewH;
+      // The clip is inset(topEdge, botEdge); at rest the live edge is not an
+      // edge at all — the ground simply runs off the viewport — so push it out
+      // of range rather than letting SOFT bleed a false gradient in from it.
+      const topEdge = gin >= 0.999 ? -1e4 : (1 - gin) * h;
+      const botEdge = gout <= 0.001 ? 1e4 : (1 - gout) * h;
+      const cov = (y: number) =>
+        smooth(clamp01((y - topEdge) / SOFT)) * smooth(clamp01((botEdge - y) / SOFT));
+
+      root.style.setProperty('--jp-inv', inv.toFixed(4));
+      // depth counter (top 34px) and chapter label (bottom 34px) sit at opposite
+      // ends of the rail and the wipe reaches them ~600ms apart.
+      root.style.setProperty('--jp-ink-top', mix(MUTE_DARK, MUTE_LIGHT, cov(46)));
+      root.style.setProperty('--jp-ink-bot', mix(MUTE_DARK, MUTE_LIGHT, cov(h - 62)));
+      root.style.setProperty('--jp-track', mixa(TRACK_DARK, TRACK_LIGHT, cov(h * 0.5)));
+      root.style.setProperty(
+        '--jp-grain',
+        (GRAIN_DARK + (GRAIN_LIGHT - GRAIN_DARK) * inv).toFixed(4),
+      );
+      root.classList.toggle('journey-light', inv > 0.5);
+    };
 
     const update = () => {
       const p = raw();
@@ -364,6 +449,13 @@ export function Finale() {
       if (live !== stageShown) {
         stage.style.visibility = live ? 'visible' : 'hidden';
         stageShown = live;
+        // Leaving the chapter (scrolling back up out of it) has to hand the
+        // chrome back to the void ground, or the rail keeps its bone colours
+        // over the cosmos.
+        if (!live) {
+          lastInv = 0;
+          applyChrome(0, 0, 0);
+        }
       }
       if (!live) return;
 
@@ -383,6 +475,7 @@ export function Finale() {
         ground.style.visibility = on ? 'visible' : 'hidden';
         stage.style.setProperty('--fin-ink', mix(INK_DARK, INK_LIGHT, inv));
         stage.style.setProperty('--fin-mute', mix(MUTE_DARK, MUTE_LIGHT, inv));
+        applyChrome(gin, gout, inv);
       }
 
       let closerOpacity = 0;
@@ -425,7 +518,16 @@ export function Finale() {
     };
 
     gsap.ticker.add(update);
-    return () => gsap.ticker.remove(update);
+    return () => {
+      gsap.ticker.remove(update);
+      applyChrome(0, 0, 0);
+      root.style.removeProperty('--jp-inv');
+      root.style.removeProperty('--jp-ink-top');
+      root.style.removeProperty('--jp-ink-bot');
+      root.style.removeProperty('--jp-track');
+      root.style.removeProperty('--jp-grain');
+      root.classList.remove('journey-light');
+    };
   }, [reducedMotion, start, end]);
 
   const restart = () => {

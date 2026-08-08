@@ -4,14 +4,24 @@
 // The designed 2D cosmos for mobile / no-WebGL / reduced-motion.
 //
 // This is not a fallback list — it is the same journey, art-directed for one
-// column. Three decisions carry it:
+// column. Four decisions carry it:
 //
-// 1. ONE COLUMN, TWO TREATMENTS. Every caption starts on the same vertical —
-//    the gutter — and never moves. Every third work breaks LEFT past that
-//    gutter to the screen edge (full bleed); the rest are inset plates at 66%
-//    of the measure. Two treatments, each internally exact: no image ever
-//    lands on an arbitrary margin. Scrolling registers a rhythm (plate, plate,
-//    BLEED) instead of a stack of identical rectangles.
+// 1. FOUR VERTICALS, AND EVERY EDGE LANDS ON ONE OF THEM.
+//    The old layout ran bleed images 0 → 335 while captions started at 28: the
+//    plate bled off the left edge but stopped 27px short of the right, and
+//    neither terminus aligned to anything. The grid is now explicit:
+//      V0 = 0                       the true viewport edge (bleed plates)
+//      V1 = 24px                    type, and the inset plates' left
+//      V2 = V1 + φ⁻¹·(V3−V1)        the inset plates' right terminus
+//      V3 = 100% − 55px             THE TERMINUS. The HUD rail reserves the
+//                                   right 55px on a phone (measured: its fixed
+//                                   container spans x=335→390), and nothing may
+//                                   ever collide with the rail — so the site's
+//                                   right-hand grid line IS the rail's gutter.
+//    Bleed plates run V0→V3 and their captions V1→V3; inset plates run V1→V2
+//    and their captions V1→V2. Image right edge and caption right edge are the
+//    same vertical in both treatments, and the caption's index sits flush on
+//    it, so the alignment is stated rather than implied.
 //
 // 2. THE BAND IS MEASURED IN SCROLL, NOT IN PAGE HEIGHT. `top`/`height` were
 //    percentages of the 700vh track, but journey progress is measured against
@@ -23,7 +33,16 @@
 //    exactly at cosmos.start and the last work clears the frame exactly at
 //    contraction.start — before the sigil draws.
 //
-// 3. THE CAPTION NEVER ORPHANS A WORD. The metadata is broken deliberately at
+// 3. THE PHONE GETS ITS OWN DEPTH DEVICE, not a flattened copy of the dive.
+//    There is no camera here, so the parallax IS the camera: plate and caption
+//    move at different rates against the scroll (they separate and re-converge),
+//    the plate's crop TIGHTENS as it reaches the middle of the frame (a scale
+//    inside a clipped frame — you pass through it, you do not scroll past it),
+//    and its luminance comes up out of the dark on approach and falls back as
+//    it leaves. Distance is expressed as light and rate, exactly as it is in
+//    the 3D corridor. Disabled wholesale under prefers-reduced-motion.
+//
+// 4. THE CAPTION NEVER ORPHANS A WORD. The metadata is broken deliberately at
 //    the support ("acrylic, spray paint, and marker" / "on canvas · 2024 ·
 //    sold") rather than left to wrap, which was stranding '2024' and 'SOLD'
 //    alone on a right-aligned second line.
@@ -62,13 +81,17 @@ function splitMedium(medium: string): [string, string] {
 
 const CSS = `
 .fb-root {
-  --fb-g: 25px;
+  /* the grid — see the header note. V1 = --fb-gut, V3 = 100% - --fb-rail. */
+  --fb-gut: 24px;
   --fb-rail: 55px;
-  --fb-col: min(calc(100% - var(--fb-rail)), 620px);
+  --fb-measure: calc(100% - var(--fb-rail));
+  --fb-type: calc(100% - var(--fb-rail) - var(--fb-gut));
+  --fb-inset: calc(0.618 * (100% - var(--fb-rail) - var(--fb-gut)));
 }
 .fb-plate {
-  width: var(--fb-col);
-  padding-left: var(--fb-g);
+  width: 100%;
+  padding-left: var(--fb-gut);
+  padding-right: var(--fb-rail);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -112,31 +135,44 @@ const CSS = `
 
 .fb-fig {
   margin: 0;
-  width: var(--fb-col);
+  width: 100%;
   cursor: pointer;
+}
+/* the frame CLIPS: the plate scales inside it as it reaches the middle of the
+   viewport, so the crop tightens on approach instead of the layout reflowing */
+.fb-frame {
+  overflow: hidden;
+  display: block;
 }
 .fb-img {
   display: block;
+  width: 100%;
   height: auto;
   filter: saturate(0.94);
+  will-change: transform, filter;
 }
-/* inset plate — starts on the caption's vertical, 66% of the measure */
-.fb-fig--inset .fb-img {
-  width: 66%;
-  margin-left: var(--fb-g);
+/* inset plate — V1 → V2 */
+.fb-fig--inset .fb-frame,
+.fb-fig--inset .fb-cap {
+  margin-left: var(--fb-gut);
+  width: var(--fb-inset);
 }
-/* every third work breaks the gutter and runs to the screen edge */
-.fb-fig--bleed .fb-img {
-  width: 100%;
+/* every third work runs from the true viewport edge to the terminus */
+.fb-fig--bleed .fb-frame {
   margin-left: 0;
+  width: var(--fb-measure);
+}
+.fb-fig--bleed .fb-cap {
+  margin-left: var(--fb-gut);
+  width: var(--fb-type);
 }
 .fb-cap {
-  margin-left: var(--fb-g);
   margin-top: 13px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
+  will-change: transform, opacity;
 }
 .fb-cap-rule {
   display: block;
@@ -145,6 +181,15 @@ const CSS = `
   background: ${RED};
   margin-bottom: 3px;
 }
+/* title flush left on V1, index flush right on the plate's own terminus:
+   the grid is stated by the type, not merely obeyed by it */
+.fb-cap-head {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 13px;
+}
 .fb-title {
   font-family: ${MONO};
   font-size: 0.7rem;
@@ -152,6 +197,14 @@ const CSS = `
   color: ${CHALK};
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+.fb-idx {
+  font-family: ${MONO};
+  font-size: 0.55rem;
+  font-weight: 300;
+  color: ${FADED};
+  letter-spacing: 0.16em;
+  white-space: nowrap;
 }
 .fb-meta {
   font-family: ${MONO};
@@ -166,9 +219,14 @@ const CSS = `
 /* Wide viewports only reach this component through reduced-motion / no-WebGL;
    cap the plates by height there so the column does not become a tower. */
 @media (min-width: 768px) {
+  .fb-root { --fb-gut: 56px; --fb-rail: 104px; }
   .fb-plate h2 { font-size: 6vw; }
-  .fb-img { width: auto; max-width: 100%; max-height: 34vh; }
-  .fb-fig--bleed .fb-img { max-height: 48vh; }
+  .fb-frame { max-height: 34vh; }
+  .fb-fig--bleed .fb-frame { max-height: 48vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-img, .fb-cap { transform: none !important; filter: saturate(0.94) !important; }
 }
 `;
 
@@ -182,9 +240,15 @@ const CSS = `
 const FADE_IN: [number, number] = [0.138, 0.176];
 const FADE_OUT: [number, number] = [0.604, 0.628];
 
+interface Plate {
+  img: HTMLImageElement;
+  cap: HTMLElement;
+}
+
 export function CosmosFallback() {
-  const { setSelectedWork } = useJourney();
+  const { setSelectedWork, reducedMotion } = useJourney();
   const rootRef = useRef<HTMLElement>(null);
+  const platesRef = useRef<(Plate | null)[]>([]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -196,6 +260,36 @@ export function CosmosFallback() {
     const ease = (t: number) => t * t * (3 - 2 * t);
     const win = (p: number, a: number, b: number) => ease(clamp01((p - a) / (b - a)));
 
+    /**
+     * THE PHONE'S CAMERA.
+     * Each plate reports where it sits relative to the middle of the viewport;
+     * that single number drives three separated channels — rate (plate and
+     * caption travel at different speeds, so they part and re-converge), crop
+     * (the plate scales inside a clipping frame, tightening as it passes), and
+     * light (it comes up out of the dark on approach and falls back after).
+     * Together they read as depth rather than as a list scrolling by.
+     */
+    const depth = () => {
+      const vh = window.innerHeight;
+      const plates = platesRef.current;
+      for (let i = 0; i < plates.length; i++) {
+        const pl = plates[i];
+        if (!pl || !pl.img || !pl.cap) continue;
+        const r = pl.img.getBoundingClientRect();
+        if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) continue;
+        // −0.5 (leaving, above) → 0 (dead centre) → +0.5 (arriving, below)
+        const c = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
+        const near = 1 - Math.min(1, Math.abs(c) / 0.62);
+        const approach = near * near * (3 - 2 * near);
+        pl.img.style.transform = `translate3d(0, ${(c * -34).toFixed(2)}px, 0) scale(${(
+          1 + approach * 0.085
+        ).toFixed(4)})`;
+        pl.img.style.filter = `saturate(0.94) brightness(${(0.6 + approach * 0.4).toFixed(3)})`;
+        pl.cap.style.transform = `translate3d(0, ${(c * 30).toFixed(2)}px, 0)`;
+        pl.cap.style.opacity = (0.22 + approach * 0.78).toFixed(3);
+      }
+    };
+
     const update = () => {
       if (age++ > 30) {
         age = 0;
@@ -203,10 +297,11 @@ export function CosmosFallback() {
       }
       const p = clamp01(window.scrollY / maxScroll);
       const o = win(p, FADE_IN[0], FADE_IN[1]) * (1 - win(p, FADE_OUT[0], FADE_OUT[1]));
+      const live = o > 0.003;
+      if (live && !reducedMotion) depth();
       if (Math.abs(o - last) < 0.002) return;
       last = o;
       el.style.opacity = o.toFixed(4);
-      const live = o > 0.003;
       if (live !== shown) {
         el.style.visibility = live ? 'visible' : 'hidden';
         shown = live;
@@ -215,7 +310,7 @@ export function CosmosFallback() {
 
     gsap.ticker.add(update);
     return () => gsap.ticker.remove(update);
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <section
@@ -263,18 +358,33 @@ export function CosmosFallback() {
             className={`fb-fig ${bleed ? 'fb-fig--bleed' : 'fb-fig--inset'}`}
             onClick={() => setSelectedWork(work.id)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              className="fb-img"
-              src={work.file}
-              alt={work.altText}
-              loading="lazy"
-              decoding="async"
-            />
-            <figcaption className="fb-cap">
+            <span className="fb-frame">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                className="fb-img"
+                src={work.file}
+                alt={work.altText}
+                loading="lazy"
+                decoding="async"
+                ref={(node) => {
+                  const slot = (platesRef.current[i] ??= { img: null!, cap: null! });
+                  slot.img = node!;
+                }}
+              />
+            </span>
+            <figcaption
+              className="fb-cap"
+              ref={(node) => {
+                const slot = (platesRef.current[i] ??= { img: null!, cap: null! });
+                slot.cap = node!;
+              }}
+            >
               <i className="fb-cap-rule" aria-hidden />
-              <span className="fb-title">
-                {String(i + 1).padStart(2, '0')} — {work.title}
+              <span className="fb-cap-head">
+                <span className="fb-title">{work.title}</span>
+                <span className="fb-idx">
+                  {String(i + 1).padStart(2, '0')}/{String(SHOWN.length).padStart(2, '0')}
+                </span>
               </span>
               <span className="fb-meta">{materials}</span>
               <span className="fb-meta">

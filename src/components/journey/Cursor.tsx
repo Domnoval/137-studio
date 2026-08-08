@@ -11,6 +11,13 @@
 // INTEGRATION: zIndex raised 85 → 100 so the cursor stays visible above
 // WorkModal (95) — journey.css suppresses the system cursor globally, so any
 // overlay above this layer would otherwise leave the user cursorless.
+//
+// THE LIGHT ACT. The cursor takes no --jp-* token, on purpose: chalk under
+// mix-blend-mode: difference resolves to |ground − chalk|, so on the void it
+// draws chalk and on the bone plane of the return it draws its own near-void
+// inverse — the one piece of chrome that turns over with the world for free.
+// The blend mode is load-bearing, not decorative, and it has to sit on the
+// LAYER rather than on the dot and ring; see the note on the wrapper below.
 
 import { useEffect, useRef, useState } from 'react';
 import { useJourney } from './JourneyContext';
@@ -126,7 +133,25 @@ export function Cursor() {
   if (!active) return null;
 
   return (
-    <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none' }}>
+    <div
+      aria-hidden
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        pointerEvents: 'none',
+        // The blend lives HERE, on the layer, not on the dot and ring. A
+        // positioned element with a z-index creates an isolated stacking
+        // context, so mix-blend-mode on a child blends against that group's
+        // own empty backdrop — i.e. not at all. The cursor was silently
+        // painting flat chalk, which looks correct on the void and vanishes
+        // outright on the return's bone plane (measured 1.01:1 before this).
+        // Blending the whole layer against the page restores the intent: the
+        // cursor is the inverse of whatever it is over, so it inverts with the
+        // light act for free and stays visible over the artwork as well.
+        mixBlendMode: 'difference',
+      }}
+    >
       {/* trailing ring */}
       <div
         ref={ringRef}
@@ -138,7 +163,6 @@ export function Cursor() {
           height: 30,
           border: '1px solid rgba(232, 228, 220, 0.85)',
           borderRadius: '50%',
-          mixBlendMode: 'difference',
           opacity: 0,
           transition: 'opacity 0.3s ease',
           willChange: 'transform',
@@ -153,9 +177,12 @@ export function Cursor() {
           left: 0,
           width: 5,
           height: 5,
-          background: '#e8e4dc',
+          // A hair off chalk on purpose. Difference against the return's bone
+          // plane — which IS chalk — would otherwise resolve to #000000, and
+          // the system has no pure black in it. At #e2dfd8 the dot inverts to
+          // a warm near-void on bone and still reads as chalk on the void.
+          background: '#e2dfd8',
           borderRadius: '50%',
-          mixBlendMode: 'difference',
           opacity: 0,
           transition: 'opacity 0.3s ease',
           willChange: 'transform',

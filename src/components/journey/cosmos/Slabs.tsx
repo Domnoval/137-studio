@@ -30,6 +30,7 @@ import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress, texPath } from '../journey-utils';
 import { cosmosShared, easeInOut, ensureSlabRects, smoothstep } from './shared';
+import { addFormBounds, stage as stageState } from './stage-state';
 import {
   SLABS,
   SIGIL_Z,
@@ -40,11 +41,19 @@ import {
   FORMATION_W,
   FORMATION_H,
   FORMATION_ITEM,
+  VANTAGE_IN,
+  VANTAGE_OUT,
+  VANTAGE_D,
+  VANTAGE_PITCH,
+  VANTAGE_YAW,
+  VANTAGE_RISE,
   shotMix,
   type ShotMix,
   type SlabPlacement,
 } from './cosmos-data';
 import { getGlowTexture } from './textures';
+import { NearPass } from './NearPass';
+import { FormationPlate } from './FormationPlate';
 
 const FRAME_PAD = 0.14; // dark frame border in world units
 const VANISH = new THREE.Vector3(0, 0, SIGIL_Z - 26);
@@ -109,13 +118,13 @@ const unitPlane = new THREE.PlaneGeometry(1, 1);
 const GLOW_COLOR = new THREE.Color('#c41230').multiplyScalar(1.85);
 const FRAME_COLOR = new THREE.Color('#161311');
 
-const tmpEuler = new THREE.Euler();
+const tmpEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const tmpQuat = new THREE.Quaternion();
+const poseQuat = new THREE.Quaternion();
+const macroQuat = new THREE.Quaternion();
+const formQuat = new THREE.Quaternion();
 const tiltQuat = new THREE.Quaternion();
 const tmpVec = new THREE.Vector3();
-/** Slabs are XY quads and the camera looks down -Z, so "facing the viewer" is
- *  simply the identity rotation. */
-const FLAT_QUAT = new THREE.Quaternion();
 const CORNERS: [number, number][] = [
   [-1, -1],
   [1, -1],
@@ -366,18 +375,48 @@ function SlabArt({ placement }: SlabProps) {
       ps = THREE.MathUtils.lerp(ps, macroScale, macroW);
     }
 
-    /* ---- PULL-BACK: fly into the composed triangle ahead of the camera ---- */
+    /* ---- PULL-BACK: fly into the composed triangle ahead of the camera ----
+     * TWO MOVEMENTS, not one. First the figure is read square-on (the composed
+     * triangle). Then `thru` takes over: the rig drops BELOW the formation and
+     * closes on it, the plane rakes back and yaws off-axis, and every work in
+     * it turns with the plane — so the second look at the formation is a
+     * different vantage rather than the same frame with a motion pass. The
+     * works nearest the base shear past the bottom of the frame as we come up
+     * underneath them. */
     const posW = smoothstep(0.15, 0.5, pbW);
+    const thru = smoothstep(VANTAGE_IN, VANTAGE_OUT, cosP);
+    // plane pose, shared by the layout AND by every quad standing in it
+    const planePitch = VANTAGE_PITCH * thru;
+    const planeYaw = VANTAGE_YAW * thru;
+    if (index === 0) {
+      stageState.formW = pbW;
+      stageState.formThru = thru;
+    }
     if (posW > 0.001) {
-      const fH = 2 * FORMATION_D * Math.tan((cam.fov * Math.PI) / 360);
-      const fW = fH * cam.aspect;
-      const fx = cam.position.x + slot.fx * fW * FORMATION_W;
-      const fy = cam.position.y + slot.fy * fH * FORMATION_H;
-      const fz = cam.position.z - FORMATION_D;
+      // footprint stays fixed in WORLD units while the distance closes, so the
+      // formation genuinely grows in frame instead of being angularly pinned
+      const baseH = 2 * FORMATION_D * Math.tan((cam.fov * Math.PI) / 360);
+      const baseW = baseH * cam.aspect;
+      const dist = THREE.MathUtils.lerp(FORMATION_D, VANTAGE_D, thru);
+      // slot position in the formation plane, then rake it (X) and yaw it (Y)
+      const lx = slot.fx * baseW * FORMATION_W;
+      const ly = slot.fy * baseH * FORMATION_H;
+      const cx = Math.cos(planePitch);
+      const sx = Math.sin(planePitch);
+      const ry = ly * cx;
+      const rz = ly * sx; // pitch < 0 → the apex rakes AWAY from the lens
+      const cy = Math.cos(planeYaw);
+      const sy = Math.sin(planeYaw);
+      const rx = lx * cy + rz * sy;
+      const rz2 = -lx * sy + rz * cy;
+
+      const fx = cam.position.x + rx;
+      const fy = cam.position.y + ry + VANTAGE_RISE * baseH * thru;
+      const fz = cam.position.z - dist + rz2;
       px = THREE.MathUtils.lerp(px, fx, posW);
       py = THREE.MathUtils.lerp(py, fy, posW);
       pz = THREE.MathUtils.lerp(pz, fz, posW);
-      ps = THREE.MathUtils.lerp(ps, (fH * FORMATION_ITEM) / h, posW);
+      ps = THREE.MathUtils.lerp(ps, (baseH * FORMATION_ITEM) / h, posW);
     }
 
     g.position.set(
@@ -388,10 +427,35 @@ function SlabArt({ placement }: SlabProps) {
     const s = Math.max(0.001, ps * (1 - recEase * 0.999));
     g.scale.setScalar(s);
 
-    // ---- orientation: the subject turns to face the viewer as it takes the
-    // frame (also removes the yaw foreshortening the containment solves against)
-    const flat = Math.max(stage * 0.6, macroW, posW);
-    tmpQuat.copy(baseQuat.current).slerp(FLAT_QUAT, flat);
+    // ---- orientation: the subject does NOT turn square-on. It takes its own
+    // pose — ~17-25° of yaw, ~6-9° of pitch, alternating sign per index — so a
+    // painting owning the frame is a volume standing in a space and its
+    // perspective shears as the rig passes it. Consecutive WIDE beats shear in
+    // opposite directions, which is what stops two establishing shots taken
+    // 15% of the journey apart from reading as the same card field.
+    tmpEuler.set(placement.pitch, placement.yaw, placement.roll);
+    poseQuat.setFromEuler(tmpEuler);
+    tmpQuat.copy(baseQuat.current).slerp(poseQuat, Math.min(1, stage * 0.94));
+    // MACRO is a detail crop — the canvas plane comes close to square, but not
+    // dead flat: a residual ~5° keeps the surface reading as a surface.
+    if (macroW > 0.001) {
+      tmpEuler.set(placement.pitch * 0.3, placement.yaw * 0.26, placement.roll * 0.4);
+      macroQuat.setFromEuler(tmpEuler);
+      tmpQuat.slerp(macroQuat, macroW);
+    }
+    // PULL-BACK: every work stands IN the formation plane, so when the plane
+    // rakes and yaws for the second vantage the whole triangle turns as one
+    // body — plus a small per-work deviation so it is a constellation of
+    // oriented objects, not a sheet of stickers.
+    if (posW > 0.001) {
+      tmpEuler.set(
+        planePitch + placement.fPitch,
+        planeYaw + placement.fYaw,
+        placement.fRoll,
+      );
+      formQuat.setFromEuler(tmpEuler);
+      tmpQuat.slerp(formQuat, posW);
+    }
     // inertial tilt toward cursor (max ~4° on the hero)
     a.tilt = THREE.MathUtils.damp(a.tilt, isNearest ? 0.07 : 0.022, 3, dt);
     tmpEuler.set(-cosmosShared.swayY * a.tilt, cosmosShared.swayX * a.tilt, 0);
@@ -535,6 +599,15 @@ function SlabArt({ placement }: SlabProps) {
     if (!visible || recEase > 0.02 || inFormation) {
       // no captions and no chips over the composed triangle: nothing to test
       rect.live = false;
+      // …but the formation still has to be MEASURED, because the plate that
+      // names it places itself against these bounds. Publish the union of the
+      // projected quads so the caption can never land on paint.
+      if (inFormation && visible && recEase < 0.02) {
+        g.updateWorldMatrix(true, false);
+        if (projectQuad(g.matrixWorld, w / 2, h / 2, cam, state.size.width, state.size.height)) {
+          addFormBounds(t, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
+        }
+      }
       return;
     }
     g.updateWorldMatrix(true, false);
@@ -626,6 +699,13 @@ export function Slabs() {
           <SlabArt placement={placement} />
         </Suspense>
       ))}
+      {/* near-field passes: canvases that blow through the periphery */}
+      <Suspense fallback={null}>
+        <NearPass />
+      </Suspense>
+      {/* the plate that names the composed formation — the caption track has
+          to survive the beat it was previously dropped for */}
+      <FormationPlate />
     </group>
   );
 }

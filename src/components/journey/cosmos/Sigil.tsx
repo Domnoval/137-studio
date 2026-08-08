@@ -3,7 +3,7 @@
 // cosmos/Sigil.tsx — the CONTRACTION climax (62–78%).
 //
 // The beat, in order:
-//   1. THE WARP (60–69%). The corridor turns into velocity. Several hundred
+//   1. THE WARP (60–71%). The corridor turns into velocity. Several hundred
 //      streaks fall inward along golden-spiral trajectories — every one with
 //      its own speed, so trail length spreads ~10x — rendered as tapered
 //      screen-space ribbons: bright head, vanishing tail, 0.5–2.5px depending
@@ -13,12 +13,13 @@
 //      The camera axis, the streak convergence point and the post-chain's
 //      warp centre are all published from ONE point (this group's centre), so
 //      the whole frame — receding artwork included — reads as one motion.
-//   2. THE RESOLUTION (68–73%). The streaks land and the mark writes itself
+//   2. THE RESOLUTION (71–76.5%). The streaks land and the mark writes itself
 //      on in struck chalk: the armature, then Michael's own eye (socket, brow,
 //      filaments, off-centre iris, catchlight), then the drips. Nothing cuts.
-//   3. HOLD + PULSE (72.8–75.2%) — the finished mark stands still for a real
-//      beat — then from 75.2% it rushes the camera and DISSOLVES into the dust
-//      copy of itself, which the veil then closes over into RETURN.
+//   3. APEX (76.3–77.2%) — the finished mark stands still at full luminance
+//      and full scale with the constant measured off its own base — then from
+//      77.2% it rushes the camera and DISSOLVES into the dust copy of itself,
+//      which the veil then closes over into RETURN.
 //
 // Progress is read RAW from the scroll position (Lenis already smooths the
 // scroll itself); the context's extra per-frame lerp is frame-rate dependent
@@ -64,21 +65,33 @@ function rawProgress(): number {
 
 // Starts BEFORE the contraction phase boundary on purpose: the last painting is
 // still dissolving at 0.60, so the warp takes the frame over from it instead of
-// leaving a dead beat between them. cp = (p - 0.6) / 0.165.
+// leaving a dead beat between them. cp = (p - 0.6) / 0.19.
 const C_START = 0.6;
-// The write-on is compressed so the finished mark actually gets a BEAT to
-// stand in. With span 0.165 the last strokes landed at 0.7485 and the rush
-// began at 0.748 — the completed sigil existed for ~0 scroll and every capture
-// caught it either half-drawn or already blown past the camera.
-const C_SPAN = 0.142; // mark complete ~0.728, pulse 0.723
-const RUSH_START = 0.752; // → a real 2.4% hold at full size
-const RUSH_SPAN = 0.03;
+// ONE APEX, NOT TWO.
+// The climax used to write itself on across 0.60–0.73 and hold to 0.752, which
+// put a HALF-DRAWN, low-luminance triangle-and-eye on screen at ~69% and the
+// finished one at ~77% — the same image, stated twice, the first time weakly.
+// The span is now stretched so the two beats are different pictures:
+//   0.60–0.71  THE WARP. Velocity only: hundreds of tapered streaks falling in
+//              on golden-spiral trajectories with the spiral itself sweeping
+//              the whole frame. No mark. Nothing to restate.
+//   0.70–0.76  the mark strikes itself on.
+//   0.76–0.78  THE APEX (a real ~2% beat, ~14vh of scroll) — full luminance, full scale, the constant set on it
+//              as a measured dimension line (Contraction.tsx). This is the
+//              loudest frame in the site and it happens exactly once.
+//   0.78–0.80  rush + dissolve, veil closes, hand-off to RETURN.
+const C_SPAN = 0.19;
+const RUSH_START = 0.78;
+const RUSH_SPAN = 0.022;
 
-const HOLD_DIST = 7.2; // world units → the mark reads ~62% of viewport height
+// world units → the mark reads ~74% of viewport height (was 7.2 ≈ 62%). The
+// apex is allowed to be the biggest thing on the site; at this distance the
+// triangle still clears the HUD rail by >290px on a 1440 frame.
+const HOLD_DIST = 6.6;
 const FAR_DIST = 34;
 
-const PULSE_AT = 0.865;
-const PULSE_SIGMA = 0.032;
+const PULSE_AT = 0.86;
+const PULSE_SIGMA = 0.03;
 
 const CHALK = new THREE.Color('#e8e4dc');
 const RED = new THREE.Color('#c41230');
@@ -96,7 +109,11 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const STREAKS = 340;
 const SEG = 14;
-const STAG_MAX = 0.36;
+// The launch window is wide so the warp is a CONTINUOUS gradient of streaks —
+// some just landing, some mid-flight with long trails, some still leaving the
+// rim — rather than one synchronised volley that is over in a blink. With the
+// stretched span this is what carries the 69% frame on its own.
+const STAG_MAX = 0.62;
 
 function mulberry(seed: number) {
   let a = seed >>> 0;
@@ -217,7 +234,7 @@ export function Sigil() {
       const stag = rnd() * STAG_MAX;
       const vel = 0.1 + Math.pow(rnd(), 2) * 0.9; // 10x length spread
       const depth = 1 - Math.min(1, (r0 - 6.5) / 23);
-      const hw = Math.min(1.25, Math.max(0.25, 0.26 + depth * 0.55 + vel * 0.45));
+      const hw = Math.min(2.3, Math.max(0.45, 0.5 + depth * 1.0 + vel * 0.8));
       const red = rnd() < 0.08 ? 1 : 0;
 
       const base = vi;
@@ -409,10 +426,32 @@ export function Sigil() {
     // ---- publish the beat: ground temperature + the post-chain warp ----
     // Warp peaks through the velocity phase and is fully off before the mark
     // resolves, so the climax itself is never smeared.
-    const warp = smoothstep(0.02, 0.34, cp) * (1 - smoothstep(0.50, 0.72, cp));
-    const beat = smoothstep(0.56, 0.82, cp);
-    contraction.warp = visible ? warp * (1 - rush) : 0;
-    contraction.cool = visible ? smoothstep(0.0, 0.28, cp) * (1 - beat * 0.5) * (1 - rush) : 0;
+    // The warp POST effect desaturates by up to .76 and multiplies the frame
+    // down by up to ~.5 while it smears — held at full strength across the
+    // middle of the beat it made 69% the dimmest picture in the site (p99
+    // luminance 57/255). It is now a short accent on the ENTRY to the velocity,
+    // and the streak geometry — which is lit, not smeared — carries the speed
+    // for the rest of it.
+    //
+    // ONSET IS GATED PAST THE COSMOS, NOT PAST THE PHASE NUMBER.
+    // The warp used to open at cp≈0.02 (p≈0.604). THE COSMOS's last beat — the
+    // formation's low, raking second vantage — is still fully composed and on
+    // screen until p=0.62, so a 12-tap radial smear plus a .17 desaturation was
+    // landing ON fifteen sharp canvases: at 61.5% every work in the formation
+    // read soft and cold, like a render that had not finished. The velocity
+    // beat now starts at cp=0.13 (p≈0.625), AFTER the corridor has handed over,
+    // and the tail is pulled in to match so the mark still strikes onto a clean
+    // frame. Nothing about the beat's shape changes — it is the same accent on
+    // the entry to the velocity, moved off the picture it was smearing.
+    const WARP_IN = 0.13;
+    const warp = smoothstep(WARP_IN, 0.28, cp) * (1 - smoothstep(0.3, 0.48, cp));
+    const beat = smoothstep(0.66, 0.86, cp);
+    // capped: at full strength the warp smear ate every edge in the frame and
+    // left 69% the dimmest picture in the site (p99 luminance 57/255). Velocity
+    // has to be legible to read as velocity.
+    contraction.warp = visible ? warp * 0.85 * (1 - rush) : 0;
+    contraction.cool =
+      visible ? 0.62 * smoothstep(WARP_IN, WARP_IN + 0.24, cp) * (1 - beat * 0.5) * (1 - rush) : 0;
     contraction.vig = visible ? beat * fade : 0;
 
     g.visible = visible;
@@ -469,25 +508,30 @@ export function Sigil() {
     }
 
     // ---- the warp streaks ----
-    live.streakMat.uniforms.uBase.value = smoothstep(0.02, 0.74, cp);
-    live.streakMat.uniforms.uOpacity.value = 0.9 * smoothstep(0.01, 0.11, cp) * fade;
+    // Eased rather than smoothstepped so the field is still visibly IN FLIGHT
+    // through the middle of the warp instead of having already landed.
+    live.streakMat.uniforms.uBase.value = Math.pow(clamp01((cp - 0.06) / 0.72), 1.5);
+    live.streakMat.uniforms.uOpacity.value =
+      2.6 * smoothstep(0.01, 0.09, cp) * (1 - smoothstep(0.7, 0.86, cp)) * fade;
 
     // ---- the golden spiral: grows across the frame, winds onto the eye ----
     // apparent size is held roughly constant while the dolly closes, so it
     // reads as one continuous form tightening rather than a distant squiggle
-    const resolve = smoothstep(0.06, 0.52, cp);
-    const spiralScale = (dist / HOLD_DIST) * lerp(2.95, 2.45, resolve);
+    const resolve = smoothstep(0.25, 0.78, cp);
+    const spiralScale = (dist / HOLD_DIST) * lerp(5.6, 2.15, resolve);
     live.spiral.mesh.scale.setScalar(spiralScale);
     // It only becomes visible once it is already more than half drawn. Fading
     // it up from cp 0.01 put a lone 20%-drawn grey arc across a still-sharp
     // corridor at 61.5% — it read as a stray line, not as a spiral.
-    live.spiral.material.uniforms.uDraw.value = smoothstep(0.06, 0.4, cp);
-    live.spiral.material.uniforms.uWidth.value = 0.8;
+    live.spiral.material.uniforms.uDraw.value = smoothstep(0.04, 0.34, cp);
+    live.spiral.material.uniforms.uWidth.value = 1.4;
     live.spiral.material.uniforms.uOpacity.value =
-      0.46 * smoothstep(0.1, 0.26, cp) * (1 - smoothstep(0.46, 0.68, cp)) * fade;
+      1.0 * smoothstep(0.08, 0.22, cp) * (1 - smoothstep(0.54, 0.74, cp)) * fade;
 
-    // ---- the mark writes itself on (68% → 73%) ----
-    const flash = 1 + pulse * 0.55;
+    // ---- the mark strikes itself on (71% → 76.5%) ----
+    // `beat` also lifts the chalk: at the apex this is struck chalk at full
+    // luminance, not a 12%-grey wireframe.
+    const flash = (1 + pulse * 0.34) * (1 + 0.16 * beat);
     const setStroke = (
       r: { material: THREE.ShaderMaterial },
       draw: number,
@@ -501,32 +545,32 @@ export function Sigil() {
       (r.material.uniforms.uColor.value as THREE.Color).copy(color).multiplyScalar(flash);
     };
 
-    const chalkOn = (0.62 + 0.38 * smoothstep(0.4, 0.72, cp)) * fade;
-    setStroke(live.armature, smoothstep(0.36, 0.66, cp), chalkOn, 1 + pulse * 0.7, CHALK);
-    setStroke(live.socket, smoothstep(0.44, 0.72, cp), chalkOn, 1 + pulse * 0.7, CHALK);
-    setStroke(live.lashes, smoothstep(0.56, 0.78, cp), chalkOn * 0.88, 1 + pulse * 0.5, CHALK);
-    setStroke(live.iris, smoothstep(0.60, 0.79, cp), 0.95 * smoothstep(0.58, 0.72, cp) * fade, 1 + pulse * 0.9, RED);
-    setStroke(live.glint, smoothstep(0.70, 0.82, cp), 0.9 * smoothstep(0.68, 0.8, cp) * fade, 1 + pulse * 0.4, CHALK);
-    setStroke(live.drips, smoothstep(0.74, 0.9, cp), chalkOn * 0.6, 1, CHALK);
+    const chalkOn = (0.7 + 0.3 * smoothstep(0.6, 0.84, cp)) * fade;
+    setStroke(live.armature, smoothstep(0.54, 0.7, cp), chalkOn, 1.12 + pulse * 0.7, CHALK);
+    setStroke(live.socket, smoothstep(0.58, 0.74, cp), chalkOn, 1.12 + pulse * 0.7, CHALK);
+    setStroke(live.lashes, smoothstep(0.63, 0.78, cp), chalkOn * 0.9, 1.06 + pulse * 0.5, CHALK);
+    setStroke(live.iris, smoothstep(0.66, 0.8, cp), 0.98 * smoothstep(0.64, 0.78, cp) * fade, 1.15 + pulse * 0.9, RED);
+    setStroke(live.glint, smoothstep(0.72, 0.82, cp), 0.95 * smoothstep(0.7, 0.81, cp) * fade, 1 + pulse * 0.4, CHALK);
+    setStroke(live.drips, smoothstep(0.74, 0.84, cp), chalkOn * 0.62, 1, CHALK);
     // the iris burns: push past 1.0 at the pulse so ONLY this blooms
-    (live.iris.material.uniforms.uColor.value as THREE.Color).copy(RED).multiplyScalar(1 + pulse * 1.7);
+    (live.iris.material.uniforms.uColor.value as THREE.Color).copy(RED).multiplyScalar(1.14 + pulse * 0.72);
 
     // ---- residual dust formation ON the mark ----
-    live.formMat.opacity = 0.44 * smoothstep(0.5, 0.74, cp) * fade;
+    live.formMat.opacity = 0.5 * smoothstep(0.66, 0.86, cp) * fade;
     live.formMat.color.copy(CHALK).multiplyScalar(1 + pulse * 0.5);
 
     // ---- red halo: only the pulse, and barely there ----
-    live.haloMat.opacity = pulse * 0.10 * fade;
+    live.haloMat.opacity = pulse * 0.055 * fade;
 
     // ---- the ground closing in behind the mark, and its temperature ----
-    const warmT = smoothstep(0.5, 0.86, cp);
+    const warmT = smoothstep(0.62, 0.92, cp);
     groundCol.set(
       lerp(GROUND_COLD[0], GROUND_WARM[0], warmT),
       lerp(GROUND_COLD[1], GROUND_WARM[1], warmT),
       lerp(GROUND_COLD[2], GROUND_WARM[2], warmT),
     );
     (live.maskMat.uniforms.uColor.value as THREE.Vector3).copy(groundCol);
-    live.maskMat.uniforms.uOpacity.value = smoothstep(0.30, 0.74, cp) * fade;
+    live.maskMat.uniforms.uOpacity.value = smoothstep(0.42, 0.8, cp) * fade;
     live.mask.scale.setScalar(Math.max(dist + 2.5, 1) * 4.6);
   });
 
