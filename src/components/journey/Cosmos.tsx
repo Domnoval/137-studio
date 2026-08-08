@@ -17,6 +17,7 @@ import { PHASES, clamp01 } from './journey-utils';
 import { cosmosShared } from './cosmos/shared';
 import { CAM_START_Z } from './cosmos/cosmos-data';
 import { CameraRig } from './cosmos/CameraRig';
+import { Labels } from './cosmos/Labels';
 import { Slabs } from './cosmos/Slabs';
 import { Dust } from './cosmos/Dust';
 import { Sigil } from './cosmos/Sigil';
@@ -111,8 +112,10 @@ export function Cosmos() {
         gl={{ antialias: true, powerPreference: 'high-performance', alpha: false }}
         camera={{ fov: 55, near: 0.1, far: 160, position: [0, 0, CAM_START_Z] }}
         onCreated={({ gl, scene }) => {
-          gl.setClearColor('#0e0c0a', 1);
-          scene.fog = new THREE.FogExp2('#0e0c0a', 0.0135);
+          gl.setClearColor('#0d0c0d', 1);
+          // dense enough that slabs deep in the corridor read as atmosphere
+          // rather than as a competing wall of thumbnails
+          scene.fog = new THREE.FogExp2('#0d0c0d', 0.024);
         }}
         style={{ width: '100%', height: '100%' }}
       >
@@ -122,8 +125,25 @@ export function Cosmos() {
         <Glyphs />
         <AppsConstellation />
         <Sigil />
+        <Labels />
         <Effects />
       </Canvas>
+      {/* Occlusion-aware label layer. Lives OUTSIDE the canvas so captions are
+          crisp DOM type; Labels.tsx (inside the canvas) drives it imperatively
+          via cosmosShared.labelLayer. */}
+      <div
+        ref={(el) => {
+          cosmosShared.labelLayer = el;
+        }}
+        aria-hidden={false}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 2,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
     </div>
   );
 }

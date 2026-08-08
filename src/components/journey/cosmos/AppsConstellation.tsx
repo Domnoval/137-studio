@@ -1,33 +1,34 @@
 'use client';
 
 // cosmos/AppsConstellation.tsx — OWNED BY COSMOS agent.
-// The 6 apps as small wireframe polyhedron nodes between the slab clusters.
-// JetBrains Mono <Html> labels, distance-gated so only nearby waypoints
-// announce themselves. Hover brightens the wire; click opens the app.
+// The 6 apps as small wireframe polyhedron nodes out in the periphery of the
+// corridor. They carry NO text: their naming lives entirely in the bracketed
+// plates driven by Labels.tsx, which keeps the app catalog visually separate
+// from the painting captions and guarantees the plates never sit on artwork.
+// Hovering either the wire or its plate lights both.
 
 import { useMemo, useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
-import { cosmosShared, smoothstep } from './shared';
+import { smoothstep } from './shared';
 import { APP_NODES, type AppNode } from './cosmos-data';
+import { appHover } from './Labels';
 
-const WIRE_DIM = new THREE.Color('#5a5f72');
+const WIRE_DIM = new THREE.Color('#6a7186');
 const WIRE_HOT = new THREE.Color('#e8e4dc');
 
 const GEOMETRIES = [
-  new THREE.IcosahedronGeometry(0.34, 0),
-  new THREE.OctahedronGeometry(0.4, 0),
-  new THREE.TetrahedronGeometry(0.46, 0),
+  new THREE.IcosahedronGeometry(0.26, 0),
+  new THREE.OctahedronGeometry(0.3, 0),
+  new THREE.TetrahedronGeometry(0.34, 0),
 ];
 
-function Node({ node }: { node: AppNode }) {
+function Node({ node, index }: { node: AppNode; index: number }) {
   const { progressRef } = useJourney();
   const [hover, setHover] = useState(false);
   const meshRef = useRef<THREE.Mesh>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
   const heat = useRef(0);
 
   const material = useMemo(
@@ -36,7 +37,7 @@ function Node({ node }: { node: AppNode }) {
         color: WIRE_DIM.clone(),
         wireframe: true,
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.42,
       }),
     [],
   );
@@ -48,100 +49,43 @@ function Node({ node }: { node: AppNode }) {
     const t = state.clock.elapsedTime;
     mesh.rotation.x = t * 0.13 + node.phase;
     mesh.rotation.y = t * 0.19 + node.phase;
-    mesh.position.y = node.y + Math.sin(t * 0.4 + node.phase) * 0.08;
+    mesh.position.y = Math.sin(t * 0.4 + node.phase) * 0.08;
 
-    heat.current = THREE.MathUtils.damp(heat.current, hover ? 1 : 0, 6, dt);
+    const lit = hover || appHover.index === index;
+    heat.current = THREE.MathUtils.damp(heat.current, lit ? 1 : 0, 6, dt);
     const mat = mesh.material as THREE.MeshBasicMaterial;
     mat.color.copy(WIRE_DIM).lerp(WIRE_HOT, heat.current);
     const cp = phaseProgress(progressRef.current ?? 0, 'contraction');
     const contractFade = 1 - smoothstep(0, 0.25, cp);
-    mat.opacity = (0.45 + heat.current * 0.55) * contractFade;
-    const s = 1 + heat.current * 0.18;
-    mesh.scale.setScalar(s);
-
-    // label visibility: only while the camera is approaching/passing this node
-    if (labelRef.current) {
-      const rel = cosmosShared.camZ - node.z; // >0 while ahead of camera
-      const vis = smoothstep(28, 20, rel) * smoothstep(2.5, 5, rel) * contractFade;
-      labelRef.current.style.opacity = (vis * (0.75 + heat.current * 0.25)).toFixed(3);
-    }
+    // dim with distance so a far waypoint never competes with the staged art
+    const rel = state.camera.position.z - node.z;
+    const near = smoothstep(34, 12, rel) * smoothstep(-1, 3, rel);
+    mat.opacity = (0.16 + near * 0.34 + heat.current * 0.5) * contractFade;
+    mesh.scale.setScalar(1 + heat.current * 0.2);
   });
 
   const open = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     window.open(node.url, '_blank', 'noopener,noreferrer');
   };
+  const over = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    setHover(true);
+    document.documentElement.style.cursor = 'pointer';
+  };
+  const out = () => {
+    setHover(false);
+    document.documentElement.style.cursor = '';
+  };
 
   return (
     <group position={[node.x, node.y, node.z]}>
-      <mesh
-        ref={meshRef}
-        geometry={GEOMETRIES[node.kind]}
-        material={material}
-        onClick={open}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.documentElement.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.documentElement.style.cursor = '';
-        }}
-      />
+      <mesh ref={meshRef} geometry={GEOMETRIES[node.kind]} material={material} />
       {/* generous invisible hit target */}
-      <mesh
-        onClick={open}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.documentElement.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.documentElement.style.cursor = '';
-        }}
-        visible={false}
-      >
-        <sphereGeometry args={[0.8, 8, 8]} />
+      <mesh onClick={open} onPointerOver={over} onPointerOut={out} visible={false}>
+        <sphereGeometry args={[0.72, 8, 8]} />
         <meshBasicMaterial />
       </mesh>
-      <Html center position={[0, -0.78, 0]} style={{ pointerEvents: 'none' }} zIndexRange={[5, 1]}>
-        <div
-          ref={labelRef}
-          style={{
-            opacity: 0,
-            transition: 'opacity 0.2s linear',
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
-            userSelect: 'none',
-            transform: 'translateZ(0)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '0.68rem',
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: '#e8e4dc',
-            }}
-          >
-            {node.name}
-          </div>
-          <div
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '0.55rem',
-              letterSpacing: '0.12em',
-              color: '#a09890',
-              marginTop: 3,
-            }}
-          >
-            {node.desc}
-          </div>
-        </div>
-      </Html>
     </group>
   );
 }
@@ -149,8 +93,8 @@ function Node({ node }: { node: AppNode }) {
 export function AppsConstellation() {
   return (
     <group>
-      {APP_NODES.map((node) => (
-        <Node key={node.name} node={node} />
+      {APP_NODES.map((node, i) => (
+        <Node key={node.name} node={node} index={i} />
       ))}
     </group>
   );

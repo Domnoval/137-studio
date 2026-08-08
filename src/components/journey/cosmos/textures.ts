@@ -62,16 +62,16 @@ export function getGlowTexture(): THREE.CanvasTexture {
   ctx.clearRect(0, 0, S, S);
   // build an inset "frame band" with blur: bright thin rectangle ring
   ctx.save();
-  ctx.filter = 'blur(10px)';
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-  ctx.lineWidth = 10;
-  ctx.strokeRect(26, 26, S - 52, S - 52);
+  ctx.filter = 'blur(7px)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(22, 22, S - 44, S - 44);
   ctx.restore();
   ctx.save();
-  ctx.filter = 'blur(3px)';
+  ctx.filter = 'blur(1.6px)';
   ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(26, 26, S - 52, S - 52);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(22, 22, S - 44, S - 44);
   ctx.restore();
   glowTexture = new THREE.CanvasTexture(canvas);
   glowTexture.colorSpace = THREE.SRGBColorSpace;

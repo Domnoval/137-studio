@@ -42,7 +42,13 @@ export interface JourneyState {
 
 const JourneyContext = createContext<JourneyState | null>(null);
 
-const SMOOTH = 0.09; // lerp factor per frame toward raw scroll progress
+// Exponential-damp rates, expressed per SECOND so the smoothing is identical at
+// 144fps, 60fps and the 3fps a headless SwiftShader run manages. (A per-frame
+// lerp of 0.09 is the same as damp rate -60·ln(1-0.09) ≈ 5.66 at 60fps; the old
+// per-frame form lagged progress by ~0.2 on slow machines, which desynced every
+// phase from every other one.)
+const SMOOTH_RATE = 5.66;
+const VEL_RATE = 7.67;
 
 export function JourneyProvider({ children }: { children: React.ReactNode }) {
   const [progress, setProgress] = useState(0);
@@ -82,14 +88,15 @@ export function JourneyProvider({ children }: { children: React.ReactNode }) {
     let prevRaw = 0;
     let prevTime = performance.now();
     const tick = (now: number) => {
-      const dt = Math.max((now - prevTime) / 1000, 1e-4);
+      // clamped so a tab-restore or a long GC pause cannot snap the journey
+      const dt = Math.min(Math.max((now - prevTime) / 1000, 1e-4), 0.5);
       prevTime = now;
       const max = document.documentElement.scrollHeight - window.innerHeight;
       const raw = max > 0 ? clamp01(window.scrollY / max) : 0;
-      vel += ((raw - prevRaw) / dt - vel) * 0.12;
+      vel += ((raw - prevRaw) / dt - vel) * (1 - Math.exp(-VEL_RATE * dt));
       if (Math.abs(vel) < 0.0005) vel = 0;
       prevRaw = raw;
-      smoothed += (raw - smoothed) * SMOOTH;
+      smoothed += (raw - smoothed) * (1 - Math.exp(-SMOOTH_RATE * dt));
       if (Math.abs(raw - smoothed) < 0.0002) smoothed = raw;
       progressRef.current = smoothed;
       velocityRef.current = vel;

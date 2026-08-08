@@ -28,6 +28,9 @@ export function CosmosFallback() {
         flexDirection: 'column',
         justifyContent: 'space-around',
         padding: 'clamp(21px, 6vw, 89px)',
+        // the fixed depth rail lives at the right edge (ScrollProgress, 55px
+        // wide): keep the art column clear of it instead of printing underneath
+        paddingRight: 'clamp(48px, 12vw, 89px)',
         boxSizing: 'border-box',
       }}
     >

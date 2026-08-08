@@ -15,7 +15,7 @@ import { CAM_START_Z, CAM_END_Z, GLYPHS } from './cosmos-data';
 import { getGlyphAtlas, ATLAS_GRID } from './textures';
 
 const COUNT = 40;
-const BASE_OPACITY = 0.16;
+const BASE_OPACITY = 0.13;
 
 interface GlyphSpec {
   geometry: THREE.PlaneGeometry;
@@ -67,7 +67,8 @@ export function Glyphs() {
       }
       uv.needsUpdate = true;
       const angle = rnd() * Math.PI * 2;
-      const radius = 1.6 + rnd() * 7;
+      // kept off the corridor axis: the middle of the frame belongs to the art
+      const radius = 3.6 + rnd() * 7.4;
       specs.push({
         geometry,
         x: Math.cos(angle) * radius,

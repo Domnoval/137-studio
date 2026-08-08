@@ -16,10 +16,17 @@ import {
   CAM_END_Z,
   CAM_CONTRACT_DRIFT,
   CAM_RETURN_PUSH,
+  descentAt,
   nearestSlabIndex,
 } from './cosmos-data';
 
 const look = new THREE.Vector3();
+// the void warms as we fall: cold neutral at the top of the corridor,
+// faintly red-tinged approaching CONTRACTION. Fog and clear colour move
+// together so there is never a visible haze disc against the background.
+const VOID_COLD = new THREE.Color('#0d0c0d');
+const VOID_WARM = new THREE.Color('#150a0b');
+const voidColor = new THREE.Color();
 
 export function CameraRig() {
   const { progressRef } = useJourney();
@@ -49,8 +56,18 @@ export function CameraRig() {
     look.set(cosmosShared.swayX * 1.4, cosmosShared.swayY * 0.9, cam.position.z - 11);
     cam.lookAt(look);
 
+    cosmosShared.camDZ = Math.abs(cam.position.z - cosmosShared.camZ);
     cosmosShared.camZ = cam.position.z;
     cosmosShared.nearest = nearestSlabIndex(cam.position.z);
+
+    // ---- colour-temperature arc of the void itself ----
+    const descent = descentAt(cam.position.z);
+    cosmosShared.descent = descent;
+    const warmth = Math.min(1, descent * 0.85 + conP * 0.35);
+    voidColor.copy(VOID_COLD).lerp(VOID_WARM, warmth);
+    const fog = state.scene.fog as THREE.FogExp2 | null;
+    if (fog) fog.color.copy(voidColor);
+    state.gl.setClearColor(voidColor, 1);
   });
 
   return null;

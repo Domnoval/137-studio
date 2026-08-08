@@ -1,13 +1,25 @@
 'use client';
 
 // OWNED BY HERO agent.
-// THE DIVE (8–18%): scrubs a paused GSAP timeline against the smoothed
-// journey progress (progressRef — Lenis-lerped, so this IS scroll-scrubbed).
+// THE DIVE (~7.5–18%): scrubs a paused GSAP timeline against scroll.
 // The pinning itself is Hero.tsx's sticky layer; this file owns the
-// choreography: letters translate/scale in Z with a blur ramp, the hero
-// image scales past camera and parts (dual clip-path halves), and the
-// .hero-void DOM black (#0e0c0a) fades to transparent revealing the fixed
-// Cosmos canvas behind — matched blacks make the seam invisible.
+// choreography: the red rule collapses into the artwork's seam, the letters
+// scale up past the camera in Z with a per-letter blur ramp, the hero image
+// parts like a veil along that seam, and the .hero-void DOM black (#0e0c0a)
+// fades to transparent revealing the fixed Cosmos canvas behind — matched
+// blacks make the seam invisible.
+//
+// SCRUB SOURCE — the fix that makes the dive actually visible: this reads raw
+// window scroll and applies a FRAME-RATE-INDEPENDENT one-pole filter.
+// JourneyContext's progressRef lerps a fixed 0.09 per FRAME, so when the
+// cosmos drops the frame rate (software GL ≈ 3fps) the timeline lagged the
+// scroll by whole seconds — at 18% scroll it was still playing ~9%, which is
+// why the first three beats of the site looked like three identical stills.
+//
+// EASING — the separation/veil/scale tweens are front-loaded (power1.out) and
+// only the Z-flight is back-loaded (power2.in): the dive must READ within its
+// first fifth, not resolve entirely in its last.
+//
 // reducedMotion: no pin (Hero drops sticky), simple opacity crossfade only.
 
 import { useEffect } from 'react';
@@ -15,92 +27,146 @@ import gsap from 'gsap';
 import { useJourney } from './JourneyContext';
 import { PHASES, clamp01 } from './journey-utils';
 
+/** The dive takes the wheel a hair before the nominal 8% so its first frames
+ *  land inside the arrival's tail rather than all at once at the boundary. */
+const DIVE_START = 0.075;
+const DIVE_END = PHASES.dive.end; // 0.18
+
 /** Deterministic per-letter pseudo-random (stable across mounts). */
 function prand(i: number, salt: number): number {
   const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
   return x - Math.floor(x);
 }
 
+/** Raw (unsmoothed) journey progress straight off the document scroll. */
+function rawProgress(): number {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  return max > 0 ? clamp01(window.scrollY / max) : 0;
+}
+
+/**
+ * Frame-rate-independent scrub driver. Calls `apply` with 0–1 band progress
+ * every gsap tick, smoothing raw scroll with a one-pole filter whose
+ * coefficient is derived from real elapsed time.
+ */
+function driveBand(start: number, end: number, apply: (p: number) => void): () => void {
+  const span = end - start;
+  let smooth = rawProgress();
+  let prevT = performance.now();
+  let last = -1;
+
+  const update = () => {
+    const now = performance.now();
+    const dt = Math.min(Math.max((now - prevT) / 1000, 1 / 240), 0.25);
+    prevT = now;
+    const raw = rawProgress();
+    smooth += (raw - smooth) * (1 - Math.exp(-dt * 14));
+    if (Math.abs(raw - smooth) < 0.0002) smooth = raw;
+
+    const p = clamp01((smooth - start) / span);
+    if (Math.abs(p - last) < 0.0004 && p !== 0 && p !== 1) return;
+    if (p === last) return;
+    last = p;
+    apply(p);
+  };
+
+  gsap.ticker.add(update);
+  update();
+  return () => gsap.ticker.remove(update);
+}
+
 export function Dive() {
-  const { reducedMotion, progressRef } = useJourney();
+  const { reducedMotion } = useJourney();
 
   useEffect(() => {
-    const { start, end } = PHASES.dive;
-    const span = end - start;
-
     // ---- reduced motion: simple opacity crossfade, nothing else ----
     if (reducedMotion) {
       const stage = document.querySelector<HTMLElement>('.hero-stage');
       const voidEl = document.querySelector<HTMLElement>('.hero-void');
-      let last = -1;
-      const update = () => {
-        const p = clamp01(((progressRef.current ?? 0) - start) / span);
-        if (p === last) return;
-        last = p;
+      return driveBand(PHASES.dive.start, DIVE_END, (p) => {
         const o = (1 - p).toFixed(4);
         if (stage) stage.style.opacity = o;
         if (voidEl) voidEl.style.opacity = o;
-      };
-      gsap.ticker.add(update);
-      return () => gsap.ticker.remove(update);
+      });
     }
 
-    // ---- full dive timeline (normalized 0→1, scrubbed by progress) ----
+    // ---- full dive timeline (normalized 0→1, scrubbed by scroll) ----
     const letters = gsap.utils.toArray<HTMLElement>('.hero-letter');
-    const tl = gsap.timeline({ paused: true, defaults: { overwrite: 'auto' } });
+    const tl = gsap.timeline({ paused: true, defaults: { overwrite: false } });
 
-    // Red rule collapses first — the door opens.
-    tl.to('.hero-rule', { scaleX: 0, opacity: 0, duration: 0.2, ease: 'power2.in' }, 0);
+    // 1. The red rule collapses back into its own left origin — the door opens.
+    tl.to('.hero-rule', { scaleX: 0, opacity: 0, duration: 0.16, ease: 'power2.in' }, 0);
 
-    // Letters drift apart and fly past the camera in Z (perspective on the
-    // h1, preserve-3d on the lines), with a blur ramp. data-dx = offset from
-    // the letter's own line center so each line parts symmetrically.
+    // 2. …and is reborn as the seam the veil will part along. Red is handed
+    //    from typography to image; it never sits in both places at once.
+    tl.fromTo(
+      '.hero-seam',
+      { opacity: 0, scaleY: 0.12 },
+      { opacity: 0.65, scaleY: 1, duration: 0.2, ease: 'power2.out' },
+      0.03,
+    );
+    tl.to('.hero-seam', { opacity: 0, duration: 0.26, ease: 'power1.in' }, 0.32);
+
+    // 3. The image parts like a veil — front-loaded so the split is legible
+    //    within the first fifth of the dive.
+    tl.to('.hero-art-left', { xPercent: -88, duration: 0.82, ease: 'power1.out' }, 0);
+    tl.to('.hero-art-right', { xPercent: 88, duration: 0.82, ease: 'power1.out' }, 0);
+    //    …while the whole frame rushes past the camera.
+    tl.to('.hero-art-frame', { scale: 2.15, duration: 0.88, ease: 'power2.in' }, 0);
+    tl.to('.hero-art-frame', { opacity: 0, duration: 0.34, ease: 'power1.in' }, 0.56);
+
+    // 4. Letters: separate + swell + blur FIRST (power1.out — visible at once),
+    //    then fly through the camera in Z (power2.in — the fall accelerates).
     tl.to(
       letters,
       {
-        z: (i) => 520 + prand(i, 1) * 980,
         x: (i, el) => {
-          const dx = parseFloat((el as HTMLElement).dataset.dx ?? '0');
-          return dx * (30 + prand(i, 2) * 44);
+          const t = el as HTMLElement;
+          const dx = parseFloat(t.dataset.dx ?? '0');
+          const sf = parseFloat(t.dataset.sf ?? '1');
+          return dx * sf * (34 + prand(i, 2) * 40);
         },
-        y: (i) => (prand(i, 3) - 0.5) * 200,
-        rotationX: (i) => (prand(i, 4) - 0.5) * 46,
-        rotationY: (i) => (prand(i, 5) - 0.5) * 34,
-        opacity: 0,
-        filter: 'blur(13px)',
-        duration: 0.55,
-        ease: 'power2.in',
-        stagger: { each: 0.012, from: 'random' },
+        y: (i) => (prand(i, 3) - 0.5) * 190,
+        scale: (i) => 1.32 + prand(i, 6) * 0.42,
+        rotationX: (i) => (prand(i, 4) - 0.5) * 44,
+        rotationY: (i) => (prand(i, 5) - 0.5) * 32,
+        filter: (i) => `blur(${(6 + prand(i, 7) * 7).toFixed(1)}px)`,
+        duration: 0.62,
+        ease: 'power1.out',
+        stagger: { each: 0.008, from: 'random' },
       },
-      0.02,
+      0,
+    );
+    tl.to(
+      letters,
+      {
+        z: (i) => 620 + prand(i, 1) * 1020,
+        duration: 0.9,
+        ease: 'power2.in',
+        stagger: { each: 0.008, from: 'random' },
+      },
+      0,
+    );
+    tl.to(
+      letters,
+      { opacity: 0, duration: 0.44, ease: 'power1.in', stagger: { each: 0.008, from: 'random' } },
+      0.46,
     );
 
-    // Hero image scales past the camera and parts like a veil.
-    tl.to('.hero-art-frame', { scale: 1.8, opacity: 0, duration: 0.65, ease: 'power2.in' }, 0.08);
-    tl.to('.hero-art-left', { xPercent: -72, duration: 0.55, ease: 'power2.in' }, 0.14);
-    tl.to('.hero-art-right', { xPercent: 72, duration: 0.55, ease: 'power2.in' }, 0.14);
+    // 5. DOM void → transparent: the fixed Cosmos canvas is revealed behind.
+    //    Linear so the crossfade tracks scroll exactly (Cosmos fades itself in
+    //    over the same band; both blacks are #0e0c0a). Resolves at 0.80 so the
+    //    last fifth of the band is pure 3D — the handoff is complete by 18%.
+    tl.to('.hero-void', { opacity: 0, duration: 0.68, ease: 'none' }, 0.12);
+    tl.to({}, { duration: 0.02 }, 0.98); // pad timeline to a full 1.0
 
-    // DOM void → transparent: the fixed Cosmos canvas is revealed behind.
-    // Linear so the crossfade tracks scroll exactly (Cosmos fades itself in
-    // over the same band; both blacks are #0e0c0a). Ends at 0.92 — the last
-    // stretch is slack so smoothing lag can never un-pin a half-faded void.
-    tl.to('.hero-void', { opacity: 0, duration: 0.5, ease: 'none' }, 0.42);
-    tl.to({}, { duration: 0.08 }, 0.92); // pad timeline to a full 1.0
-
-    let last = -1;
-    const update = () => {
-      const p = clamp01(((progressRef.current ?? 0) - start) / span);
-      if (p === last) return;
-      last = p;
-      tl.progress(p);
-    };
-    gsap.ticker.add(update);
+    const stop = driveBand(DIVE_START, DIVE_END, (p) => tl.progress(p));
 
     return () => {
-      gsap.ticker.remove(update);
+      stop();
       tl.kill();
     };
-  }, [reducedMotion, progressRef]);
+  }, [reducedMotion]);
 
   // The band itself is invisible — the pinned Hero layer is the canvas the
   // dive plays on. Kept for phase semantics / debugging.
