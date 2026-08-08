@@ -2,23 +2,35 @@
 
 // cosmos/Glyphs.tsx — OWNED BY COSMOS agent.
 // ~40 sparse, dim equation glyphs drifting between the slabs. One shared
-// canvas atlas texture + one shared material; each plane's UVs pick a cell.
-// Billboarded to the camera, slow sin drift, fades away during contraction.
+// canvas atlas texture; each plane's UVs pick a cell. Billboarded to the
+// camera, slow sin drift, fades away during contraction.
+//
+// TYPE EXCLUSION: a glyph that drifts behind a caption lands in a word gap and
+// turns "TEAL SKULL" into "TEALηSKULL". These are two different rendering
+// contexts, so no z-index can separate them. Instead every glyph projects its
+// own position to screen space each frame and fades to ZERO if it falls inside
+// any box the label layer has published (see exclusion.ts) — the glyph does
+// not render there at all. Materials are therefore per-glyph (same texture,
+// same draw-call count as before: these were already 40 separate meshes).
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
 import { smoothstep } from './shared';
 import { CAM_START_Z, CAM_END_Z, GLYPHS } from './cosmos-data';
+import { inExclusion } from './exclusion';
 import { getGlyphAtlas, ATLAS_GRID } from './textures';
 
 const COUNT = 40;
 const BASE_OPACITY = 0.13;
+/** Screen-space radius a glyph is treated as occupying, in px. */
+const GLYPH_R = 30;
 
 interface GlyphSpec {
   geometry: THREE.PlaneGeometry;
+  material: THREE.MeshBasicMaterial;
   x: number;
   y: number;
   z: number;
@@ -38,22 +50,18 @@ function mulberry(seedInit: number) {
   };
 }
 
+const proj = new THREE.Vector3();
+
 export function Glyphs() {
   const { progressRef } = useJourney();
   const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
+  /** damped 0-1 "I am behind type" weight, per glyph */
+  const cull = useRef<Float32Array>(new Float32Array(COUNT));
 
-  const { specs, material } = useMemo(() => {
+  const specs = useMemo(() => {
     const rnd = mulberry(1370);
-    const material = new THREE.MeshBasicMaterial({
-      map: getGlyphAtlas(),
-      transparent: true,
-      opacity: BASE_OPACITY,
-      color: new THREE.Color('#a09890'),
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const specs: GlyphSpec[] = [];
+    const atlas = getGlyphAtlas();
+    const out: GlyphSpec[] = [];
     const zTop = CAM_START_Z + 2;
     const zBot = CAM_END_Z - 4;
     for (let i = 0; i < COUNT; i++) {
@@ -69,8 +77,17 @@ export function Glyphs() {
       const angle = rnd() * Math.PI * 2;
       // kept off the corridor axis: the middle of the frame belongs to the art
       const radius = 3.6 + rnd() * 7.4;
-      specs.push({
+      out.push({
         geometry,
+        material: new THREE.MeshBasicMaterial({
+          map: atlas,
+          transparent: true,
+          opacity: BASE_OPACITY,
+          color: new THREE.Color('#a09890'),
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius * 0.75,
         z: zTop + rnd() * (zBot - zTop),
@@ -79,18 +96,27 @@ export function Glyphs() {
         speed: 0.15 + rnd() * 0.25,
       });
     }
-    return { specs, material };
+    return out;
   }, []);
 
-  useFrame((state) => {
+  useEffect(
+    () => () => {
+      for (const s of specs) {
+        s.material.dispose();
+        s.geometry.dispose();
+      }
+    },
+    [specs],
+  );
+
+  useFrame((state, rawDt) => {
+    const dt = Math.min(rawDt, 1 / 20);
     const t = state.clock.elapsedTime;
     const cp = phaseProgress(progressRef.current ?? 0, 'contraction');
-    const first = meshRefs.current[0];
-    if (first) {
-      (first.material as THREE.MeshBasicMaterial).opacity =
-        BASE_OPACITY * (1 - smoothstep(0, 0.3, cp));
-    }
+    const base = BASE_OPACITY * (1 - smoothstep(0, 0.3, cp));
     const q = state.camera.quaternion;
+    const W = state.size.width;
+    const H = state.size.height;
     for (let i = 0; i < specs.length; i++) {
       const mesh = meshRefs.current[i];
       if (!mesh) continue;
@@ -101,6 +127,18 @@ export function Glyphs() {
         s.z,
       );
       mesh.quaternion.copy(q); // billboard
+
+      // ---- type exclusion ----
+      proj.copy(mesh.position).project(state.camera);
+      let hit = false;
+      if (proj.z <= 1) {
+        hit = inExclusion((proj.x * 0.5 + 0.5) * W, (-proj.y * 0.5 + 0.5) * H, GLYPH_R);
+      }
+      const c = THREE.MathUtils.damp(cull.current[i], hit ? 1 : 0, 9, dt);
+      cull.current[i] = c;
+      const o = base * (1 - c);
+      (mesh.material as THREE.MeshBasicMaterial).opacity = o;
+      mesh.visible = o > 0.002;
     }
   });
 
@@ -113,7 +151,7 @@ export function Glyphs() {
             meshRefs.current[i] = m;
           }}
           geometry={s.geometry}
-          material={material}
+          material={s.material}
           scale={s.scale}
           position={[s.x, s.y, s.z]}
         />

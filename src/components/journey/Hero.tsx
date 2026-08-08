@@ -47,19 +47,34 @@ const HERO_ART: { src: string; lum: number }[] = [
 const ART_TARGET_LUM = 62;
 
 /**
- * Optically justified masthead. Cormorant Garamond 300 natural advance widths
- * (measured): "Michael" = 3.2764em, "MacDonald" = 4.7207em. Solving both lines
- * to the same measure W ≈ 53.6vw gives the size/tracking pairs below — that is
- * why the first name is set larger than the surname. Both stay inside the
- * 12–15vw contract; both edges align, so the block is a rectangle.
+ * Optically justified masthead — ONE tracking value, size does all the work.
+ *
+ * Two stacked lines of the same display serif must be tracked identically or
+ * the eye reads the difference as a stretch: the previous lockup ran +0.0496em
+ * against −0.0316em and "M i c h a e l" visibly loosened above a tight
+ * "MacDonald". Both lines are now set at TRACK (−0.012em, the optical value
+ * Cormorant Garamond 300 wants at display size) and the flush right edge is
+ * solved entirely with per-line font-size.
+ *
+ * Rendered advance widths at zero tracking (measured in-browser, Cormorant
+ * Garamond 300): "Michael" = 3.3259em, "MacDonald" = 4.6886em. CSS
+ * letter-spacing adds a gap after every glyph, so the INK measure of an n-glyph
+ * line is size·(advance + (n−1)·track). Solving both to the same measure:
+ *
+ *   S₁·(3.3259 + 6·TRACK) = S₂·(4.6886 + 8·TRACK)
+ *   S₁ = 15u  ⇒  S₂ = 10.383u  (solved, then trued against the rendered ink)
+ *
+ * The size delta is the decision: the given name is the headline, the surname
+ * the counterweight, and the block is a true rectangle at equal tracking.
  */
+const TRACK = '-0.012em';
 const NAME_LINES: { text: string; size: string; tracking: string; lh: number; sf: number }[] = [
-  { text: 'Michael', size: 'calc(15 * var(--hero-u))', tracking: '0.0496em', lh: 0.84, sf: 1 },
-  { text: 'MacDonald', size: 'calc(12 * var(--hero-u))', tracking: '-0.0316em', lh: 0.98, sf: 0.8 },
+  { text: 'Michael', size: 'calc(15 * var(--hero-u))', tracking: TRACK, lh: 0.9, sf: 1 },
+  { text: 'MacDonald', size: 'calc(10.383 * var(--hero-u))', tracking: TRACK, lh: 1.16, sf: 0.71 },
 ];
 
-/** Measure of the justified masthead, in vw. Rule geometry derives from it. */
-const BLOCK_W_VW = 53.6;
+/** Measure of the justified masthead, in --hero-u. Rule geometry derives from it. */
+const BLOCK_W_VW = 47.89;
 /** Rule length = block / φ² (0.382). Its tick sits at 13.7% — the constant. */
 const RULE_W_VW = BLOCK_W_VW * 0.382; // 20.5vw
 const RULE_TICK_VW = RULE_W_VW * 0.137; // 2.81vw
@@ -112,9 +127,19 @@ const TEAR_R =
 /**
  * --hero-u is the masthead's unit: every type size, tracking-derived measure
  * and the rule geometry is a multiple of it, so the optical justification
- * survives every breakpoint — only the unit changes. The artwork frame is
- * aspect-ratio driven (0.6 ≈ the paintings' own portrait ratio) so ART_MASK's
- * percentage stops land on the image's real edges rather than on letterboxing.
+ * survives every breakpoint — only the unit changes.
+ *
+ * The unit is also CAPPED so the measure can never reach the depth rail.
+ * ScrollProgress reserves the right 55px of every viewport for the gauge; on a
+ * 390px phone an uncapped 1.62vw unit put the masthead's ink at x=371 with the
+ * rail's hairline at x=368, so the rail grazed the 'l' and the 'd'. The rail is
+ * the best craft on the site and does not move — the type gives way instead:
+ * --hero-u never exceeds (100vw − gutter − rail) / BLOCK_W, which guarantees a
+ * full 55px channel at every width, on every breakpoint, by construction.
+ *
+ * The artwork frame is aspect-ratio driven (0.6 ≈ the paintings' own portrait
+ * ratio) so ART_MASK's percentage stops land on the image's real edges rather
+ * than on letterboxing.
  */
 const HERO_CSS = `
 @keyframes hero-tick {
@@ -122,12 +147,17 @@ const HERO_CSS = `
   72%  { transform: translateY(60px); opacity: 1; }
   100% { transform: translateY(60px); opacity: 0; }
 }
-.hero-title { --hero-u: 1vw; }
+.hero-title {
+  --hero-g: ${GUTTER};
+  --hero-rail: 55px;
+  --hero-fit: calc((100vw - var(--hero-g) - var(--hero-rail)) / ${BLOCK_W_VW});
+  --hero-u: min(1vw, var(--hero-fit));
+}
 .hero-art-frame { height: min(88vh, 103vw); aspect-ratio: 0.6; }
 .hero-art-pos { left: 67%; }
-@media (max-width: 1023px) { .hero-title { --hero-u: 1.28vw; } }
+@media (max-width: 1023px) { .hero-title { --hero-u: min(1.28vw, var(--hero-fit)); } }
 @media (max-width: 767px) {
-  .hero-title { --hero-u: 1.62vw; }
+  .hero-title { --hero-u: min(1.62vw, var(--hero-fit)); }
   .hero-art-pos { left: 50%; }
 }`;
 

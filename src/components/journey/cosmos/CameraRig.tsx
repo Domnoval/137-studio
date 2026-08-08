@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
 import { cosmosShared, easeInOut } from './shared';
+import { contraction } from './contraction-state';
 import {
   CAM_START_Z,
   CAM_END_Z,
@@ -27,6 +28,11 @@ const look = new THREE.Vector3();
 const VOID_COLD = new THREE.Color('#0d0c0d');
 const VOID_WARM = new THREE.Color('#150a0b');
 const voidColor = new THREE.Color();
+// The CONTRACTION owns a temperature of its own: the ground drops to a cold
+// blue-black as the warp accelerates, then settles a shade warmer and denser
+// for the sigil beat. Still near-black, still no second accent.
+const CONTRACT_COLD = new THREE.Color('#090b12');
+const CONTRACT_WARM = new THREE.Color('#120c0b');
 
 export function CameraRig() {
   const { progressRef } = useJourney();
@@ -65,6 +71,9 @@ export function CameraRig() {
     cosmosShared.descent = descent;
     const warmth = Math.min(1, descent * 0.85 + conP * 0.35);
     voidColor.copy(VOID_COLD).lerp(VOID_WARM, warmth);
+    // the contraction's own temperature arc, published by the sigil beat
+    if (contraction.cool > 0.001) voidColor.lerp(CONTRACT_COLD, contraction.cool);
+    if (contraction.vig > 0.001) voidColor.lerp(CONTRACT_WARM, contraction.vig * 0.85);
     const fog = state.scene.fog as THREE.FogExp2 | null;
     if (fog) fog.color.copy(voidColor);
     state.gl.setClearColor(voidColor, 1);

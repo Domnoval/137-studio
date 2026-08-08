@@ -71,6 +71,101 @@ export const SLABS: SlabPlacement[] = sorted.map((work, i) => {
   };
 });
 
+/* -------------------------------------------------------------- shot types */
+// A chapter that holds one shot type for a third of the site is a contact
+// sheet, not a film. THE COSMOS cuts between three:
+//
+//   WIDE      — the establishing constellation. Hero staged mid-frame at
+//               ~60% fill, satellites in depth, caption bottom-left.
+//   MACRO     — the camera is inside the canvas: the work bleeds past three
+//               viewport edges, no satellites, caption in the clear right
+//               column, top-right. You read brushwork, not composition.
+//   PULL-BACK — the camera retreats until every work in the body resolves
+//               into ONE composed triangle (the 137 sigil, prefigured), each
+//               work small. No caption, no chips.
+//
+// Sequenced WIDE / MACRO / WIDE / MACRO / PULL-BACK across 18%–62% so that
+// consecutive beats never repeat a framing.
+
+/** Cosmos-phase (0–1) boundaries between the five shots. */
+const SHOT_EDGES = [0.159, 0.341, 0.523, 0.727];
+/** Half-width of the crossfade at each cut, in cosmos-phase units. */
+const SHOT_BLEND = 0.035;
+
+export interface ShotMix {
+  wide: number;
+  macro: number;
+  pullback: number;
+}
+
+const sstep = (a: number, b: number, t: number): number => {
+  const x = Math.min(1, Math.max(0, (t - a) / (b - a)));
+  return x * x * (3 - 2 * x);
+};
+
+/** Blend weights of the three shot types at cosmos-phase progress `cp`. */
+export function shotMix(cp: number, out: ShotMix): ShotMix {
+  const b = SHOT_BLEND;
+  const m1 =
+    sstep(SHOT_EDGES[0] - b, SHOT_EDGES[0] + b, cp) *
+    (1 - sstep(SHOT_EDGES[1] - b, SHOT_EDGES[1] + b, cp));
+  const m2 =
+    sstep(SHOT_EDGES[2] - b, SHOT_EDGES[2] + b, cp) *
+    (1 - sstep(SHOT_EDGES[3] - b, SHOT_EDGES[3] + b, cp));
+  const pb = sstep(SHOT_EDGES[3] - b, SHOT_EDGES[3] + b, cp);
+  out.macro = Math.min(1, m1 + m2);
+  out.pullback = pb;
+  out.wide = Math.max(0, 1 - out.macro - out.pullback);
+  return out;
+}
+
+/* ---------------------------------------------------- pull-back formation */
+
+/** Distance ahead of the camera at which the composed triangle is assembled. */
+export const FORMATION_D = 14;
+/** Triangle footprint as a fraction of the frustum at FORMATION_D. */
+export const FORMATION_W = 0.72;
+export const FORMATION_H = 0.62;
+/** Height of a single work in the formation, as a fraction of the frame. */
+export const FORMATION_ITEM = 0.088;
+
+export interface FormationSlot {
+  /** -0.5 .. 0.5 across the triangle footprint */
+  fx: number;
+  /** +0.5 (apex) .. -0.5 (base) */
+  fy: number;
+}
+
+/**
+ * Rows of 1, 2, 3, … — with 15 works this closes exactly on a five-row
+ * equilateral triangle, apex up: the same figure the CONTRACTION then draws.
+ */
+function buildFormation(n: number): FormationSlot[] {
+  const rows: number[] = [];
+  let done = 0;
+  let r = 1;
+  while (done < n) {
+    const take = Math.min(r, n - done);
+    rows.push(take);
+    done += take;
+    r++;
+  }
+  const R = rows.length;
+  const out: FormationSlot[] = [];
+  for (let ri = 0; ri < R; ri++) {
+    const t = R > 1 ? ri / (R - 1) : 0;
+    const halfW = 0.5 * t;
+    const count = rows[ri];
+    for (let j = 0; j < count; j++) {
+      const u = count > 1 ? j / (count - 1) : 0.5;
+      out.push({ fx: count > 1 ? -halfW + 2 * halfW * u : 0, fy: 0.5 - t });
+    }
+  }
+  return out;
+}
+
+export const FORMATION: FormationSlot[] = buildFormation(SLABS.length);
+
 /** Which slab is nearest a given camera z (the subject sits SWEET_D ahead). */
 export function nearestSlabIndex(camZ: number): number {
   const i = Math.round((-camZ + SWEET_D) / SLAB_SPACING);
@@ -113,18 +208,30 @@ const APPS_RAW = [
 
 const helixSpan = (SLABS.length - 1) * SLAB_SPACING;
 
+/**
+ * Corridor fractions of the six waypoints. Chosen so every app comes on beat
+ * during one of the two WIDE shots — a chip has no business sharing the frame
+ * with a MACRO canvas or with the composed triangle of the PULL-BACK, so the
+ * chip layer is suppressed there entirely and the nodes are placed to suit.
+ */
+const APP_T = [0.047, 0.102, 0.156, 0.429, 0.494, 0.56];
+
 export const APP_NODES: AppNode[] = APPS_RAW.map((app, k) => {
   // Between slab clusters, and deliberately OFF the frame axis: the middle of
   // the picture belongs to the staged painting, so waypoints live in the
   // periphery where their label plates have empty screen to land in.
-  const t = (k + 0.75) / APPS_RAW.length;
-  const angle = (t * helixSpan / SLAB_SPACING) * GOLDEN_ANGLE + Math.PI;
-  const radius = 4.4 + (k % 2) * 1.1;
+  const t = APP_T[k];
+  const angle = ((t * helixSpan) / SLAB_SPACING) * GOLDEN_ANGLE + Math.PI;
+  const radius = 5.6 + (k % 2) * 1.4;
   const kind = k % 3;
+  // Waypoints live HIGH and to one side, alternating left/right. The caption
+  // owns the bottom of the frame and the painting owns the middle, so that is
+  // the only band where a chip can be present without arguing with either.
+  const side = k % 2 === 0 ? 1 : -1;
   return {
     ...app,
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius * 0.62,
+    x: side * (3 + Math.abs(Math.cos(angle)) * radius * 0.6),
+    y: 1.2 + Math.abs(Math.sin(angle)) * radius * 0.32,
     z: -t * helixSpan + 1.8,
     kind,
     glyph: APP_GLYPHS[kind],

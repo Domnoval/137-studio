@@ -27,14 +27,15 @@ import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
 import { smoothstep } from './shared';
-import {
-  CAM_START_Z,
-  SIGIL_Z,
-  sampleSpiral,
-  sampleTriangle,
-  sampleEye,
-  sampleCircle,
-} from './cosmos-data';
+import { CAM_START_Z, SIGIL_Z } from './cosmos-data';
+import { markTargets, spiralOuterFirst, TRI_CY } from './sigil-form';
+
+// The dust's copy of the climax sits at SIGIL_Z in world space while the chalk
+// mark is locked to the camera at 7.2 units; these scales make the two forms
+// subtend the same angle, so the particles resolve ONTO the geometry instead
+// of forming a smaller concentric ghost of it.
+const DUST_SIGIL_SCALE = 2.0;
+const DUST_SPIRAL_R = 4.7;
 
 const COUNT = 3000;
 const CLUSTERS = 30;
@@ -201,45 +202,23 @@ export function Dust() {
       redF[i] = rnd() < 0.03 + temp[i] * 0.05 ? 0.8 + rnd() * 0.2 : 0;
     }
 
-    // ---- spiral homes ----
-    const spiralPath = sampleSpiral(520);
+    // ---- spiral homes: the same golden spiral the tracer draws ----
+    const spiralPath = spiralOuterFirst(520);
     for (let i = 0; i < COUNT; i++) {
       const k = Math.floor(rnd() * 519);
-      spiral[i * 3] = spiralPath[k * 3] + (rnd() - 0.5) * 0.12;
-      spiral[i * 3 + 1] = spiralPath[k * 3 + 1] + (rnd() - 0.5) * 0.12;
+      spiral[i * 3] = spiralPath[k * 3] * DUST_SPIRAL_R + (rnd() - 0.5) * 0.16;
+      spiral[i * 3 + 1] = spiralPath[k * 3 + 1] * DUST_SPIRAL_R + (rnd() - 0.5) * 0.16;
       spiral[i * 3 + 2] = SIGIL_Z + (rnd() - 0.5) * 0.4;
     }
 
-    // ---- sigil homes: triangle 45%, eye 28%, iris 12%, halo 15% ----
-    const tri = sampleTriangle(360);
-    const eye = sampleEye(240);
-    const iris = sampleCircle(120, 0.5);
+    // ---- sigil homes: points sampled off the mark's own strokes ----
+    const marks = markTargets(COUNT, 5150);
     for (let i = 0; i < COUNT; i++) {
-      const pick = rnd();
-      let sx = 0;
-      let sy = 0;
-      if (pick < 0.45) {
-        const k = Math.floor(rnd() * 359);
-        sx = tri[k * 3];
-        sy = tri[k * 3 + 1];
-      } else if (pick < 0.73) {
-        const k = Math.floor(rnd() * 239);
-        sx = eye[k * 3];
-        sy = eye[k * 3 + 1];
-      } else if (pick < 0.85) {
-        const k = Math.floor(rnd() * 119);
-        sx = iris[k * 3];
-        sy = iris[k * 3 + 1];
-        redF[i] = Math.max(redF[i], 0.9); // the eye burns red
-      } else {
-        const a = rnd() * Math.PI * 2;
-        const r = 3.4 + rnd() * 2.6;
-        sx = Math.cos(a) * r;
-        sy = Math.sin(a) * r;
-      }
-      sigil[i * 3] = sx + (rnd() - 0.5) * 0.07;
-      sigil[i * 3 + 1] = sy + (rnd() - 0.5) * 0.07;
+      const m = marks[i];
+      sigil[i * 3] = m.x * DUST_SIGIL_SCALE + (rnd() - 0.5) * 0.09;
+      sigil[i * 3 + 1] = (m.y - TRI_CY * 0.5) * DUST_SIGIL_SCALE + (rnd() - 0.5) * 0.09;
       sigil[i * 3 + 2] = SIGIL_Z + (rnd() - 0.5) * 0.25;
+      if (m.red > 0) redF[i] = Math.max(redF[i], 0.9); // the iris burns red
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -276,8 +255,11 @@ export function Dust() {
     const p = progressRef.current ?? 0;
     const cp = phaseProgress(p, 'contraction');
     m.uniforms.uTime.value = state.clock.elapsedTime;
-    m.uniforms.uSpiral.value = smoothstep(0.06, 0.52, cp);
-    m.uniforms.uSigil.value = smoothstep(0.52, 0.82, cp);
+    // the reveal has to be EARNED: the field walks scatter → spiral through
+    // the warp, then resolves onto the mark across 68%–73% global, in step
+    // with the chalk strokes writing themselves on.
+    m.uniforms.uSpiral.value = smoothstep(0.02, 0.36, cp);
+    m.uniforms.uSigil.value = smoothstep(0.38, 0.70, cp);
     m.uniforms.uPx.value = state.size.height * state.viewport.dpr * 0.1;
   });
 

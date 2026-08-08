@@ -113,7 +113,7 @@ export function Dive() {
     tl.to('.hero-art-right', { xPercent: 88, duration: 0.82, ease: 'power1.out' }, 0);
     //    …while the whole frame rushes past the camera.
     tl.to('.hero-art-frame', { scale: 2.15, duration: 0.88, ease: 'power2.in' }, 0);
-    tl.to('.hero-art-frame', { opacity: 0, duration: 0.34, ease: 'power1.in' }, 0.56);
+    tl.to('.hero-art-frame', { opacity: 0, duration: 0.32, ease: 'power1.in' }, 0.5);
 
     // 4. Letters: separate + swell + blur FIRST (power1.out — visible at once),
     //    then fly through the camera in Z (power2.in — the fall accelerates).
@@ -130,7 +130,10 @@ export function Dive() {
         scale: (i) => 1.32 + prand(i, 6) * 0.42,
         rotationX: (i) => (prand(i, 4) - 0.5) * 44,
         rotationY: (i) => (prand(i, 5) - 0.5) * 32,
-        filter: (i) => `blur(${(6 + prand(i, 7) * 7).toFixed(1)}px)`,
+        // 6–13px on 15vw glyphs turned the whole middle of the dive into grey
+        // fog over an already-sharp cosmos. 3.5–8px still reads as speed, but
+        // the letters stay letters all the way through.
+        filter: (i) => `blur(${(3.5 + prand(i, 7) * 4.5).toFixed(1)}px)`,
         duration: 0.62,
         ease: 'power1.out',
         stagger: { each: 0.008, from: 'random' },
@@ -149,8 +152,8 @@ export function Dive() {
     );
     tl.to(
       letters,
-      { opacity: 0, duration: 0.44, ease: 'power1.in', stagger: { each: 0.008, from: 'random' } },
-      0.46,
+      { opacity: 0, duration: 0.4, ease: 'power1.in', stagger: { each: 0.008, from: 'random' } },
+      0.42,
     );
 
     // 5. DOM void → transparent: the fixed Cosmos canvas is revealed behind.

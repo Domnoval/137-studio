@@ -1,16 +1,19 @@
 'use client';
 
 // OWNED BY FINALE agent.
-// CONTRACTION (62–78%) — the DOM choreography wrapped around the 3D sigil.
+// CONTRACTION (62–78%) — the DOM choreography wrapped around the 3D climax.
 // Three responsibilities, nothing more:
-//   1. "α ≈ 1/137.035999" — one mono line that surfaces beneath the sigil
-//      while it holds and dissolves as it pulses (blur + tracking expansion).
+//   1. "α ≈ 1/137.035999" — one mono line, BASELINE-LOCKED to the mark. The
+//      sigil publishes its projected base line every frame; the caption sits a
+//      golden-ratio gap under it and left-aligns to the base's left corner, so
+//      it belongs to the mark instead of floating below it.
 //   2. A 2D contraction for mobile / no-WebGL / reduced-motion, where there is
-//      no Three scene at all: the same 137 sigil drawn in chalk SVG, holding
-//      and pulsing once against the void so the descent still bottoms out.
+//      no Three scene at all: the SAME mark, generated from the same stroke
+//      data (cosmos/sigil-form.ts) as pressure-varied filled outlines, arriving
+//      group by group, with the same cold→warm ground swing behind it.
 //   3. The darkness veil that closes the 3D out and hands the journey to
-//      RETURN on a matched void (#0e0c0a) — the seam-killer. zIndex 1: above
-//      the fixed Cosmos canvas (0), below DOM sections (2).
+//      RETURN on a matched void — the seam-killer. zIndex 1: above the fixed
+//      Cosmos canvas (0), below DOM sections (2).
 //
 // Everything is scrubbed off RAW scroll depth via the gsap ticker (Lenis
 // already smooths the scroll itself; the context adds a second, frame-rate
@@ -18,33 +21,107 @@
 // re-renders, fully deterministic against scroll position.
 // reducedMotion: things appear and disappear — no blur, no drift.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import gsap from 'gsap';
 import { useJourney } from './JourneyContext';
 import { clamp01 } from './journey-utils';
+import { contraction } from './cosmos/contraction-state';
+import { strokeOutline, strokeBounds, type Stroke } from './cosmos/chalk-ribbon';
+import {
+  armatureStrokes,
+  socketStrokes,
+  lashStrokes,
+  irisStrokes,
+  catchlightStrokes,
+  dripStrokes,
+  BASE_X0,
+  BASE_Y,
+} from './cosmos/sigil-form';
 
 const VOID = '#0e0c0a';
 const CHALK = '#e8e4dc';
 const RED = '#c41230';
 const MONO = "'JetBrains Mono', monospace";
 
-// Global-progress windows. The 3D sigil resolves by ~0.71, holds and pulses
-// at ~0.729, then rushes the camera from 0.752; the veil closes behind it.
-const LINE_IN_START = 0.688;
-const LINE_IN_END = 0.716;
-const LINE_OUT_START = 0.744;
-const LINE_OUT_END = 0.768;
-const VEIL_START = 0.776;
-const VEIL_END = 0.8;
+// Global-progress windows. The mark resolves by ~0.728, pulses at ~0.723,
+// holds to 0.752, then rushes/dissolves; the veil closes behind it and hands
+// a matched void to the RETURN's ground turnover (which starts at 0.799).
+const LINE_IN_START = 0.698;
+const LINE_IN_END = 0.724;
+const LINE_OUT_START = 0.750;
+const LINE_OUT_END = 0.772;
+const VEIL_START = 0.768;
+const VEIL_END = 0.79;
 
-// Mobile / no-WebGL sigil beat (there is no 3D climax to hang off).
-const M_IN_START = 0.658;
-const M_IN_END = 0.712;
-const M_PULSE = 0.734;
-const M_OUT_START = 0.762;
-const M_OUT_END = 0.792;
+// Mobile / no-WebGL beat (there is no 3D climax to hang off).
+// The container ramp used to run 0.638→0.716, which held the WHOLE flat mark
+// under 50% opacity for half the beat — on a phone the only frame anyone sees
+// of the climax was a near-invisible grey wireframe. The ground now arrives
+// fast (it is a cover, not a reveal) and the STROKES carry the reveal, so the
+// mark is legible chalk-on-void from the moment it starts writing.
+const M_IN_START = 0.628;
+const M_IN_END = 0.66;
+const M_PULSE = 0.712;
+const M_OUT_START = 0.756;
+const M_OUT_END = 0.782;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
+const win = (p: number, a: number, b: number) => smooth(clamp01((p - a) / (b - a)));
+
+/* ---------------------------------------------------- the flat mark, as SVG */
+// Same authored strokes as the 3D mark, emitted as filled outlines so the
+// pressure variation survives into the fallback. y is flipped for SVG.
+
+const FLAT_UPP = 0.0125; // px half-width → viewBox units
+
+interface FlatGroup {
+  key: string;
+  d: string;
+  color: string;
+  /** reveal window in global progress */
+  a: number;
+  b: number;
+  opacity: number;
+}
+
+function join(strokes: Stroke[]): string {
+  return strokes.map((s) => strokeOutline(s, FLAT_UPP)).join(' ');
+}
+
+const FLAT = (() => {
+  const armature = armatureStrokes();
+  const socket = socketStrokes();
+  const lashes = lashStrokes();
+  const iris = irisStrokes();
+  const glint = catchlightStrokes();
+  const drips = dripStrokes();
+  const all = [...armature, ...socket, ...lashes, ...iris, ...glint, ...drips];
+  const b = strokeBounds(all);
+  const padX = 0.06;
+  const padTop = 0.10;
+  // room under the base line for the caption
+  const capGap = 0.30;
+  const capSize = 0.155;
+  const capY = -BASE_Y + capGap + capSize;
+  const minY = -b.y1 - padTop;
+  const maxY = Math.max(-b.y0, capY + capSize * 0.4) + 0.16;
+  const groups: FlatGroup[] = [
+    { key: 'armature', d: join(armature), color: CHALK, a: 0.628, b: 0.66, opacity: 0.94 },
+    { key: 'socket', d: join(socket), color: CHALK, a: 0.64, b: 0.672, opacity: 0.96 },
+    { key: 'lashes', d: join(lashes), color: CHALK, a: 0.652, b: 0.68, opacity: 0.8 },
+    { key: 'iris', d: join(iris), color: RED, a: 0.658, b: 0.686, opacity: 1 },
+    { key: 'glint', d: join(glint), color: CHALK, a: 0.668, b: 0.692, opacity: 0.9 },
+    { key: 'drips', d: join(drips), color: CHALK, a: 0.674, b: 0.7, opacity: 0.4 },
+  ];
+  return {
+    groups,
+    viewBox: `${(b.x0 - padX).toFixed(3)} ${minY.toFixed(3)} ${(b.x1 - b.x0 + padX * 2).toFixed(3)} ${(maxY - minY).toFixed(3)}`,
+    capX: BASE_X0,
+    capY,
+    capSize,
+    aspect: (b.x1 - b.x0 + padX * 2) / (maxY - minY),
+  };
+})();
 
 export function Contraction() {
   const { reducedMotion, isMobile, webglOk } = useJourney();
@@ -53,12 +130,15 @@ export function Contraction() {
   const veilRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const irisRef = useRef<SVGCircleElement>(null);
+  const groupRefs = useRef<Record<string, SVGPathElement | null>>({});
+  const capRef = useRef<SVGTextElement>(null);
 
   // The 3D path is live only when Cosmos itself mounts the canvas.
   const flat = isMobile || !webglOk || reducedMotion;
   const flatRef = useRef(flat);
   flatRef.current = flat;
+
+  const flatGroups = useMemo(() => FLAT.groups, []);
 
   useEffect(() => {
     let wrapShown: boolean | null = null;
@@ -85,16 +165,11 @@ export function Contraction() {
       const veil = veilRef.current;
       const mob = mobileRef.current;
       const svg = svgRef.current;
-      const iris = irisRef.current;
-      if (!wrap || !line || !veil || !mob || !svg || !iris) return;
+      if (!wrap || !line || !veil || !mob || !svg) return;
 
-      // ---- the constant: α ≈ 1/137.035999 ----
-      const tin = smooth(
-        clamp01((p - LINE_IN_START) / (LINE_IN_END - LINE_IN_START)),
-      );
-      const tout = smooth(
-        clamp01((p - LINE_OUT_START) / (LINE_OUT_END - LINE_OUT_START)),
-      );
+      // ---- the constant: α ≈ 1/137.035999, locked to the mark's base ----
+      const tin = win(p, LINE_IN_START, LINE_IN_END);
+      const tout = win(p, LINE_OUT_START, LINE_OUT_END);
       let o: number;
       if (reducedMotion) {
         o = p >= LINE_IN_START && p <= LINE_OUT_END ? 0.85 : 0;
@@ -106,10 +181,15 @@ export function Contraction() {
         line.style.opacity = o.toFixed(4);
         const blur = (1 - tin) * 5 + tout * 7;
         line.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
-        line.style.transform = `translateY(${((1 - tin) * 12 - tout * 16).toFixed(2)}px)`;
-        const ls = 0.25 + tout * 0.22; // tracking expands as it dissolves
-        line.style.letterSpacing = `${ls.toFixed(3)}em`;
-        line.style.paddingLeft = `${ls.toFixed(3)}em`; // keep optically centred
+        line.style.transform = `translateY(${((1 - tin) * 10 - tout * 14).toFixed(2)}px)`;
+        line.style.letterSpacing = `${(0.25 + tout * 0.22).toFixed(3)}em`;
+      }
+      if (!flatRef.current && contraction.live) {
+        // baseline-locked: a golden-ratio gap under the mark's base line,
+        // left-aligned to the base's left corner
+        line.style.left = `${contraction.baseX.toFixed(1)}px`;
+        line.style.width = `${contraction.baseW.toFixed(1)}px`;
+        line.style.top = `${(contraction.baseY + 34).toFixed(1)}px`;
       }
       const wantWrap = o > 0.001 && !flatRef.current;
       if (wantWrap !== wrapShown) {
@@ -117,19 +197,31 @@ export function Contraction() {
         wrapShown = wantWrap;
       }
 
-      // ---- flat (2D) sigil beat ----
+      // ---- flat (2D) mark ----
       if (flatRef.current) {
-        const min = smooth(clamp01((p - M_IN_START) / (M_IN_END - M_IN_START)));
-        const mout = smooth(
-          clamp01((p - M_OUT_START) / (M_OUT_END - M_OUT_START)),
-        );
+        const min = win(p, M_IN_START, M_IN_END);
+        const mout = win(p, M_OUT_START, M_OUT_END);
         const mo = min * (1 - mout);
         const d = (p - M_PULSE) / 0.012;
         const pulse = reducedMotion ? 0 : Math.exp(-d * d);
         mob.style.opacity = mo.toFixed(4);
-        svg.style.transform = `scale(${(0.96 + min * 0.04 + pulse * 0.035).toFixed(4)})`;
-        svg.style.filter = pulse > 0.02 ? `brightness(${(1 + pulse * 0.9).toFixed(3)})` : 'none';
-        iris.setAttribute('stroke-width', (2 + pulse * 3).toFixed(2));
+        // the same cold → warm ground swing the 3D climax gets
+        const cool = win(p, M_IN_START, M_IN_START + 0.04);
+        const warm = win(p, 0.674, 0.714);
+        mob.style.background = mixGround(cool, warm);
+        svg.style.transform = `scale(${(0.965 + min * 0.035 + pulse * 0.03).toFixed(4)})`;
+        for (const g of flatGroups) {
+          const el = groupRefs.current[g.key];
+          if (!el) continue;
+          const t = reducedMotion ? (p >= g.b ? 1 : 0) : win(p, g.a, g.b);
+          const boost = g.color === RED ? pulse * 1.6 : pulse * 0.5;
+          el.style.opacity = (g.opacity * t * (1 + boost)).toFixed(3);
+        }
+        const cap = capRef.current;
+        if (cap) {
+          const t = reducedMotion ? (p >= 0.706 ? 1 : 0) : win(p, 0.68, 0.706);
+          cap.style.opacity = (t * 0.82 * (1 - win(p, M_OUT_START, M_OUT_START + 0.02))).toFixed(3);
+        }
         const wantMob = mo > 0.002;
         if (wantMob !== mobShown) {
           mob.style.visibility = wantMob ? 'visible' : 'hidden';
@@ -142,11 +234,11 @@ export function Contraction() {
       }
 
       // ---- darkness veil: the hand-off to RETURN ----
-      // on the flat path the veil must be solid BEFORE the sigil card fades,
-      // or the artwork stack flashes back through the seam
-      const start = flatRef.current ? M_OUT_START - 0.012 : VEIL_START;
-      const end = flatRef.current ? M_OUT_START + 0.02 : VEIL_END;
-      const vo = smooth(clamp01((p - start) / (end - start)));
+      // on the flat path the veil must be solid BEFORE the mark fades, or the
+      // artwork stack flashes back through the seam
+      const start = flatRef.current ? M_OUT_START - 0.004 : VEIL_START;
+      const end = flatRef.current ? M_OUT_START + 0.026 : VEIL_END;
+      const vo = win(p, start, end);
       veil.style.opacity = vo.toFixed(4);
       const wantVeil = vo > 0.001;
       if (wantVeil !== veilShown) {
@@ -157,7 +249,7 @@ export function Contraction() {
 
     gsap.ticker.add(update);
     return () => gsap.ticker.remove(update);
-  }, [reducedMotion]);
+  }, [reducedMotion, flatGroups]);
 
   return (
     <>
@@ -177,7 +269,7 @@ export function Contraction() {
         }}
       />
 
-      {/* Flat sigil — mobile / no WebGL / reduced motion. */}
+      {/* Flat mark — mobile / no WebGL / reduced motion. */}
       <div
         ref={mobileRef}
         data-phase="contraction-flat"
@@ -196,34 +288,47 @@ export function Contraction() {
       >
         <svg
           ref={svgRef}
-          viewBox="0 0 200 190"
+          viewBox={FLAT.viewBox}
+          preserveAspectRatio="xMidYMid meet"
           fill="none"
           style={{
-            width: 'min(88vw, 52vh)',
-            height: 'auto',
+            // the mark is wider than it is tall, so on a phone it is the
+            // VIEWPORT WIDTH that binds — fill it, and let the height follow
+            width: `min(${(72 * FLAT.aspect).toFixed(2)}vh, 95vw)`,
+            height: `min(72vh, ${(95 / FLAT.aspect).toFixed(2)}vw)`,
             overflow: 'visible',
-            willChange: 'transform, filter',
+            willChange: 'transform',
           }}
         >
-          <path
-            d="M100 14 L188 168 L12 168 Z"
-            stroke={CHALK}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-            opacity="0.92"
-          />
-          <path
-            d="M46 108 Q100 58 154 108 Q100 158 46 108 Z"
-            stroke={CHALK}
-            strokeWidth="1.6"
-            opacity="0.92"
-          />
-          <circle cx="100" cy="108" r="20" stroke={RED} strokeWidth="2" ref={irisRef} />
-          <circle cx="100" cy="108" r="6.5" stroke={RED} strokeWidth="2" />
+          {FLAT.groups.map((g) => (
+            <path
+              key={g.key}
+              ref={(el) => {
+                groupRefs.current[g.key] = el;
+              }}
+              d={g.d}
+              fill={g.color}
+              fillRule="nonzero"
+              style={{ opacity: 0 }}
+            />
+          ))}
+          <text
+            ref={capRef}
+            x={FLAT.capX}
+            y={FLAT.capY}
+            fill={CHALK}
+            fontFamily={MONO}
+            fontSize={FLAT.capSize}
+            fontWeight={300}
+            letterSpacing="0.25em"
+            style={{ opacity: 0 }}
+          >
+            α ≈ 1/137.035999
+          </text>
         </svg>
       </div>
 
-      {/* The constant — a single mono line beneath the 3D sigil. */}
+      {/* The constant — one mono line, locked to the 3D mark's base. */}
       <div
         ref={wrapRef}
         data-phase="contraction"
@@ -241,14 +346,12 @@ export function Contraction() {
           style={{
             position: 'absolute',
             left: 0,
-            right: 0,
             top: '80%',
-            textAlign: 'center',
+            textAlign: 'left',
             fontFamily: MONO,
             fontWeight: 300,
             fontSize: '0.72rem',
             letterSpacing: '0.25em',
-            paddingLeft: '0.25em',
             color: CHALK,
             opacity: 0,
             willChange: 'opacity, transform, filter',
@@ -259,4 +362,14 @@ export function Contraction() {
       </div>
     </>
   );
+}
+
+/* ---- the flat ground's temperature: cold blue-black, then a shade warmer ---- */
+const G_BASE = [14, 12, 10];
+const G_COLD = [9, 11, 18];
+const G_WARM = [18, 12, 11];
+function mixGround(cool: number, warm: number): string {
+  const c = G_BASE.map((v, i) => v + (G_COLD[i] - v) * cool);
+  const w = c.map((v, i) => v + (G_WARM[i] - v) * warm * 0.85);
+  return `rgb(${w.map((v) => Math.round(v)).join(',')})`;
 }
