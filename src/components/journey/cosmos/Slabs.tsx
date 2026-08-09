@@ -552,7 +552,12 @@ function SlabArt({ placement }: SlabProps) {
     const planeYaw = plane.yaw;
     const planeRoll = plane.roll;
     if (posW > 0.001) {
-      planeToWorld(plane, slot.x, slot.y + ARCH_VANTAGE_LIFT * thru, slot.z, worldPt);
+      planeToWorld(plane, slot.x, slot.y, slot.z, worldPt);
+      // WORLD-space lift, not plane-space: the plane rolls by a whole
+      // work-position at the second vantage, so a lift applied inside it would
+      // carry 72% of itself sideways and walk the figure off the left edge
+      // (MEASURED: box centre x 682 → 536). This raises the frame, nothing else.
+      worldPt.y += ARCH_VANTAGE_LIFT * plane.unit * thru;
       px = THREE.MathUtils.lerp(px, worldPt.x, posW);
       py = THREE.MathUtils.lerp(py, worldPt.y, posW);
       pz = THREE.MathUtils.lerp(pz, worldPt.z, posW);
@@ -1012,15 +1017,15 @@ function ArchiveStroke() {
     );
     g.position.set(
       pl.cx * (1 - recEase),
-      pl.cy * (1 - recEase),
+      // the curve rides the same world-space vantage lift as the works it runs
+      // through (see ARCH_VANTAGE_LIFT)
+      (pl.cy + ARCH_VANTAGE_LIFT * pl.unit * stageState.formThru) * (1 - recEase),
       pl.cz + (STROKE_VANISH_Z - pl.cz) * recEase,
     );
     const e = euler.current;
     e.set(pl.pitch, pl.yaw, pl.roll);
     g.quaternion.setFromEuler(e);
     g.scale.setScalar(Math.max(0.0001, pl.unit * (1 - recEase * 0.999)));
-    // the curve rides the same vantage lift as the works it runs through
-    g.translateY(ARCH_VANTAGE_LIFT * pl.unit * stageState.formThru * (1 - recEase));
   });
 
   return (
