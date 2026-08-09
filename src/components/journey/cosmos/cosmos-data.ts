@@ -626,8 +626,35 @@ const helixSpan = (SLABS.length - 1) * SLAB_SPACING;
  * during one of the two WIDE shots — a chip has no business sharing the frame
  * with a MACRO canvas or with the composed triangle of the PULL-BACK, so the
  * chip layer is suppressed there entirely and the nodes are placed to suit.
+ *
+ * THE SIX WINDOWS ARE DISJOINT, BECAUSE ONLY ONE CHIP IS EVER DRAWN.
+ * Labels.tsx shows exactly one callout at a time (two bracketing a caption
+ * collapses the hierarchy) and awards it to the strongest candidate. The
+ * previous fractions clustered three nodes inside global 0.180–0.237 and three
+ * more inside 0.318–0.383, so five of the six spent their entire presence
+ * window losing to a neighbour: measured over an 80-sample sweep of the whole
+ * cosmos band, FOUR of the six apps never rendered at any opacity, ever, and
+ * the two that did were non-deterministic between runs.
+ *
+ * These are solved rather than picked: each fraction places its node so the
+ * chip's presence peak (rel ≈ 9.25 world units, the centre of the 7.5→11 plateau
+ * in Labels) lands on a stated beat inside a WIDE shot, and the beats are spaced
+ * by more than the winner-take-all crossover, against the real descentCurve and
+ * the real gate.
+ *
+ * The split is 1 + 5 rather than 3 + 3 because the FIRST wide shot only has one
+ * usable beat: measured, a callout peaking before global ≈ 0.224 is refused for
+ * its whole window — the chapter's opening is still handing over from the dive
+ * and the placement search can find nowhere honourable for the plate. So the
+ * opening carries one waypoint and the second wide shot carries the rest.
+ *
+ * MEASURED after: five of the six now render, peaking at 0.92–1.00 opacity, each
+ * over a distinct 1.5–3% slice of the track (was two of six). 137 Cycles is
+ * still refused — its own geometry docks off the safe frame at every beat tried
+ * (0.5570 / 0.5765 / 0.5960), and moving it far enough to place it evicts its
+ * neighbour. Refusing is the correct behaviour; the gap is honest.
  */
-const APP_T = [0.047, 0.102, 0.156, 0.429, 0.494, 0.56];
+const APP_T = [0.2017, 0.4978, 0.5371, 0.5765, 0.6158, 0.6552];
 
 export const APP_NODES: AppNode[] = APPS_RAW.map((app, k) => {
   // Between slab clusters, and deliberately OFF the frame axis: the middle of
@@ -653,81 +680,16 @@ export const APP_NODES: AppNode[] = APPS_RAW.map((app, k) => {
 });
 
 /* ------------------------------------------------------------ sigil paths */
-// The 137 sigil: golden spiral resolving into triangle + eye. Everything is
-// sampled as dense polylines so lines can draw progressively (setDrawRange)
-// and dust particles can target points along the same curves.
-
-const SPIRAL_B = Math.log(PHI) / (Math.PI / 2); // true golden spiral growth
-
-export function sampleSpiral(n: number): Float32Array {
-  // r = a·e^(bθ), θ ∈ [0, 3.6π], scaled so max radius ≈ 3.15
-  const out = new Float32Array(n * 3);
-  const thetaMax = Math.PI * 3.6;
-  const a = 3.15 / Math.exp(SPIRAL_B * thetaMax);
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1);
-    const theta = t * thetaMax;
-    const r = a * Math.exp(SPIRAL_B * theta);
-    out[i * 3] = Math.cos(theta + Math.PI * 0.72) * r;
-    out[i * 3 + 1] = Math.sin(theta + Math.PI * 0.72) * r;
-    out[i * 3 + 2] = 0;
-  }
-  return out;
-}
-
-export function sampleTriangle(n: number): Float32Array {
-  // equilateral, apex up, circumradius 2.7, centered slightly low so the
-  // eye sits at the centroid of the visual mass
-  const out = new Float32Array(n * 3);
-  const R = 2.7;
-  const cy = -0.42;
-  const corners: [number, number][] = [];
-  for (let c = 0; c < 3; c++) {
-    const a = Math.PI / 2 + (c * 2 * Math.PI) / 3;
-    corners.push([Math.cos(a) * R, Math.sin(a) * R + cy]);
-  }
-  for (let i = 0; i < n; i++) {
-    const t = (i / (n - 1)) * 3; // 0..3 around perimeter
-    const seg = Math.min(2, Math.floor(t));
-    const f = t - seg;
-    const [ax, ay] = corners[seg];
-    const [bx, by] = corners[(seg + 1) % 3];
-    out[i * 3] = ax + (bx - ax) * f;
-    out[i * 3 + 1] = ay + (by - ay) * f;
-    out[i * 3 + 2] = 0;
-  }
-  return out;
-}
-
-export function sampleEye(n: number): Float32Array {
-  // almond lens: two mirrored circular arcs, width 2.5, centered at origin
-  const out = new Float32Array(n * 3);
-  const w = 1.25; // half width
-  const bulge = 0.62;
-  const half = Math.floor(n / 2);
-  for (let i = 0; i < n; i++) {
-    const top = i < half;
-    const k = top ? i / (half - 1) : (i - half) / (n - half - 1);
-    const t = top ? k : 1 - k; // continuous loop
-    const x = -w + t * 2 * w;
-    const y = Math.sin(t * Math.PI) * bulge * (top ? 1 : -1);
-    out[i * 3] = x;
-    out[i * 3 + 1] = y;
-    out[i * 3 + 2] = 0;
-  }
-  return out;
-}
-
-export function sampleCircle(n: number, r: number): Float32Array {
-  const out = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const a = (i / (n - 1)) * Math.PI * 2;
-    out[i * 3] = Math.cos(a) * r;
-    out[i * 3 + 1] = Math.sin(a) * r;
-    out[i * 3 + 2] = 0;
-  }
-  return out;
-}
+// The 137 sigil's geometry used to be sampled here as bare polylines
+// (sampleSpiral / sampleTriangle / sampleEye / sampleCircle). All four are gone:
+// the mark is drawn by sigil-form.ts as pressure-varying chalk ribbons, and
+// nothing had imported these since. They are deleted rather than left dormant
+// because sampleSpiral carried a SECOND, DIFFERENT growth constant —
+// ln φ / (π/2), φ per quarter turn — while the archive and the drawn sigil are
+// both ln φ / π, φ per half turn. The whole point of the archive is that it and
+// the contraction are ONE curve seen twice; a spare copy of the curve with a
+// different b sitting in the same file is how that stops being true.
+// The single constant is PHI_SPIRAL_B above; sigil-form.ts imports it.
 
 /* ------------------------------------------------------- equation strings */
 

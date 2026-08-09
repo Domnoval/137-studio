@@ -77,12 +77,12 @@ import { FormationPlate } from './FormationPlate';
  *             extent drops, so the whole figure is scaled back up into the
  *             space that recovers (ARCH_K, solved below, not chosen).
  *   GRADED    Size falls off as r^0.86 instead of r^0.90, and the aspect box is
- *             tightened from 1.30 to 1.20 to pay for it. On a log spiral the
+ *             tightened from 1.30 to 1.16 to pay for it. On a log spiral the
  *             gap to the next work is a fixed fraction of the local radius, so
  *             exponent and box are not independent — they are bound by
  *             CAP · S · (1+e^(−bΔθ))^f / 2 ≤ 0.7416 · r^(1−f), whose worst pair
  *             is (13, 14). SOLVED: at f = 0.86 the box may be 1.201, so 0.86 /
- *             1.20 is the flattest law the φ chambers allow with zero overlap.
+ *             1.16 is inside the flattest law the φ chambers allow with zero overlap.
  *             (0.78 was tried and MEASURED: it lifts the throat but opens five
  *             collisions at the square-on read, min gap −15px. A pile of chips
  *             is not an improvement on small chips.)

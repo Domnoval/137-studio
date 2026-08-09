@@ -18,6 +18,7 @@
 // sampled as particle homes so the dust resolves INTO the geometry.
 
 import { type Stroke, type Pt, curve, pressure } from './chalk-ribbon';
+import { PHI_SPIRAL_B } from './cosmos-data';
 
 /* --------------------------------------------------------------- metrics */
 
@@ -231,12 +232,16 @@ export function dripStrokes(): Stroke[] {
  * eye. Drawn the other way round it is a 50px comma floating in the dark.
  */
 export function spiralOuterFirst(n: number): Float32Array {
-  const PHI = (1 + Math.sqrt(5)) / 2;
   // φ growth per half turn rather than per quarter: a true quarter-turn golden
   // spiral gains 6.8x per revolution, so only ~1.4 turns are ever on screen at
   // once and it reads as a circle with a hook. This keeps the φ relation and
   // shows 2.3 legible turns.
-  const b = Math.log(PHI) / Math.PI;
+  //
+  // IMPORTED, not restated. This is the same b the ARCHIVE lays its fifteen
+  // works on, which is the whole claim the two chapters make together: the
+  // contraction is the archive's own curve collapsing, not a curve that
+  // resembles it. A local copy of the number is a contract waiting to drift.
+  const b = PHI_SPIRAL_B;
   const thetaMax = Math.PI * 4.6;
   const a = 1 / Math.exp(b * thetaMax); // normalised: outer radius = 1
   const out = new Float32Array(n * 3);

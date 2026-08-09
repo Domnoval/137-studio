@@ -77,8 +77,26 @@ const START_LEAD = 1.9 * SPACING;
 /** …and finishes with the last works still ahead, so the archive has somewhere to pull back FROM. */
 const END_SHORT = 1.15 * SPACING;
 /** The chapter opens on a held frame: the title card stands, the corridor
- *  stretches away behind it, and nothing is moving yet. Then the fall starts. */
+ *  stretches away behind it, and the fall has not begun. Then it does. */
 const HOLD = 0.13;
+/**
+ * …BUT THE HOLD IS A DRIFT, NOT A FREEZE.
+ *
+ * `descentCurve` is clamped below HOLD, so the camera used to sit at exactly
+ * one z for the whole title beat. On the phone that beat is global 0.138 →
+ * 0.2372 — nearly a tenth of the entire scroll track — and captures at 0.16,
+ * 0.19 and 0.215 came back with the three corridor plates in PIXEL-IDENTICAL
+ * positions. A tenth of the journey where scrolling changes nothing but a
+ * fading title is the definition of a repeated frame.
+ *
+ * So the rig starts this much further back and creeps forward to the corridor's
+ * own start over the title beat: the plates grow very slightly, the parallax is
+ * live from the first pixel of the chapter, and the descent curve still takes
+ * over at exactly HOLD from exactly camA. 1.2 spacings is under the far-presence
+ * threshold (FAR_FULL = 5.4 spacings), so nothing pops in — the corridor is
+ * simply seen from slightly further away while the card stands.
+ */
+const HOLD_PREROLL = 1.2 * SPACING;
 /** Cosmos-phase at which the corridor hands over to the archive. */
 export const CORRIDOR_END = 0.7;
 
@@ -205,13 +223,42 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
   const rail = vw < 768 ? 46 : 96;
   const gut = vw < 768 ? 20 : 48;
   const cx = (vw - rail) / 2;
-  const cy = vh * 0.5;
+
+  // ---- THE CAPTION BAND IS RESERVED, LIKE THE RAIL ------------------------
+  // The corridor used to be composed about the optical centre (vh*0.5) and
+  // sized to vh*0.58, which the near-pass projection then blows up by as much
+  // as P/(P−ZCAP) = 1.16×. Measured on a 390×844 frame: the subject filled
+  // y 178→728 while the caption block sat at y 667→741 — 61 px × 319 px of
+  // curator-grade metadata printed straight onto a fluorescent painting, at
+  // 24 of 56 corridor samples. The rail is treated as inviolable; the caption
+  // has exactly the same claim, so it gets the same treatment.
+  //
+  // `foot` is the caption's own footprint solved from the CSS that pins it
+  // (bottom: clamp(56px, 11vh, 120px)) plus the tallest block it can be (rule,
+  // title row, two metadata lines) plus the travel captionShift gives it. The
+  // corridor is then composed about the centre of what is LEFT, and sized so
+  // that even the largest work at the projection cap, thrown to its extreme
+  // off-axis residual, still lands inside it. The result is the layout the
+  // caption was always describing: plate above, label beneath it, neither
+  // touching. It also fixes the far field — an off-axis work at the back used
+  // to sit as low as y=680.
+  const capOffset = Math.min(Math.max(56, vh * 0.11), 120);
+  const capBlock = vw < 768 ? 118 : 132;
+  const capTravel = 26;
+  const foot = capOffset + capBlock + capTravel;
+  const head = vw < 768 ? 26 : 44;
+  const stageH = Math.max(vh - foot - head, vh * 0.34);
+  const cy = head + stageH / 2;
+  /** worst-case vertical residual of the off-axis term at the pass (0.08·ay) */
+  const yResid = 0.08 * vh * 0.3 * 1.02;
+  /** the projection cap — a work can never draw taller than maxH × this */
+  const ZOOM = PERSP / (PERSP - ZCAP);
 
   // ---- corridor boxes. Normalised by AREA, so a 2:1 panel and a 1:2.6 column
   // carry the same weight — the same law the archive uses.
-  const g = Math.min(vw * 0.92, vh * 0.42);
+  const g = Math.min(vw * 0.92, stageH * 0.72);
   const maxW = vw - rail - gut * 1.7;
-  const maxH = vh * 0.58;
+  const maxH = Math.max(stageH - 2 * yResid, stageH * 0.6) / ZOOM;
   const work: WorkBox[] = SLABS.map((_, i) => {
     const a = ASPECT[i];
     const rt = Math.sqrt(a);
@@ -242,16 +289,21 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
 
   // ---- archive boxes: the φ spiral, wound one work-position, fitted to the frame
   const [bx0, bx1, by0, by1] = archBounds(ARCH_ROLL);
+  // Fitted to the SAME reserved stage as the corridor, so the archive's own
+  // plate (pinned at bottom: clamp(44px, 8vh, 96px)) is protected by the same
+  // rule the caption is. Previously the fit read vh*0.8 about vh*0.43, which
+  // on a short viewport puts the outer arm through the metadata.
+  const archH = stageH + capBlock * 0.34;
   const unit = Math.min(
     ((vw - rail) * 0.97) / (bx1 - bx0),
-    (vh * 0.8) / (by1 - by0),
+    archH / (by1 - by0),
   );
   // centre of the figure, in spiral units — the eye of the spiral is NOT it
   const ox = (bx0 + bx1) / 2;
   const oy = (by0 + by1) / 2;
   // the figure sits ABOVE the optical centre: the archive plate owns the
   // bottom of the frame and the two must not meet
-  const acy = vh * 0.43;
+  const acy = head + archH / 2;
   const cr = Math.cos(ARCH_ROLL);
   const sr = Math.sin(ARCH_ROLL);
   const arch: ArchBox[] = ARCHIVE.map((slot, i) => {
@@ -369,8 +421,27 @@ export function makeFrames(): WorkFrame[] {
  */
 export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): StageInfo {
   const t = descentCurve(clamp01((cp - HOLD) / (CORRIDOR_END - HOLD)));
-  const camZ = L.camA + (L.camB - L.camA) * t;
+  // see HOLD_PREROLL: the title beat drifts in rather than standing still
+  // ease-OUT, not smoothstep: smoothstep is flat at both ends, so it reproduced
+  // the freeze in miniature right where the title card finishes landing
+  // (measured: 0.458 mean delta across global 0.172→0.180 against a 4.56
+  // median). This leaves the drift fastest at the chapter's first frame and
+  // decelerating into the descent curve, which is also the right reading — the
+  // fall arrives, it does not switch on.
+  const hx = clamp01(cp / HOLD);
+  const hold = 1 - (1 - hx) * (1 - hx);
+  const camZ = L.camA - HOLD_PREROLL * (1 - hold) + (L.camB - L.camA) * t;
   const A = smoothstep(ARCH_IN, ARCH_FULL, cp);
+  // SCALE LEADS TRAVEL. With one blend driving both, the mid-transit frame had
+  // fifteen canvases at half their archive size still occupying half their
+  // corridor positions — on a 390px frame that is a pile of overlapping
+  // rectangles, the one frame in the mobile chapter a juror would call broken.
+  // Works now RECEDE first and travel small: the size blend finishes at
+  // cp = ARCH_IN + 0.13 while the positional blend runs to ARCH_FULL, so the
+  // figure assembles out of small plates converging rather than large plates
+  // colliding. Both blends still start together and both still land exactly on
+  // the archive pose, so the resolved spiral is bit-identical.
+  const As = smoothstep(ARCH_IN, ARCH_IN + 0.13, cp);
   // THE COLLAPSE. The chapter does not dissolve out — it contracts. The whole
   // assembled figure winds down into the eye of its own spiral and is gone
   // through the throat exactly as the CONTRACTION opens, which is the move the
@@ -448,7 +519,7 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     f.rotX = b.rotX * shear * (1 - A);
     f.rotY = b.rotY * shear * (1 - A);
     f.rotZ = b.rotZ * shear * (1 - A);
-    f.s = 1 + (a.s - 1) * A;
+    f.s = 1 + (a.s - 1) * As;
     f.opacity = corrOp + (archOp - corrOp) * A;
     f.blur = corrBlur * (1 - A);
     f.bright = corrBright + (0.98 - corrBright) * A;

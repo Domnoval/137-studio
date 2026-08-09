@@ -2,7 +2,33 @@
 
 // cosmos/FormationPlate.tsx — OWNED BY COSMOS agent.
 //
-// The caption track does not stop when the corridor does.
+// TWO PLATES THAT FILL THE BEATS THE TYPE LAYER LEFT EMPTY.
+//
+// 1. THE FORMATION PLATE — the caption track does not stop when the corridor
+//    does (below).
+// 2. THE FIRST MACRO'S COUNTERWEIGHT — the split module, composed to one level
+//    of intent.
+//
+// ONE MODULE, TWO LEVELS OF INTENT. The site cuts to the same split screen
+// twice: canvas bled off three edges, a matted crop terminating on one
+// vertical, a dark panel to its right. MEASURED at 1440×900 — the second
+// instance (46%) carries a divide hairline, a 7.4rem plate number at 0.34 ink
+// and a caption on the baseline; the first (31%) carried two lines of 10px mono
+// pinned at the top of the panel and then 780px of nothing. Same module, one
+// instance finished and one not.
+//
+// So the first instance gets the same furniture on the MIRRORED axis: its
+// caption lives at the top of the column, so its divide runs the same seam and
+// its plate number sits LOW. Same grammar, same ink, same grid — the pair now
+// reads as one device stated twice rather than as a module and a draft of it.
+//
+// AND IT COVERS EVERY INSTANCE, NOT THE TWO A 14-STEP SWEEP LANDS ON. Stepped
+// at 1% through both macro windows, the second instance turns out to drop its
+// own number for three consecutive frames (42%, 43%, 44%: divide up, caption
+// up, panel empty) because Labels' fit test refuses rather than clamps while
+// the crop is still settling. So this plate also stands in for the second
+// instance whenever that one is not drawing — read off the live element, so it
+// can never double up, and it retires itself the moment Labels takes over.
 //
 // The PULL-BACK is the one beat where no single work is the subject — fifteen
 // of them compose one figure — so the per-work museum caption in Labels.tsx
@@ -27,13 +53,17 @@ import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
 import { cosmosShared, smoothstep } from './shared';
 import { stage } from './stage-state';
-import { SLABS } from './cosmos-data';
+import { SLABS, shotMix, type ShotMix } from './cosmos-data';
 
 const MONO = "'JetBrains Mono', monospace";
 /** Same clearance law the museum caption obeys. */
 const CLEAR = 32;
 /** Scroll past which THE COSMOS's type layer stops existing (matches Labels). */
 const CHAPTER_END = 0.618;
+/** Cosmos-phase boundary between the two macro windows (matches Labels.tsx). */
+const SECOND_MACRO = 0.45;
+/** Ink of the plate number. Identical to Labels' GHOST_INK — same mark. */
+const GHOST_INK = 0.34;
 
 const CSS = `
 .fp-cap { position:absolute; left:0; top:0; white-space:nowrap; text-align:left;
@@ -47,6 +77,12 @@ const CSS = `
            background:rgba(196,18,48,.85); opacity:0; }
 .fp-dot { position:absolute; left:0; top:0; width:4px; height:4px; margin-top:-2px;
           background:#c41230; opacity:0; }
+/* ---- the FIRST split screen: the same furniture, mirrored axis ---- */
+.fp-divide { position:absolute; width:1px; top:0; left:0; opacity:0;
+             background:rgba(232,228,220,.16); }
+.fp-ghost { position:absolute; top:0; left:0; white-space:nowrap; opacity:0;
+            font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
+            letter-spacing:.005em; color:#e8e4dc; }
 `;
 
 const YEARS = SLABS.map((s) => s.work.year);
@@ -70,13 +106,25 @@ interface Plate {
   root: HTMLDivElement;
   tick: HTMLDivElement;
   dot: HTMLDivElement;
+  divide: HTMLDivElement;
+  ghost: HTMLDivElement;
   w: number;
   h: number;
   opacity: number;
   tickOn: number;
+  /** what the plate number currently prints, and its measured box */
+  ghostText: string;
+  ghostW: number;
+  ghostH: number;
+  ghostOn: number;
+  divideOn: number;
+  /** Labels' own furniture, so this plate can never double up with it */
+  cxGhost: HTMLElement | null;
+  cxDivide: HTMLElement | null;
 }
 
 const cands: number[][] = [];
+const mix: ShotMix = { wide: 1, macro: 0, pullback: 0 };
 
 export function FormationPlate() {
   const { progressRef } = useJourney();
@@ -108,17 +156,30 @@ export function FormationPlate() {
       tick.className = 'fp-tick';
       const dot = document.createElement('div');
       dot.className = 'fp-dot';
-      layer.append(root, tick, dot);
+      const divide = document.createElement('div');
+      divide.className = 'fp-divide';
+      const ghost = document.createElement('div');
+      ghost.className = 'fp-ghost';
+      layer.append(root, tick, dot, divide, ghost);
 
       const r = root.getBoundingClientRect();
       plateRef.current = {
         root,
         tick,
         dot,
+        divide,
+        ghost,
         w: r.width || 220,
         h: r.height || 46,
         opacity: 0,
         tickOn: 0,
+        ghostText: '',
+        ghostW: 0,
+        ghostH: 0,
+        ghostOn: -1,
+        divideOn: -1,
+        cxGhost: null,
+        cxDivide: null,
       };
 
       cleanup = () => {
@@ -126,6 +187,8 @@ export function FormationPlate() {
         root.remove();
         tick.remove();
         dot.remove();
+        divide.remove();
+        ghost.remove();
         plateRef.current = null;
       };
     };
@@ -152,6 +215,93 @@ export function FormationPlate() {
     const rawP = rawScroll();
     const conP = phaseProgress(p, 'contraction');
     const rawCon = phaseProgress(rawP, 'contraction');
+
+    /* ---------------- the FIRST macro's counterweight (see header) -------- */
+    const cosP = phaseProgress(p, 'cosmos');
+    shotMix(cosP, mix);
+    const W = state.size.width;
+    const H = state.size.height;
+    const heroIndex = cosmosShared.nearest;
+    const heroRect = cosmosShared.slabRects[heroIndex];
+    // Exactly the crop Labels.tsx calls "terminating": bled off the left and
+    // both horizontals, ending on one vertical inside the frame. Anything else
+    // is not this module and gets no furniture.
+    const terminating =
+      !!heroRect?.live &&
+      heroRect.x0 < 8 &&
+      heroRect.x1 > W * 0.2 &&
+      heroRect.x1 < W - 8 &&
+      heroRect.y0 < 8 &&
+      heroRect.y1 > H - 8;
+    const second = cosP >= SECOND_MACRO;
+    // Labels owns the second instance's furniture. Read its inline opacity (no
+    // layout, no reflow) and stand down the instant it is drawing.
+    if (!plate.cxGhost) plate.cxGhost = document.querySelector('.cx-ghost');
+    if (!plate.cxDivide) plate.cxDivide = document.querySelector('.cx-divide');
+    const labelsOn = second && parseFloat(plate.cxGhost?.style.opacity || '0') > 0.02;
+    // the seam hairline is one line, whoever draws it: two coincident 0.16
+    // strokes composite to 0.29 and the divide stops matching its own spec
+    const labelsRule = second && parseFloat(plate.cxDivide?.style.opacity || '0') > 0.02;
+    const macroGate =
+      !labelsOn && terminating && heroRect
+        ? smoothstep(0.5, 0.86, mix.macro) *
+          (1 - smoothstep(0, 0.12, conP)) *
+          (p < CHAPTER_END + 0.005 ? 1 : 0)
+        : 0;
+    if (macroGate < 0.01) {
+      if (plate.ghostOn !== 0) {
+        plate.ghostOn = 0;
+        plate.divideOn = 0;
+        plate.ghost.style.opacity = '0';
+        plate.divide.style.opacity = '0';
+      }
+    } else if (heroRect) {
+      const sx1 = W - 104;
+      const sy0 = 56;
+      const sy1 = H - 70;
+      const dx = Math.round(heroRect.x1 + heroRect.pad + 26);
+      let divideOn = 0;
+      if (!labelsRule && dx > 56 && dx < sx1 - 60) {
+        plate.divide.style.transform = `translate(${dx}px, ${sy0}px)`;
+        plate.divide.style.height = `${Math.round(sy1 - sy0)}px`;
+        divideOn = macroGate;
+      }
+      if (divideOn !== plate.divideOn) {
+        plate.divideOn = divideOn;
+        plate.divide.style.opacity = divideOn.toFixed(3);
+      }
+      const num = `${String(heroIndex + 1).padStart(2, '0')}/${String(
+        SLABS.length,
+      ).padStart(2, '0')}`;
+      // …and re-measure whenever the box is missing, not only when the text
+      // changes: the first macro frame measured 0 (the layer had not had a
+      // layout pass yet) and the guard then never asked again, so the FIRST
+      // instance of the module in the sweep printed a divide and no number.
+      if (plate.ghostText !== num || plate.ghostW <= 0) {
+        plate.ghostText = num;
+        plate.ghost.textContent = num;
+        const gr = plate.ghost.getBoundingClientRect();
+        plate.ghostW = gr.width;
+        plate.ghostH = gr.height;
+      }
+      // MIRRORED AXIS. Labels puts MACRO II's caption on the baseline and its
+      // number high (0.30 H); this instance's caption is at the top of the
+      // column, so its number sits low — the pair reads as one device seen from
+      // both ends instead of the same layout twice. Standing in for the second
+      // instance, it takes THAT instance's axis rather than its own.
+      // left edge flush with the caption's own column: one grid, two tiers
+      const col = heroRect.x1 + heroRect.pad + CLEAR + 12;
+      const gx = Math.round(Math.min(Math.max(col, dx + 12), W - 104 - plate.ghostW));
+      const gy = Math.round(H * (second ? 0.3 : 0.54));
+      const fits =
+        plate.ghostW > 0 && gx + plate.ghostW < sx1 + 12 && gy + plate.ghostH < sy1;
+      const ghostOn = fits ? macroGate * GHOST_INK : 0;
+      if (fits) plate.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
+      if (Math.abs(ghostOn - plate.ghostOn) > 0.003) {
+        plate.ghostOn = ghostOn;
+        plate.ghost.style.opacity = ghostOn.toFixed(3);
+      }
+    }
 
     const setOpacity = (v: number, tickOn: number) => {
       if (Math.abs(v - plate.opacity) < 0.004 && tickOn === plate.tickOn) return;
@@ -183,8 +333,6 @@ export function FormationPlate() {
       }
     }
 
-    const W = state.size.width;
-    const H = state.size.height;
     // safe frame: clear of the scroll rail (right) and the phase mark (bottom-left)
     const sx0 = 56;
     const sy0 = 56;

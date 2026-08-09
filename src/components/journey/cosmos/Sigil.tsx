@@ -52,6 +52,7 @@ import {
   BASE_Y,
   EYE_CY,
 } from './sigil-form';
+import type { Stroke } from './chalk-ribbon';
 import { getDustSprite } from './textures';
 
 /* ------------------------------------------------------------ raw progress */
@@ -99,6 +100,44 @@ const FAR_DIST = 34;
 
 const PULSE_AT = 0.86;
 const PULSE_SIGMA = 0.03;
+
+/* ------------------------------------------------- NOTHING CROSSES THE RULE */
+//
+// The apex frame sets the constant on a MEASURED DIMENSION RULE spanning the
+// mark's own base. MEASURED, desktop 1440×900 at 77%: the base projected to
+// y=655 and the rule to y=688, while two of the three wet-paint drips ran to
+// 0.38 and 0.67 world units below the base — 50px and 89px — so both went
+// straight THROUGH the rule and one continued past the caption. On the phone,
+// where the whole beat is 40% the size, the same drip ran through the caption
+// row itself.
+//
+// The drips stay, because paint running off the socket is the mark's best
+// detail. They are RUN SHORT instead: each is rescaled along its own axis so
+// its tip lands on a floor 0.30 units under the base — never truncated, so the
+// pressure profile and its beaded tip survive intact — and Contraction.tsx sets
+// the rule 0.56 units under the base, in the mark's own units. MEASURED after:
+// nearest ink above the rule went from 1px to 37px of clear frame, at every
+// viewport by construction rather than at one.
+export const DRIP_FLOOR = BASE_Y - 0.3;
+/** Gap from the base to the dimension rule, in the MARK's units. */
+export const RULE_GAP = 0.56;
+
+/** Rescale each stroke's descent so its lowest point lands on `floorY`. */
+export function floorStrokes(strokes: Stroke[], floorY: number): Stroke[] {
+  return strokes.map((s) => {
+    const n = s.pts.length / 3;
+    let lo = Infinity;
+    for (let i = 0; i < n; i++) lo = Math.min(lo, s.pts[i * 3 + 1]);
+    const y0 = s.pts[1];
+    if (lo >= floorY || y0 <= floorY) return s;
+    const k = (floorY - y0) / (lo - y0);
+    const pts = new Float32Array(s.pts);
+    for (let i = 0; i < n; i++) {
+      pts[i * 3 + 1] = y0 + (pts[i * 3 + 1] - y0) * k;
+    }
+    return { pts, w: s.w };
+  });
+}
 
 const CHALK = new THREE.Color('#e8e4dc');
 const RED = new THREE.Color('#c41230');
@@ -425,7 +464,7 @@ export function Sigil() {
     const lashes = buildRibbon(lashStrokes(), { overlap: 0.86, color: '#e8e4dc', grain: 1, seed: 41 });
     const iris = buildRibbon(irisStrokes(), { overlap: 0.5, color: '#c41230', grain: 0.9, seed: 51 });
     const glint = buildRibbon(catchlightStrokes(), { overlap: 1, color: '#e8e4dc', grain: 0.5, seed: 61 });
-    const drips = buildRibbon(dripStrokes(), { overlap: 0.7, color: '#e8e4dc', grain: 1, seed: 71 });
+    const drips = buildRibbon(floorStrokes(dripStrokes(), DRIP_FLOOR), { overlap: 0.7, color: '#e8e4dc', grain: 1, seed: 71 });
 
     const ribbons = [spiral, armature, socket, lashes, iris, glint, drips];
     ribbons.forEach((r, i) => {
@@ -435,10 +474,14 @@ export function Sigil() {
     /* ---- residual dust sitting ON the mark ---- */
     const FORM = 900;
     const formTargets = markTargets(FORM, 4242);
-    const formPos = new Float32Array(FORM * 3);
-    for (let i = 0; i < FORM; i++) {
-      formPos[i * 3] = formTargets[i].x;
-      formPos[i * 3 + 1] = formTargets[i].y;
+    // markTargets samples the UNCLIPPED drips, so a residual mote could still
+    // land 0.67 units under the base — through the dimension rule. The dust
+    // obeys the same floor as the ink it settles on.
+    const kept = formTargets.filter((t) => t.y >= DRIP_FLOOR);
+    const formPos = new Float32Array(kept.length * 3);
+    for (let i = 0; i < kept.length; i++) {
+      formPos[i * 3] = kept[i].x;
+      formPos[i * 3 + 1] = kept[i].y;
       formPos[i * 3 + 2] = (rnd() - 0.5) * 0.1;
     }
     const formGeo = new THREE.BufferGeometry();

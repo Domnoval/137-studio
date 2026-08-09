@@ -91,17 +91,37 @@ const LINES = [
 ];
 
 /** [fade-in start, fade-in end, fade-out start, fade-out end] in return-phase time.
- *  Handover windows are 0.020 wide (was 0.032): a 32-wide cross put BOTH lines
- *  near 0.38 for long enough that ordinary scrolling — and every capture step —
- *  landed on a frame with two half-lit, blurred lines on it. Narrow window +
- *  steep exit ramp (pow 0.32 below) means a frame caught mid-handover shows one
- *  landing line and at most a faint ghost of the one leaving. */
+ *  Handover windows are 0.012 wide (was 0.020, was 0.032). The claim attached to
+ *  the 0.020 pass — "one landing line and at most a faint ghost" — did not
+ *  survive measurement: the 9-step mobile sweep landed on global 0.8750 and the
+ *  two frames read 0.358 and 0.412, which is not a ghost, it is a double
+ *  exposure, and on a phone each sentence is FOUR lines deep so the two fill the
+ *  plate together. Solving the ramps, the curves actually crossed at t≈0.31, not
+ *  the 0.26 the note claimed.
+ *
+ *  Halving the window again halves the scroll distance a capture (or a reader)
+ *  can land inside — 0.012 of the return phase is 0.0026 of the whole track —
+ *  and the exit ramp below is steepened from pow 0.30 to 0.20, which moves the
+ *  crossing down to t≈0.095 and puts the outgoing line at a quarter of the
+ *  incoming one everywhere past it. */
 const CUES: [number, number, number, number][] = [
-  [0.08, 0.1, 0.25, 0.272], // 01 — high (strikes on the instant the wipe tops out)
-  [0.25, 0.272, 0.425, 0.447], // 02 — low   (hands over from 01)
-  [0.425, 0.447, 0.6, 0.622], // 03 — high  (hands over from 02)
-  [0.6, 0.622, 0.718, 0.74], // 04 — low   (hands over from 03)
-  [0.756, 0.826, 2, 2], // the closer — owns 95→100% and stays
+  // 01 — high. Starts at 0.068, not 0.08: with the ink beginning exactly when
+  // the wipe topped out there was one measurable frame (global 0.7975) of bare
+  // cream at 0.00% ink on BOTH viewports — a blank page, and the capture grid
+  // found it. The sentence sits at the HEAD of the plate and the ground rises
+  // from the FOOT, so at gin ≈ 0.7 the top of the frame is already whole bone:
+  // the ink never has to land on the moving edge, it just stops waiting for it.
+  [0.068, 0.086, 0.25, 0.262],
+  [0.25, 0.262, 0.425, 0.437], // 02 — low   (hands over from 01)
+  [0.425, 0.437, 0.6, 0.612], // 03 — high  (hands over from 02)
+  [0.6, 0.612, 0.722, 0.74], // 04 — low   (clears exactly as the wipe begins)
+  // The closer. It used to wait for the ground to finish leaving (0.756), which
+  // made the exit wipe a frame with NOTHING on it: measured at global 0.9437,
+  // 0.00% ink — a bare cream field sliding off a bare black one. It now comes up
+  // INSIDE the wipe and is CLIPPED to the void the retreating ground uncovers
+  // (see the clip in the tick), so the closer is not faded in over the bone —
+  // it is revealed by the bone leaving. Chalk never has to cross cream.
+  [0.734, 0.752, 2, 2],
 ];
 
 /** The inversion window, in return-phase time.
@@ -120,8 +140,8 @@ const CUES: [number, number, number, number][] = [
  *  fully rested by 0.802. There is no beat anywhere in the hand-off with an
  *  empty stage, and the ink still never has to cross the moving wipe edge —
  *  the ground is whole before the first glyph is legible. */
-const GROUND_IN: [number, number] = [0.045, 0.08];
-const GROUND_OUT: [number, number] = [0.74, 0.756];
+const GROUND_IN: [number, number] = [0.033, 0.073];
+const GROUND_OUT: [number, number] = [0.734, 0.756];
 
 /** Ink pair, void-ground → bone-ground. Interpolated with the inversion. */
 const INK_DARK = [232, 228, 220]; // chalk, on void
@@ -198,6 +218,20 @@ const CSS = `
 .fin-frame--hi { flex-direction: column-reverse; }
 /* 02 / 04 — folio at the head, sentence sitting on the foot margin. */
 .fin-frame--lo { flex-direction: column; }
+/* THE FOLIO IS GATED, NOT CROSS-FADED.
+   Consecutive sentences alternate head/foot, so during a handover the OUTGOING
+   frame's folio band shares the head margin with the INCOMING frame's sentence
+   (and vice versa at the foot). The boxes never collide — measured 0 px² of
+   overlap at every sample — but the reading is worse than a collision: at the
+   crossing point (measured 0.358 / 0.412 on mobile at global 0.8750) the head
+   of the plate showed "02 / 04" standing over the sentence that is line 03,
+   and the foot showed "03 / 04" under line 02. A numbered instrument that
+   disagrees with the thing it numbers is exactly the defect the chapter rail
+   was just fixed for. So the band is driven by a GATE on its own frame's
+   presence rather than by that frame's opacity: it is only drawn while its
+   sentence is the one the reader is on (o > 0.60), and both bands are dark
+   through the crossing. The sentences still cross — that motion is the
+   handover — but only one folio can ever be legible, and never a wrong one. */
 .fin-folio {
   margin: 0;
   width: 100%;
@@ -205,6 +239,7 @@ const CSS = `
   align-items: baseline;
   gap: 21px;
   color: var(--fin-ink);
+  opacity: var(--fin-folio-o, 1);
 }
 /* 2.74:1 against the bone ground at 0.42 — a real counterweight, not a rumour */
 .fin-folio-num {
@@ -568,15 +603,29 @@ export function Finale() {
         const [a, b, c, d] = CUES[i];
         const tin = clamp01((r - a) / (b - a));
         const tout = clamp01((r - c) / (d - c));
-        // The exit is biased much steeper than the entry (pow 0.32 on the
-        // outgoing ramp): the two curves now cross at ~0.26 instead of ~0.38,
-        // and inside a window that is itself 40% shorter. Screen presence
-        // still never drops below 0.5 — the incoming line has already taken
-        // over — but a frame caught mid-handover shows a landing line, not a
-        // pair of half-lit ones.
-        const o = Math.pow(smooth(tin), 0.6) * (1 - Math.pow(smooth(tout), 0.3));
-        if (i === CUES.length - 1) closerOpacity = o;
+        // The exit is biased much steeper than the entry (pow 0.20 out against
+        // 0.50 in), which puts the crossing at t ≈ 0.095 rather than the 0.31 the
+        // previous pair actually produced. Measured across the handover at
+        // global 0.8738→0.8752: 0.476/0.198, 0.292/0.422, 0.133/0.700,
+        // 0.067/0.842 — one landing line and a ghost, which is what the shape
+        // was always supposed to be.
+        const o = Math.pow(smooth(tin), 0.5) * (1 - Math.pow(smooth(tout), 0.2));
+        if (i === CUES.length - 1) {
+          closerOpacity = o;
+          // THE CLOSER IS UNCOVERED, NOT FADED IN. It is chalk on void and it
+          // arrives while the bone plane is still falling through the bottom
+          // edge, so it is clipped to exactly the void the plane has uncovered
+          // — `gout` is that fraction, measured from the foot. Outside the wipe
+          // the clip is removed entirely so nothing pays for it at rest.
+          el.style.clipPath =
+            gout > 0.001 && gout < 0.999
+              ? `inset(${((1 - gout) * 100).toFixed(2)}% 0 0 0)`
+              : 'none';
+        }
         el.style.opacity = o.toFixed(4);
+        // see the .fin-folio note: the band belongs to the sentence the reader
+        // is actually on, so it is gated off through the whole crossing.
+        el.style.setProperty('--fin-folio-o', clamp01((o - 0.6) / 0.28).toFixed(3));
         if (reducedMotion) {
           el.style.transform = 'none';
           el.style.filter = 'none';
@@ -584,8 +633,13 @@ export function Finale() {
           // more travel, less blur: the handover is now told by MOVEMENT (the
           // outgoing line clearing upward) rather than by a soft focus that
           // turned both lines into grey fog on the bone ground.
-          const y = (1 - smooth(tin)) * 44 - smooth(tout) * 52;
-          const blur = (1 - smooth(tin)) * 1.1 + smooth(tout) * 1.0;
+          // The outgoing line has to be visibly LEAVING, not just dimming: 52px
+          // of travel over a 0.020 window meant the ghost had moved 11px at the
+          // crossing and read as a second sentence sitting there. 96px over a
+          // 0.012 window clears it upward fast enough that the eye reads one
+          // sentence landing and one being taken away.
+          const y = (1 - smooth(tin)) * 44 - smooth(tout) * 96;
+          const blur = (1 - smooth(tin)) * 1.1 + smooth(tout) * 1.8;
           el.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
           el.style.filter = blur > 0.06 ? `blur(${blur.toFixed(2)}px)` : 'none';
         }
