@@ -69,9 +69,16 @@ export function Cosmos() {
     let lastPE = '';
     const tick = () => {
       const p = progressRef.current ?? 0;
-      const fadeIn = clamp01((p - PHASES.dive.start) / 0.09);
+      // NO fade-in gate. The canvas is LIVE from the very first frame: it is
+      // painted, it runs its frame loop, and it tracks the cursor before any
+      // scroll has happened. The DOM→3D handoff is unchanged — Hero's
+      // .hero-void (#0e0c0a) sits opaque over this layer through the arrival
+      // and Dive.tsx fades IT, so the crossfade still resolves on matched
+      // blacks; the difference is that when the void lifts, the scene behind
+      // it has already been responding to the pointer rather than starting
+      // from nothing.
       const fadeOut = 1 - clamp01((p - PHASES.contraction.end) / 0.08);
-      const opacity = Math.min(fadeIn, fadeOut);
+      const opacity = fadeOut;
       if (Math.abs(opacity - lastOpacity) > 0.003) {
         lastOpacity = opacity;
         el.style.opacity = opacity.toFixed(3);

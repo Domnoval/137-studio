@@ -64,6 +64,42 @@ const MONO = "'JetBrains Mono', monospace";
 
 /** Minimum clearance between any type and any artwork silhouette, in px. */
 const CLEAR = 32;
+
+/**
+ * THE GHOST NUMERAL'S INK.
+ *
+ * It was set at 0.085. MEASURED on a 1440×900 frame at 46%: the strokes came
+ * out at rgb(36,30,30) against a ground of rgb(18,11,12) — a contrast ratio of
+ * 1.17:1. That is not subtle typography, it is noise: on a calibrated monitor
+ * the counterweight the dark half was composed around simply does not exist.
+ *
+ * 0.34 puts the strokes at ~rgb(91,85,83) on the same ground — 2.6:1, which is
+ * present enough to hold the panel and still an order of magnitude below the
+ * caption (#e8e4dc at 15:1) it must never compete with. It is the same chalk,
+ * at the same weight, on the same grid; only the ink changed.
+ */
+const GHOST_INK = 0.34;
+
+/**
+ * THE PLATE EDGE.
+ *
+ * A macro shot crops the canvas off three edges and terminates it on the
+ * fourth. Several of the source photographs carry the studio wall / paper
+ * border past the painted edge, and at macro scale that border arrives as a
+ * ~50px strip of rgb(202,202,202) standing directly against the seam — the
+ * single brightest object in a near-black frame, and it reads as a cropping
+ * miss rather than as a print edge.
+ *
+ * So the terminating edge is MATTED: an opaque strip of the ground, this wide,
+ * laid over the last of the canvas. The crop lands a little inside the
+ * photograph instead of on its physical border, which is what a plate edge is.
+ * The matte is a two-stop vertical ramp rather than a flat fill because the
+ * ground it has to disappear into is vignetted (measured at x=905: rgb(10,7,8)
+ * at the frame edges, rgb(16,11,12) across the middle third) — it is a matte
+ * sampled from the ground, not a decorative gradient.
+ */
+const EDGE_MATTE_FRAC = 0.053; // × viewport width — 76px at 1440
+const EDGE_MATTE_MIN = 56;
 /** A chip may never come within this many px, vertically, of the caption. */
 const CHIP_KEEPOUT_Y = 120;
 // (horizontal inflation is unnecessary: the keep-out is a full-width band)
@@ -114,6 +150,13 @@ const CSS = `
 .cx-ghost { position:absolute; top:0; left:0; white-space:nowrap;
             font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
             letter-spacing:.005em; color:#e8e4dc; }
+
+/* the plate edge: an opaque matte of the ground laid over the last of the
+   canvas, so the photograph's own paper border can never be part of the frame */
+.cx-edge { position:absolute; top:0; left:0; height:100%; will-change:transform;
+           background:linear-gradient(180deg,
+             rgb(10,7,8) 0%, rgb(16,11,12) 18%,
+             rgb(16,11,12) 74%, rgb(10,7,8) 100%); }
 `;
 
 interface Label {
@@ -182,6 +225,7 @@ const mix: ShotMix = { wide: 1, macro: 0, pullback: 0 };
 export function Labels() {
   const built = useRef(false);
   const artRef = useRef<ArtLabel | null>(null);
+  const edgeRef = useRef<HTMLDivElement | null>(null);
   const appsRef = useRef<AppLabel[]>([]);
   // The driver's useFrame must be the LAST subscriber so it reads slab screen
   // rects written this same frame. R3F keeps insertion order, so we simply do
@@ -221,6 +265,19 @@ export function Labels() {
         layer.appendChild(root);
         return root;
       };
+
+      // ---- the plate edge matte ----
+      // Built FIRST so it paints under every caption in the layer; it carries
+      // its own opacity because it belongs to the SHOT, not to the caption —
+      // the crop must survive a frame in which no placement was found.
+      {
+        const edge = document.createElement('div');
+        edge.className = 'cx-edge';
+        edge.style.opacity = '0';
+        edge.setAttribute('aria-hidden', 'true');
+        layer.appendChild(edge);
+        edgeRef.current = edge;
+      }
 
       // ---- art caption ----
       {
@@ -340,15 +397,70 @@ export function Labels() {
     };
   }, []);
 
-  return armed ? <LabelDriver artRef={artRef} appsRef={appsRef} /> : null;
+  return armed ? <LabelDriver artRef={artRef} appsRef={appsRef} edgeRef={edgeRef} /> : null;
 }
 
 interface DriverProps {
   artRef: React.RefObject<ArtLabel | null>;
   appsRef: React.RefObject<AppLabel[]>;
+  edgeRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function LabelDriver({ artRef, appsRef }: DriverProps) {
+/**
+ * FOREIGN TYPE.
+ *
+ * The exclusion table is what stops the in-canvas equation glyphs printing
+ * through a caption's word gaps, and this module is the only writer — so any
+ * caption in the layer that this module did not create was invisible to it.
+ * FormationPlate.tsx (the plate that names the composed archive, 54%–69%)
+ * is exactly that: it lives in the same layer, it is set in the same grammar,
+ * and it was the one caption a glyph was allowed to land on. Worse, it is at
+ * its loudest AFTER 61.8%, where this driver used to clear the table and stop.
+ *
+ * So the driver harvests every caption-bearing element in the layer, not just
+ * its own, and it keeps harvesting past the chapter boundary. Read off the
+ * inline transform rather than getBoundingClientRect so the per-frame cost is
+ * a string parse, not a forced layout.
+ */
+interface Foreign {
+  el: HTMLElement;
+  w: number;
+  h: number;
+}
+const foreign: Foreign[] = [];
+const XY = /translate(?:3d)?\(\s*(-?[\d.]+)px[,\s]+(-?[\d.]+)px/;
+
+function harvestForeign(layer: HTMLDivElement | null): void {
+  if (!layer) return;
+  // Self-healing rather than scan-once: the plate mounts on its own clock and
+  // can be torn down and rebuilt under it (Suspense, HMR), so the table is
+  // re-scanned whenever it is empty or its first entry has left the document.
+  if (foreign.length === 0 || !foreign[0].el.isConnected) {
+    foreign.length = 0;
+    layer
+      .querySelectorAll<HTMLElement>('.fp-cap')
+      .forEach((el) => foreign.push({ el, w: 0, h: 0 }));
+  }
+  for (let i = 0; i < foreign.length; i++) {
+    const f = foreign[i];
+    if (!f.el.isConnected) continue;
+    const o = parseFloat(f.el.style.opacity || '0');
+    if (!(o > 0.02)) continue;
+    if (f.w === 0) {
+      const r = f.el.getBoundingClientRect();
+      if (r.width < 1) continue;
+      f.w = r.width;
+      f.h = r.height;
+    }
+    const m = XY.exec(f.el.style.transform);
+    if (!m) continue;
+    const x = parseFloat(m[1]);
+    const y = parseFloat(m[2]);
+    pushExclusion(x, y, x + f.w, y + f.h);
+  }
+}
+
+function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
   const { progressRef } = useJourney();
 
   useFrame((state) => {
@@ -371,12 +483,18 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
       l.shown = on;
       l.root.style.display = on ? '' : 'none';
     };
+    // ONE reset per frame, and it happens before ANY caption publishes — this
+    // module's or another module's. The foreign harvest runs on both sides of
+    // the chapter boundary because the formation plate outlives it.
+    resetExclusion();
+    harvestForeign(cosmosShared.labelLayer);
+    const edge = edgeRef.current;
     if (dead) {
-      resetExclusion();
       appActive.index = -1;
       appActive.o = 0;
       setShown(art, false);
       for (const l of apps) setShown(l, false);
+      if (edge && edge.style.opacity !== '0') edge.style.opacity = '0';
       return;
     }
     setShown(art, true);
@@ -417,7 +535,6 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
 
     const rects = cosmosShared.slabRects;
     placed.length = 0;
-    resetExclusion();
 
     const fits = (
       x: number,
@@ -453,6 +570,30 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
     const heroRect: ScreenRect | undefined = rects[heroIndex];
     const heroWork = SLABS[heroIndex]?.work;
     let artDone = false;
+
+    /* ------------------------------------------------- 0b. the plate edge */
+    // Only a MACRO frames a canvas this way: bled off the left and off both
+    // horizontals, terminating on a single vertical inside the frame. That
+    // vertical is the crop, and the crop is matted (see EDGE_MATTE_FRAC).
+    if (edge) {
+      const terminating =
+        heroRect?.live &&
+        heroRect.x0 < 8 &&
+        heroRect.x1 > W * 0.2 &&
+        heroRect.x1 < W - 8 &&
+        heroRect.y0 < 8 &&
+        heroRect.y1 > H - 8;
+      const eo = terminating ? smoothstep(0.06, 0.3, mix.macro) : 0;
+      if (eo > 0.002 && heroRect) {
+        const mw = Math.max(EDGE_MATTE_MIN, W * EDGE_MATTE_FRAC);
+        // +2px of overshoot past the seam so no sub-pixel sliver of the
+        // photograph's border can survive on the far side of the crop
+        edge.style.width = `${Math.round(mw + 2)}px`;
+        edge.style.transform = `translate3d(${Math.round(heroRect.x1 - mw)}px, 0, 0)`;
+      }
+      const eos = eo.toFixed(3);
+      if (edge.style.opacity !== eos) edge.style.opacity = eos;
+    }
 
     if (
       !isPullback &&
@@ -595,7 +736,7 @@ function LabelDriver({ artRef, appsRef }: DriverProps) {
               gy + art.ghostH < y - 28
             ) {
               art.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
-              art.ghost.style.opacity = '0.085';
+              art.ghost.style.opacity = `${GHOST_INK}`;
               placed.push({ x0: gx, y0: gy, x1: gx + art.ghostW, y1: gy + art.ghostH });
               pushExclusion(gx, gy, gx + art.ghostW, gy + art.ghostH);
             } else {

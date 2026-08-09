@@ -172,25 +172,81 @@ const CSS = `
   opacity: 0;
   will-change: opacity, transform, filter;
 }
-/* Consecutive lines never share a position — that is what lets them cross. */
-.fin-frame--hi { justify-content: flex-start; padding-top: 17vh; }
-.fin-frame--lo { justify-content: flex-end; padding-bottom: 17vh; }
-.fin-index {
+
+/* ---- THE MEASURED VOID -------------------------------------------------
+   Each manifesto frame is a SPREAD, not a block dropped in a corner. The
+   sentence takes one 15vh margin and the FOLIO BAND takes the other, so the
+   empty field between them is a stated gap with a mark at each end instead of
+   bare cream with nothing in it. (Measured before: at 85% the top 55% of a
+   900px canvas carried a single 0.62rem index and nothing else; at 92% there
+   were ~370px of dead ground above the type and no terminus below it.)
+
+   The band is folio + rule + terminal — a large chapter numeral at the left
+   margin, a hairline running the full measure, and the caption system's own
+   crimson tick closing it on the right. Three marks the site already owns; no
+   new colour, no new device, and the sentence itself is untouched. Consecutive
+   lines still never share a position: the sentence alternates head/foot, and
+   the folio takes whichever margin it vacates, so the two also cross. */
+.fin-frame--say {
+  justify-content: space-between;
+  padding-top: 15vh;
+  padding-bottom: 15vh;
+}
+/* 01 / 03 — sentence at the head, folio standing at the foot. */
+.fin-frame--hi { flex-direction: column-reverse; }
+/* 02 / 04 — folio at the head, sentence sitting on the foot margin. */
+.fin-frame--lo { flex-direction: column; }
+.fin-folio {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 21px;
+  color: var(--fin-ink);
+}
+/* 2.74:1 against the bone ground at 0.42 — a real counterweight, not a rumour */
+.fin-folio-num {
+  font-family: ${SERIF};
+  font-weight: 300;
+  font-size: clamp(2.6rem, 5.4vw, 5.4rem);
+  line-height: 0.78;
+  letter-spacing: -0.012em;
+  opacity: 0.42;
+}
+.fin-folio-of {
+  font-family: ${MONO};
+  font-weight: 300;
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  color: var(--fin-mute);
+}
+.fin-folio-rule {
+  flex: 1 1 auto;
+  min-width: 34px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.2;
+}
+.fin-folio-tag {
   font-family: ${MONO};
   font-weight: 300;
   font-size: 0.62rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--fin-mute);
-  margin: 0 0 21px;
-  display: flex;
-  align-items: center;
-  gap: 21px;
 }
-.fin-index::after {
-  content: '';
-  flex: 0 0 89px;
+/* the caption system's terminal glyph, closing the measure on the right.
+   Empty elements take their baseline from the bottom margin edge, so both
+   pieces land exactly on the folio's own baseline — no magic numbers. */
+.fin-folio-tick {
+  flex: 0 0 21px;
   height: 1px;
+  background: rgba(196, 18, 48, 0.7);
+}
+.fin-folio-dot {
+  flex: 0 0 3px;
+  height: 3px;
+  margin-bottom: -1px;
   background: ${RED};
 }
 .fin-say {
@@ -352,8 +408,12 @@ const CSS = `
   /* bigger and set further off the edges: at 12vw / 13vh the line sat in the
      top eighth of a 844px phone with seven-eighths of bare ground under it */
   .fin-say { font-size: 13.5vw; max-width: 9em; }
-  .fin-frame--hi { padding-top: 22vh; }
-  .fin-frame--lo { padding-bottom: 22vh; }
+  /* the spread still holds on a 390px phone: folio band on one margin, the
+     sentence on the other, and the gap between them stays a stated void */
+  .fin-frame--say { padding-top: 12vh; padding-bottom: 12vh; }
+  .fin-folio { gap: 13px; }
+  .fin-folio-num { font-size: 3.1rem; }
+  .fin-folio-tag { display: none; }
   .fin-name { font-size: 10vw; margin-bottom: 26px; }
   .fin-cols { grid-template-columns: 1fr; gap: 26px; }
   .fin-col--end { align-items: flex-start; text-align: left; }
@@ -557,12 +617,18 @@ export function Finale() {
 
         {LINES.map((line, i) => (
           <div
-            className={`fin-frame ${i % 2 === 0 ? 'fin-frame--hi' : 'fin-frame--lo'}`}
+            className={`fin-frame fin-frame--say ${i % 2 === 0 ? 'fin-frame--hi' : 'fin-frame--lo'}`}
             key={line}
             ref={setFrame(i)}
           >
-            <p className="fin-index" aria-hidden>
-              {String(i + 1).padStart(2, '0')} / 04
+            {/* the counterweight: folio, full-measure hairline, crimson terminal */}
+            <p className="fin-folio" aria-hidden>
+              <span className="fin-folio-num">{String(i + 1).padStart(2, '0')}</span>
+              <span className="fin-folio-of">/ 04</span>
+              <i className="fin-folio-rule" />
+              <span className="fin-folio-tag">The manifesto</span>
+              <i className="fin-folio-tick" />
+              <b className="fin-folio-dot" />
             </p>
             <p className="fin-say">{line}</p>
           </div>

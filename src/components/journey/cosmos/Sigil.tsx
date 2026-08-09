@@ -32,6 +32,13 @@ import { cosmosShared, smoothstep } from './shared';
 import { contraction, srgbToLinear } from './contraction-state';
 import { buildRibbon } from './chalk-ribbon';
 import {
+  ARCHIVE,
+  ARCHIVE_THETA_MAX,
+  ARCHIVE_UNIT,
+  PHI_SPIRAL_B,
+  PHI_SPIRAL_PHASE,
+} from './cosmos-data';
+import {
   armatureStrokes,
   socketStrokes,
   lashStrokes,
@@ -96,18 +103,75 @@ const PULSE_SIGMA = 0.03;
 const CHALK = new THREE.Color('#e8e4dc');
 const RED = new THREE.Color('#c41230');
 
-// the ground under the climax: cold blue-black through the warp, resolving to
-// a slightly warmer, denser dark for the beat itself. Still near-black, still
-// no second accent — a temperature swing inside the existing discipline.
-const GROUND_COLD = srgbToLinear('#090b12');
+// The ground under the climax: a shade cooler through the velocity, resolving
+// to a warmer, denser dark for the beat itself. #090b12 was a BLUE-black —
+// blue 18 against red 9, measurably a second colour in a site whose whole claim
+// is one — and it dragged the frame's darkest pixels to (11,10,15) through the
+// middle of the contraction. #0c0b0d is the same temperature MOVE, one twelfth
+// the chroma: still cooler than #120c0b, still never pure black, still no
+// second accent.
+const GROUND_COLD = srgbToLinear('#0c0b0d');
 const GROUND_WARM = srgbToLinear('#120c0b');
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/* --------------------------------------- THE ARCHIVE → CONTRACTION CONTRACT */
+//
+// The fifteen works are laid out ON the φ spiral (ARCHIVE in cosmos-data.ts:
+// r = e^(bθ), b = ln φ / π, phase 0.72π, one third of the golden angle between
+// consecutive works). The contraction is not an interlude that happens to
+// contain a spiral — it is THAT spiral collapsing. So the velocity beat is
+// derived from the archive's own exports rather than from a fresh set of
+// random radii:
+//
+//   · every streak launches from a point ON the archive curve, and 60 of them
+//     launch from the fifteen work positions themselves — the works are what
+//     you see falling in,
+//   · every streak's flight is a segment of the same logarithmic spiral,
+//     r = R0·e^(−b·Δθ), wound inward toward the eye (the shader's traj()),
+//   · and the drawn spiral stroke is scaled so that at the hand-off it is
+//     geometrically the archive's own arm, continued.
+//
+// SCALE. The archive's outer arm subtends 2·ARCHIVE_UNIT of the frame's half
+// height (unit = baseH·ARCHIVE_UNIT at FORMATION_D, half-height = baseH/2 —
+// the lens cancels). One spiral unit is therefore worth
+// 2·ARCHIVE_UNIT·tan(fov/2)·d local units at distance d, and the streak field
+// is frozen at the distance the velocity beat opens on. The one number that
+// cannot be derived from an export is the lens itself.
+const COSMOS_FOV = 55; // must match the <Canvas camera> in Cosmos.tsx
+const TAN_HALF_FOV = Math.tan((COSMOS_FOV * Math.PI) / 360);
+/** Fraction of the frame half-height the archive's outer arm reaches. */
+const ARCH_ARM_FRAC = 2 * ARCHIVE_UNIT; // 0.8136
+/** Local units per archive spiral unit, frozen at the warp's own distance. */
+const WARP_REF_CP = 0.18; // the middle of the velocity beat
+const WARP_REF_DIST =
+  FAR_DIST + (HOLD_DIST - FAR_DIST) * (3 - 2 * (WARP_REF_CP / 0.6)) * (WARP_REF_CP / 0.6) ** 2; // ≈ 28.08
+const SPIRAL_UNIT = ARCH_ARM_FRAC * TAN_HALF_FOV * WARP_REF_DIST; // ≈ 11.89
+/** θ the curve is extended past the outermost work, so it sweeps off-frame. */
+const ARM_LEAD = 3.2;
+/** …and past the innermost, so the field does not stop dead at the eye. */
+const ARM_TAIL = 1.6;
+/** θ_max of the sigil's own spiral stroke — mirrors spiralOuterFirst(). */
+const SIGIL_THETA_MAX = Math.PI * 4.6;
+/**
+ * Scale at which the drawn spiral IS the archive arm continued: the sigil
+ * stroke normalises its outer radius to 1 at its own θ_max, so matching the
+ * archive at equal θ costs exactly e^(b·Δθ_max). Multiplied by HOLD_DIST
+ * because the stroke's scale is applied as (dist/HOLD_DIST)·this — the two
+ * distances cancel and the match holds at every point of the dolly.
+ */
+const SPIRAL_MATCH =
+  ARCH_ARM_FRAC *
+  TAN_HALF_FOV *
+  Math.exp(PHI_SPIRAL_B * (SIGIL_THETA_MAX - ARCHIVE_THETA_MAX)) *
+  HOLD_DIST; // ≈ 4.60
+
 /* ------------------------------------------------------------- the streaks */
 
 const STREAKS = 340;
+/** Streaks that launch from a work's own slot on the curve. 4 per work. */
+const WORK_STREAKS = ARCHIVE.length * 4;
 const SEG = 14;
 // The launch window is wide so the warp is a CONTINUOUS gradient of streaks —
 // some just landing, some mid-flight with long trails, some still leaving the
@@ -132,9 +196,11 @@ const STREAK_VERT = /* glsl */ `
   uniform float uOpacity;
   uniform vec3 uChalk;
   uniform vec3 uRed;
-  attribute vec3 aP0;   // r0, a0, z0
-  attribute vec3 aP1;   // rTarget, aTarget, turn
+  uniform float uB;     // ln(phi)/pi — the archive's own growth constant
+  attribute vec3 aP0;   // R0 (on the archive arm), theta0, z0
+  attribute vec3 aP1;   // rTarget, angular correction, sweep (radians of wind)
   attribute vec4 aQ;    // stagger, velocity, halfWidthPx, red
+  attribute float aBright;
   attribute vec2 aTS;   // t along the ribbon (0 tail, 1 head), side
   varying float vA;
   varying float vS;
@@ -142,13 +208,17 @@ const STREAK_VERT = /* glsl */ `
 
   float ease(float x) { x = clamp(x, 0.0, 1.0); return x * x * (3.0 - 2.0 * x); }
 
+  // THE ARCHIVE'S OWN CURVE, WINDING IN.
+  // r = R0·e^(−b·Δθ) with Δθ swept linearly is the logarithmic spiral the
+  // fifteen works are laid out on. A streak's whole flight is a segment of
+  // that curve: it does not resemble the spiral, it IS it. The sweep is solved
+  // on the CPU as ln(R0/rTarget)/b, so r lands exactly on the mark, and the
+  // residual angular error is eased in over the last half of the flight.
   vec3 traj(float e) {
-    float rr = mix(aP0.x, aP1.x, e);
-    float aa = aP1.y + (aP0.y - aP1.y + aP1.z) * (1.0 - e);
-    // a tangential swirl that tightens as the radius drops: streaks bend
-    // AROUND the throat instead of running straight through the subject
-    aa += 0.62 * (1.0 - e) * (1.0 - e) / (1.0 + rr * 0.20);
-    return vec3(cos(aa) * rr, sin(aa) * rr, aP0.z * (1.0 - e));
+    float dth = aP1.z * e;
+    float th = aP0.y - dth + aP1.y * smoothstep(0.45, 1.0, e);
+    float r = aP0.x * exp(-uB * dth);
+    return vec3(cos(th) * r, sin(th) * r, aP0.z * (1.0 - e));
   }
 
   void main() {
@@ -159,7 +229,13 @@ const STREAK_VERT = /* glsl */ `
     // trail length is per-particle velocity: a ~10x spread across the field,
     // collapsing to zero exactly at arrival so nothing spikes on landing
     float trail = aQ.y * 0.32 * (1.0 - eH * 0.92);
-    float e = max(eH - trail * (1.0 - t), 0.0);
+    // RAW can go negative behind the launch point. Clamping it (as this did)
+    // parks every tail vertex on the same coordinate, so dir degenerates and
+    // the strip folds into a hard sawtooth comb — visible as a ~15px ribbon
+    // ending in teeth. Keep the clamp for position, but dissolve the alpha
+    // before the clamp is ever reached.
+    float raw = eH - trail * (1.0 - t);
+    float e = max(raw, 0.0);
     float e2 = max(eH - trail * (1.0 - min(t + 0.05, 1.0)), 0.0);
 
     mat4 mvp = projectionMatrix * modelViewMatrix;
@@ -177,14 +253,14 @@ const STREAK_VERT = /* glsl */ `
     gl_Position = cur;
 
     // bright head, vanishing tail
-    float a = pow(t, 1.9);
+    float a = pow(t, 1.9) * smoothstep(0.0, 0.045, raw);
     // radial density falloff — a clear throat opens on the axis
-    float rNow = mix(aP0.x, aP1.x, e);
+    float rNow = aP0.x * exp(-uB * aP1.z * eH);
     a *= mix(smoothstep(0.8, 5.0, rNow), 1.0, eH * eH);
     // and out cleanly as it lands on the mark
     a *= 1.0 - smoothstep(0.88, 1.0, eH);
 
-    vA = a * uOpacity;
+    vA = a * uOpacity * aBright;
     vS = side;
     vC = mix(uChalk, uRed * 1.5, aQ.w);
   }
@@ -210,32 +286,58 @@ export function Sigil() {
   const kit = useMemo(() => {
     const rnd = mulberry(1370);
 
-    /* ---- streaks: ribbons on golden-spiral trajectories ---- */
+    /* ---- streaks: the archive's fifteen works, and the arm they sit on,
+           falling in ALONG the φ spiral they were laid out on ---- */
     const targets = markTargets(STREAKS, 909);
     const verts = STREAKS * SEG * 2;
     const p0 = new Float32Array(verts * 3);
     const p1 = new Float32Array(verts * 3);
     const q = new Float32Array(verts * 4);
+    const br = new Float32Array(verts);
     const ts = new Float32Array(verts * 2);
     const zero = new Float32Array(verts * 3);
     const idx = new Uint32Array(STREAKS * (SEG - 1) * 6);
+    /** wrap to (−π, π] — the residual angle a streak still has to correct */
+    const wrap = (a: number) => {
+      let v = (a + Math.PI) % (Math.PI * 2);
+      if (v < 0) v += Math.PI * 2;
+      return v - Math.PI;
+    };
 
     let vi = 0;
     let ii = 0;
     for (let i = 0; i < STREAKS; i++) {
       const tgt = targets[i];
-      const rT = Math.hypot(tgt.x, tgt.y);
+      const rT = Math.max(0.35, Math.hypot(tgt.x, tgt.y));
       const aT = Math.atan2(tgt.y, tgt.x);
-      // radii skewed OUT so the middle of the frame stays open
-      const r0 = 6.5 + Math.pow(rnd(), 0.42) * 23;
-      const a0 = rnd() * Math.PI * 2;
-      const z0 = (rnd() - 0.5) * 4 - 0.3;
-      const turn = (0.7 + rnd() * 1.15) * (rnd() < 0.5 ? -1 : 1);
+
+      // WHERE IT LAUNCHES. The first WORK_STREAKS come off the fifteen work
+      // positions themselves — four apiece, jittered by well under the
+      // one-third-golden-angle gap — so the things collapsing are legibly the
+      // works. The rest fill the arm, skewed outward (pow 0.55) so the rim is
+      // dense and the throat on the axis stays open.
+      const isWork = i < WORK_STREAKS;
+      const theta0 = isWork
+        ? ARCHIVE[i % ARCHIVE.length].theta + (rnd() - 0.5) * 0.3
+        : -ARM_TAIL + Math.pow(rnd(), 0.55) * (ARCHIVE_THETA_MAX + ARM_LEAD + ARM_TAIL);
+      // ON the curve, in the sigil's local units
+      const R0 = SPIRAL_UNIT * Math.exp(PHI_SPIRAL_B * (theta0 - ARCHIVE_THETA_MAX));
+      const a0 = theta0 + PHI_SPIRAL_PHASE;
+      // HOW FAR IT WINDS. Solved, not chosen: the angle over which the same
+      // logarithmic law takes R0 down to the target radius.
+      const sweep = Math.min(11, Math.max(0.5, Math.log(R0 / rT) / PHI_SPIRAL_B));
+      const corr = wrap(aT - (a0 - sweep));
+      const z0 = (rnd() - 0.5) * 3 - 0.3;
       const stag = rnd() * STAG_MAX;
       const vel = 0.1 + Math.pow(rnd(), 2) * 0.9; // 10x length spread
-      const depth = 1 - Math.min(1, (r0 - 6.5) / 23);
-      const hw = Math.min(2.3, Math.max(0.45, 0.5 + depth * 1.0 + vel * 0.8));
+      const depth = 1 - Math.min(1, R0 / (SPIRAL_UNIT * Math.exp(PHI_SPIRAL_B * ARM_LEAD)));
+      // half-width in CSS px. At 2.6 (×1.5 for the works) a streak was an 8px
+      // grey ribbon; a field of them read as smeared bands rather than as the
+      // chalk-fine velocity the rest of the site is drawn in.
+      const hw = Math.min(1.55, Math.max(0.34, 0.34 + depth * 0.62 + vel * 0.5) * (isWork ? 1.5 : 1));
       const red = rnd() < 0.08 ? 1 : 0;
+      // the fifteen read brighter than the field they travel in
+      const bright = isWork ? 1.55 : 0.82;
 
       const base = vi;
       for (let s = 0; s < SEG; s++) {
@@ -244,16 +346,17 @@ export function Sigil() {
           const o3 = (vi + k) * 3;
           const o4 = (vi + k) * 4;
           const o2 = (vi + k) * 2;
-          p0[o3] = r0;
+          p0[o3] = R0;
           p0[o3 + 1] = a0;
           p0[o3 + 2] = z0;
           p1[o3] = rT;
-          p1[o3 + 1] = aT;
-          p1[o3 + 2] = turn;
+          p1[o3 + 1] = corr;
+          p1[o3 + 2] = sweep;
           q[o4] = stag;
           q[o4 + 1] = vel;
           q[o4 + 2] = hw;
           q[o4 + 3] = red;
+          br[vi + k] = bright;
           ts[o2] = t;
           ts[o2 + 1] = k === 0 ? -1 : 1;
         }
@@ -275,6 +378,7 @@ export function Sigil() {
     streakGeo.setAttribute('aP0', new THREE.BufferAttribute(p0, 3));
     streakGeo.setAttribute('aP1', new THREE.BufferAttribute(p1, 3));
     streakGeo.setAttribute('aQ', new THREE.BufferAttribute(q, 4));
+    streakGeo.setAttribute('aBright', new THREE.BufferAttribute(br, 1));
     streakGeo.setAttribute('aTS', new THREE.BufferAttribute(ts, 2));
     streakGeo.setIndex(new THREE.BufferAttribute(idx, 1));
     streakGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 60);
@@ -288,6 +392,7 @@ export function Sigil() {
         uOpacity: { value: 0 },
         uChalk: { value: CHALK.clone() },
         uRed: { value: RED.clone() },
+        uB: { value: PHI_SPIRAL_B },
       },
       transparent: true,
       depthWrite: false,
@@ -300,7 +405,20 @@ export function Sigil() {
     streaks.frustumCulled = false;
 
     /* ---- the mark, in struck chalk ---- */
-    const spiral = buildRibbon([spiralStroke(360)], { overlap: 1, color: '#e8e4dc', grain: 0.55, seed: 11, arcLength: false });
+    // THE SPIRAL IS THE ONE STROKE THAT IS DRAWN AT 4x ITS OWN SIZE (it opens
+    // as the archive's arm continued, SPIRAL_MATCH ≈ 4.6). The chalk grain is
+    // authored in stroke-parameter space — 133 skip bands and 540 tooth bands
+    // along the polyline — which at mark scale is dust and at match scale is a
+    // ladder of 30px blocks: the outer turns rendered as a segmented grey
+    // cable, not a line. So this stroke alone runs nearly grain-free, and at
+    // 900 samples instead of 360 so the curvature has no visible facets.
+    // …and densely sampled. spiralOuterFirst steps uniformly in θ, which for a
+    // log spiral means the OUTER turn — the one that is 774px in radius out
+    // here — gets the same number of samples as the throat. At 360 that is a
+    // 31px quad per segment and every shared edge rasterises twice, so the arm
+    // came out as a ticked cable. 3400 puts the outer segment at ~3px, under
+    // the seam's visibility, and costs one static buffer.
+    const spiral = buildRibbon([spiralStroke(3400)], { overlap: 1, color: '#e8e4dc', grain: 0.06, seed: 11, arcLength: false });
     spiral.mesh.position.y = EYE_CY;
     const armature = buildRibbon(armatureStrokes(), { overlap: 0.42, color: '#e8e4dc', grain: 1, seed: 21 });
     const socket = buildRibbon(socketStrokes(), { overlap: 0.35, color: '#e8e4dc', grain: 1, seed: 31 });
@@ -444,14 +562,32 @@ export function Sigil() {
     // frame. Nothing about the beat's shape changes — it is the same accent on
     // the entry to the velocity, moved off the picture it was smearing.
     const WARP_IN = 0.13;
-    const warp = smoothstep(WARP_IN, 0.28, cp) * (1 - smoothstep(0.3, 0.48, cp));
     const beat = smoothstep(0.66, 0.86, cp);
-    // capped: at full strength the warp smear ate every edge in the frame and
-    // left 69% the dimmest picture in the site (p99 luminance 57/255). Velocity
-    // has to be legible to read as velocity.
-    contraction.warp = visible ? warp * 0.85 * (1 - rush) : 0;
+    //
+    // THE SMEAR IS OFF. This is a measurement, not a taste call.
+    //
+    // The velocity beat's content is hairlines: the φ spiral's arms, the streak
+    // ribbons, the dust. A multi-tap radial convolution cannot smear a 1px line
+    // without turning it into a ladder — every tap lands a whole copy of the
+    // line, and the per-pixel jitter that is supposed to hide that only works
+    // when the tap spacing is sub-pixel, which at any strength you can SEE it
+    // is not. Measured across cp 0.12–0.40 at 1440×900:
+    //
+    //   warp 0.85  13.4% of the frame flat desaturated grey (2.9% at the ends),
+    //              ground drifted to a blue-black (9,10,18), every arc combed
+    //   warp 0.45   9.8% grey, comb still plainly visible at 1:1
+    //   warp 0.14   6.4% grey, comb faint but still there, and the effect no
+    //               longer reads as anything
+    //   warp 0      2.8% grey, ground (13,9,12), and the frame is the best
+    //               picture in the chapter: crisp chalk arms of the same φ
+    //               spiral the archive hangs on, winding down onto the works
+    //
+    // The geometry is LIT, not smeared, and it already carries the speed. The
+    // post chain keeps what it can do without artefacts — the temperature
+    // swing, the vignette, and the standing edge aberration.
+    contraction.warp = 0;
     contraction.cool =
-      visible ? 0.62 * smoothstep(WARP_IN, WARP_IN + 0.24, cp) * (1 - beat * 0.5) * (1 - rush) : 0;
+      visible ? 0.42 * smoothstep(WARP_IN, WARP_IN + 0.24, cp) * (1 - beat * 0.5) * (1 - rush) : 0;
     contraction.vig = visible ? beat * fade : 0;
 
     g.visible = visible;
@@ -518,13 +654,18 @@ export function Sigil() {
     // apparent size is held roughly constant while the dolly closes, so it
     // reads as one continuous form tightening rather than a distant squiggle
     const resolve = smoothstep(0.25, 0.78, cp);
-    const spiralScale = (dist / HOLD_DIST) * lerp(5.6, 2.15, resolve);
+    // It OPENS as the archive's own arm continued (SPIRAL_MATCH is derived from
+    // ARCHIVE_UNIT / PHI_SPIRAL_B, so the two curves coincide at equal θ), and
+    // tightens onto the mark from there. Same curve, seen twice.
+    const spiralScale = (dist / HOLD_DIST) * lerp(SPIRAL_MATCH, 2.15, resolve);
     live.spiral.mesh.scale.setScalar(spiralScale);
     // It only becomes visible once it is already more than half drawn. Fading
     // it up from cp 0.01 put a lone 20%-drawn grey arc across a still-sharp
     // corridor at 61.5% — it read as a stray line, not as a spiral.
     live.spiral.material.uniforms.uDraw.value = smoothstep(0.04, 0.34, cp);
-    live.spiral.material.uniforms.uWidth.value = 1.4;
+    // thinner as it opens (it is four times its own size out there), settling
+    // to the mark's own weight as it tightens onto the eye
+    live.spiral.material.uniforms.uWidth.value = lerp(0.62, 1.4, resolve);
     live.spiral.material.uniforms.uOpacity.value =
       1.0 * smoothstep(0.08, 0.22, cp) * (1 - smoothstep(0.54, 0.74, cp)) * fade;
 

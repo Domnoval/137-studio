@@ -67,23 +67,44 @@ const GRADE_FRAG = /* glsl */ `
         texture2D(inputBuffer, uv - shift * dm).b
       );
     } else {
+      // NOTE: uWarp is driven to 0 by Sigil.tsx — see the measurement written
+      // up there. A multi-tap convolution cannot smear the hairline content of
+      // the contraction without combing it, so the beat is carried by lit
+      // geometry instead. The branch below is kept, tuned to values that do not
+      // wreck the palette, in case a future pass finds content it suits.
+      //
       // Radial velocity smear. Every tap steps FURTHER OUT along the radial
       // vector, which drags content toward the vanishing point: the frame
       // stretches along the vector of travel and squeezes across it.
-      float reach = uWarp * (0.030 + rn * 0.22);
-      float squeeze = uWarp * 0.12 * rn;
+      // REACH IS DELIBERATELY SHORT. At the old 0.22 the tangential+radial
+      // travel was ~0.13 uv, so every hairline streak and every turn of the
+      // spiral smeared into a ~110px desaturated band: 13.4% of the frame at
+      // cp≈0.16 read as flat grey with the per-pixel tap jitter showing as
+      // dither. Velocity you can name as "a filter" is too strong.
+      float reach = uWarp * (0.016 + rn * 0.095);
+      float squeeze = uWarp * 0.042 * rn;
       vec2 tang = vec2(-d.y, d.x);
-      // per-pixel tap offset: without it eleven discrete taps read as eleven
-      // ghosts combed along the vector instead of as one smear
-      float jit = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+      // Per-pixel tap offset: without it the discrete taps read as N ghosts
+      // combed along the vector instead of as one smear. Hashing uv directly
+      // gives a LOW-frequency, banded jitter (neighbouring pixels get nearly
+      // the same value), so the comb survived and the spiral's hairlines came
+      // out as ticked cables. Hash pixel coordinates, and take more taps, so
+      // the ghost spacing falls under a pixel.
+      float jit = fract(dot(gl_FragCoord.xy, vec2(0.7548776662, 0.5698402909)));
       vec3 acc = vec3(0.0);
       float wsum = 0.0;
-      const int TAPS = 12;
+      const int TAPS = 20;
       for (int i = 0; i < TAPS; i++) {
         float t = (float(i) + jit) / float(TAPS);
         vec2 suv = uCenter + d * (1.0 + reach * t) - tang * squeeze * t;
-        float w = 1.0 - t * 0.80;              // bright head, vanishing tail
-        vec2 sd = d * (uWarp * rn * 0.0062 * (0.3 + t));
+        // taps that fall outside the frame used to be clamped, which smeared
+        // the border pixel into a comb of blocks down the left edge. Weight
+        // them almost to nothing instead — the smear simply runs out at the
+        // frame edge, the way a real one does.
+        float inside =
+          step(0.0, suv.x) * step(suv.x, 1.0) * step(0.0, suv.y) * step(suv.y, 1.0);
+        float w = (1.0 - t * 0.80) * inside;
+        vec2 sd = d * (uWarp * rn * 0.0034 * (0.3 + t));
         acc += vec3(
           texture2D(inputBuffer, clamp(suv + sd, 0.0, 1.0)).r,
           texture2D(inputBuffer, clamp(suv, 0.0, 1.0)).g,
@@ -91,19 +112,27 @@ const GRADE_FRAG = /* glsl */ `
         ) * w;
         wsum += w;
       }
-      col = acc / wsum;
+      col = acc / max(wsum, 1e-4);
 
       // it bleeds out as it accelerates
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-      col = mix(col, vec3(lum), clamp(uWarp * (0.34 + rn * 0.52), 0.0, 0.76));
-      col *= 1.0 - uWarp * (0.08 + rn * 0.26);
+      // …and it bleeds, but it stays the site's palette while it does. A 0.76
+      // desaturation cap turned the one crimson accent grey for a fifth of the
+      // chapter; 0.34 keeps the red red and still reads as speed.
+      col = mix(col, vec3(lum), clamp(uWarp * (0.16 + rn * 0.26), 0.0, 0.34));
+      col *= 1.0 - uWarp * (0.05 + rn * 0.15);
       // the periphery falls away: the throat is the only thing in focus
-      col *= 1.0 - uWarp * smoothstep(0.34, 1.0, r) * 0.42;
+      col *= 1.0 - uWarp * smoothstep(0.34, 1.0, r) * 0.26;
     }
 
-    // colder ground as the warp accelerates
+    // Cooler ground as the warp accelerates — but the FLOOR stays void.
+    // The old lift was +0.0021 linear on blue against +0.0003 on red, which
+    // pushed the near-black to (9,10,18) sRGB: a blue-black, i.e. a second
+    // colour in a site whose whole claim is one. The multiply now only cools
+    // by a few percent and the floor that keeps us off pure black is #0e0c0a
+    // itself, scaled down — warm dark, as the design system requires.
     if (uCool > 0.001) {
-      vec3 cold = col * vec3(0.84, 0.97, 1.22) + vec3(0.0003, 0.0007, 0.0021);
+      vec3 cold = col * vec3(0.94, 0.99, 1.06) + vec3(0.00122, 0.00085, 0.00060);
       col = mix(col, cold, uCool);
     }
 

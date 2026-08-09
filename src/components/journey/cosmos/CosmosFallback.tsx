@@ -4,7 +4,7 @@
 // The designed 2D cosmos for mobile / no-WebGL / reduced-motion.
 //
 // This is not a fallback list — it is the same journey, art-directed for one
-// column. Four decisions carry it:
+// column. Five decisions carry it:
 //
 // 1. FOUR VERTICALS, AND EVERY EDGE LANDS ON ONE OF THEM.
 //    The old layout ran bleed images 0 → 335 while captions started at 28: the
@@ -18,10 +18,12 @@
 //                                   container spans x=335→390), and nothing may
 //                                   ever collide with the rail — so the site's
 //                                   right-hand grid line IS the rail's gutter.
-//    Bleed plates run V0→V3 and their captions V1→V3; inset plates run V1→V2
-//    and their captions V1→V2. Image right edge and caption right edge are the
-//    same vertical in both treatments, and the caption's index sits flush on
-//    it, so the alignment is stated rather than implied.
+//    Bleed plates run V0→V3, inset plates V1→V2, and ON THE PHONE every
+//    caption runs V1→V3 regardless: the images alternate between the two
+//    treatments, the type column does not move, and the caption's index sits
+//    flush on the page's own terminus every time. (Above 768px, where this
+//    component is only reached through reduced-motion / no-WebGL, the caption
+//    still follows its plate — there is room for it to.)
 //
 // 2. THE BAND IS MEASURED IN SCROLL, NOT IN PAGE HEIGHT. `top`/`height` were
 //    percentages of the 700vh track, but journey progress is measured against
@@ -33,16 +35,37 @@
 //    exactly at cosmos.start and the last work clears the frame exactly at
 //    contraction.start — before the sigil draws.
 //
-// 3. THE PHONE GETS ITS OWN DEPTH DEVICE, not a flattened copy of the dive.
-//    There is no camera here, so the parallax IS the camera: plate and caption
-//    move at different rates against the scroll (they separate and re-converge),
-//    the plate's crop TIGHTENS as it reaches the middle of the frame (a scale
-//    inside a clipped frame — you pass through it, you do not scroll past it),
-//    and its luminance comes up out of the dark on approach and falls back as
-//    it leaves. Distance is expressed as light and rate, exactly as it is in
-//    the 3D corridor. Disabled wholesale under prefers-reduced-motion.
+// 3. THE PHONE GETS A REAL CAMERA, not a flattened copy of the dive.
+//    The corridor is not simulated with opacity here — each plate lives in its
+//    own CSS perspective and is genuinely translated in Z. Five channels, all
+//    driven by ONE number (where the plate sits relative to the middle of the
+//    viewport):
+//      Z      −620px when it is a screen away, 0 at the centre. With
+//             perspective: 760px that is 0.55× → 1.00×: the work comes up the
+//             corridor, reaches full size exactly as it passes, and recedes.
+//      RAKE   rotateX tracks the same number THROUGH ZERO: a plate below the
+//             middle is seen from above, a plate above it from below, and the
+//             sign flips as it goes by. That flip is what makes it a pass
+//             rather than a zoom.
+//      RATE   plate and caption travel at different speeds against the scroll,
+//             so they separate on approach and re-converge at the centre.
+//      CROP   the image scales inside its clipping frame, so the framing
+//             tightens as the work goes by — you pass through it.
+//      LIGHT  atmospheric perspective: luminance and saturation both fall off
+//             with distance, exactly as they do down the 3D corridor.
+//    THE RAIL IS INVIOLABLE, BY CONSTRUCTION: Z never goes positive, so the
+//    projected scale never exceeds 1.00 and no plate can grow past its own
+//    layout box into the HUD's 55px reserve. Disabled wholesale under
+//    prefers-reduced-motion.
 //
-// 4. THE CAPTION NEVER ORPHANS A WORD. The metadata is broken deliberately at
+// 4. THE PHONE HAS ITS OWN TYPE SCALE. Every tier was inherited from the
+//    desktop caption system, which put the metadata at 0.55rem — 8.8px on a
+//    390px screen, a size that exists on a 27" monitor and does not exist in a
+//    hand. The mobile block below re-sets every tier against the phone
+//    (metadata 10.9px, title 13.8px, chapter 10.9px) and opens the line
+//    spacing to match. Nothing else about the caption grammar changes.
+//
+// 5. THE CAPTION NEVER ORPHANS A WORD. The metadata is broken deliberately at
 //    the support ("acrylic, spray paint, and marker" / "on canvas · 2024 ·
 //    sold") rather than left to wrap, which was stranding '2024' and 'SOLD'
 //    alone on a right-aligned second line.
@@ -133,17 +156,26 @@ const CSS = `
   color: ${FADED};
 }
 
+/* each work owns its own lens — perspective-origin at the figure's own centre,
+   so the Z travel is a pure approach and never a lateral drift */
 .fb-fig {
   margin: 0;
   width: 100%;
   cursor: pointer;
+  perspective: 760px;
+  perspective-origin: 50% 50%;
 }
-/* the frame CLIPS: the plate scales inside it as it reaches the middle of the
-   viewport, so the crop tightens on approach instead of the layout reflowing */
+/* the frame CLIPS, and it is the thing that travels in Z. Z is never positive,
+   so the projected width never exceeds the layout box and the HUD rail's
+   reserve can never be reached. */
 .fb-frame {
   overflow: hidden;
   display: block;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  backface-visibility: hidden;
 }
+/* …and the image scales INSIDE it, so the crop tightens as the work goes by */
 .fb-img {
   display: block;
   width: 100%;
@@ -216,6 +248,30 @@ const CSS = `
   white-space: nowrap;
 }
 
+/* ---- THE PHONE'S OWN TYPE SCALE ----------------------------------------
+   Not the desktop caption system shrunk: re-set against a 390px screen. The
+   metadata tier was 0.55rem = 8.8px, which is a size that only exists on a
+   large monitor. Every tier moves up one step and the leading opens with it.
+   The grammar — crimson rule, tracked mono title, medium · year · index — is
+   untouched; only the scale is the phone's. */
+@media (max-width: 767px) {
+  .fb-chapter { font-size: 0.68rem; letter-spacing: 0.26em; gap: 10px; }
+  .fb-chapter i { width: 44px; }
+  .fb-plate-meta { font-size: 0.66rem; letter-spacing: 0.16em; line-height: 1.5; }
+  /* ONE TYPE MEASURE. On a 390px column the caption cannot also be as narrow
+     as the φ inset — "Ultraviolet Beast" at a legible size does not fit in
+     192px and breaks across the index. So on the phone every caption runs the
+     full type measure V1→V3 and terminates on the page's own right-hand grid
+     line: the images alternate between the two treatments, the type column
+     does not move. It is a stronger statement of the grid, not a weaker one. */
+  .fb-fig--inset .fb-cap { width: var(--fb-type); }
+  .fb-cap { gap: 6px; }
+  .fb-title { font-size: 0.86rem; letter-spacing: 0.14em; }
+  .fb-idx { font-size: 0.68rem; }
+  .fb-meta { font-size: 0.68rem; letter-spacing: 0.11em; line-height: 1.35; }
+  .fb-cap-rule { width: 26px; }
+}
+
 /* Wide viewports only reach this component through reduced-motion / no-WebGL;
    cap the plates by height there so the column does not become a tower. */
 @media (min-width: 768px) {
@@ -226,7 +282,8 @@ const CSS = `
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fb-img, .fb-cap { transform: none !important; filter: saturate(0.94) !important; }
+  .fb-fig { perspective: none; }
+  .fb-img, .fb-cap, .fb-frame { transform: none !important; filter: saturate(0.94) !important; }
 }
 `;
 
@@ -243,7 +300,16 @@ const FADE_OUT: [number, number] = [0.604, 0.628];
 interface Plate {
   img: HTMLImageElement;
   cap: HTMLElement;
+  frame: HTMLElement;
 }
+
+/* ------------------------------------------------------- the phone's camera */
+/** Depth a plate has receded to when it is one viewport from the middle.
+ *  Against the CSS lens (perspective: 760px) that is 760/(760+620) = 0.551×.
+ *  The same order of size falloff a slab has at the far end of the corridor. */
+const FAR_Z = -620;
+/** Rake at full distance, degrees. Signed by side, so it flips at the pass. */
+const RAKE = 11;
 
 export function CosmosFallback() {
   const { setSelectedWork, reducedMotion } = useJourney();
@@ -274,19 +340,36 @@ export function CosmosFallback() {
       const plates = platesRef.current;
       for (let i = 0; i < plates.length; i++) {
         const pl = plates[i];
-        if (!pl || !pl.img || !pl.cap) continue;
-        const r = pl.img.getBoundingClientRect();
+        if (!pl || !pl.img || !pl.cap || !pl.frame) continue;
+        const r = pl.frame.getBoundingClientRect();
         if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) continue;
-        // −0.5 (leaving, above) → 0 (dead centre) → +0.5 (arriving, below)
+        // −1 (gone, above) → 0 (dead centre, passing) → +1 (a screen away, below)
         const c = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
-        const near = 1 - Math.min(1, Math.abs(c) / 0.62);
+        const d = Math.abs(c);
+        const near = 1 - Math.min(1, d / 0.62);
         const approach = near * near * (3 - 2 * near);
-        pl.img.style.transform = `translate3d(0, ${(c * -34).toFixed(2)}px, 0) scale(${(
-          1 + approach * 0.085
-        ).toFixed(4)})`;
-        pl.img.style.filter = `saturate(0.94) brightness(${(0.6 + approach * 0.4).toFixed(3)})`;
-        pl.cap.style.transform = `translate3d(0, ${(c * 30).toFixed(2)}px, 0)`;
-        pl.cap.style.opacity = (0.22 + approach * 0.78).toFixed(3);
+
+        // ---- Z: the corridor. Never positive, so the projected width can
+        // never exceed the layout box and the HUD rail stays inviolable.
+        const z = FAR_Z * Math.pow(d, 1.05);
+        // ---- RAKE: signed by side and flipping THROUGH zero at the pass.
+        // Eased out at the extremes so a far plate is not edge-on.
+        const rake = -c * RAKE * (1 - d * 0.45);
+        // ---- RATE: the plate runs ahead of the scroll, the caption behind it.
+        pl.frame.style.transform =
+          `translate3d(0, ${(c * -46).toFixed(2)}px, ${z.toFixed(1)}px) rotateX(${rake.toFixed(2)}deg)`;
+
+        // ---- CROP: the framing tightens as the work goes by
+        pl.img.style.transform = `scale(${(1 + approach * 0.14).toFixed(4)})`;
+        // ---- LIGHT: atmospheric perspective — luminance AND colour fall off
+        pl.img.style.filter = `saturate(${(0.6 + approach * 0.36).toFixed(3)}) brightness(${(
+          0.44 + approach * 0.58
+        ).toFixed(3)})`;
+
+        // the caption stays flat (2D) so the metadata never rasterises soft —
+        // its parallax is rate and opacity, not depth
+        pl.cap.style.transform = `translate3d(0, ${(c * 26).toFixed(2)}px, 0)`;
+        pl.cap.style.opacity = (0.18 + approach * 0.82).toFixed(3);
       }
     };
 
@@ -350,7 +433,10 @@ export function CosmosFallback() {
       </header>
 
       {SHOWN.map((work, i) => {
-        const bleed = i % 3 === 0;
+        // alternating, not every third: three plates run the full measure and
+        // three sit on the φ inset, so the column has a stated rhythm rather
+        // than one bleed every so often
+        const bleed = i % 2 === 0;
         const [materials, support] = splitMedium(work.medium);
         return (
           <figure
@@ -358,7 +444,13 @@ export function CosmosFallback() {
             className={`fb-fig ${bleed ? 'fb-fig--bleed' : 'fb-fig--inset'}`}
             onClick={() => setSelectedWork(work.id)}
           >
-            <span className="fb-frame">
+            <span
+              className="fb-frame"
+              ref={(node) => {
+                const slot = (platesRef.current[i] ??= { img: null!, cap: null!, frame: null! });
+                slot.frame = node!;
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 className="fb-img"
@@ -367,7 +459,7 @@ export function CosmosFallback() {
                 loading="lazy"
                 decoding="async"
                 ref={(node) => {
-                  const slot = (platesRef.current[i] ??= { img: null!, cap: null! });
+                  const slot = (platesRef.current[i] ??= { img: null!, cap: null!, frame: null! });
                   slot.img = node!;
                 }}
               />
@@ -375,7 +467,7 @@ export function CosmosFallback() {
             <figcaption
               className="fb-cap"
               ref={(node) => {
-                const slot = (platesRef.current[i] ??= { img: null!, cap: null! });
+                const slot = (platesRef.current[i] ??= { img: null!, cap: null!, frame: null! });
                 slot.cap = node!;
               }}
             >

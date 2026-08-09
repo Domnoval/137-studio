@@ -111,9 +111,14 @@ export function Dive() {
     //    within the first fifth of the dive.
     tl.to('.hero-art-left', { xPercent: -88, duration: 0.82, ease: 'power1.out' }, 0);
     tl.to('.hero-art-right', { xPercent: 88, duration: 0.82, ease: 'power1.out' }, 0);
-    //    …while the whole frame rushes past the camera.
-    tl.to('.hero-art-frame', { scale: 2.15, duration: 0.88, ease: 'power2.in' }, 0);
-    tl.to('.hero-art-frame', { opacity: 0, duration: 0.32, ease: 'power1.in' }, 0.5);
+    //    …while the whole frame rushes past the camera. It is IN FOCUS the
+    //    whole way — the halves rake the left and right edges as real
+    //    painted surface, never as blur.
+    tl.to('.hero-art-frame', { scale: 2.62, duration: 0.9, ease: 'power2.in' }, 0);
+    //    The veil gains presence as it opens: you are falling through a
+    //    painting, and a painting you cannot read is a smudge.
+    tl.to('.hero-art-fade', { opacity: 0.68, duration: 0.34, ease: 'power1.out' }, 0);
+    tl.to('.hero-art-frame', { opacity: 0, duration: 0.28, ease: 'power1.in' }, 0.7);
 
     // 4. Letters: separate + swell + blur FIRST (power1.out — visible at once),
     //    then fly through the camera in Z (power2.in — the fall accelerates).
@@ -130,10 +135,11 @@ export function Dive() {
         scale: (i) => 1.32 + prand(i, 6) * 0.42,
         rotationX: (i) => (prand(i, 4) - 0.5) * 44,
         rotationY: (i) => (prand(i, 5) - 0.5) * 32,
-        // 6–13px on 15vw glyphs turned the whole middle of the dive into grey
-        // fog over an already-sharp cosmos. 3.5–8px still reads as speed, but
-        // the letters stay letters all the way through.
-        filter: (i) => `blur(${(3.5 + prand(i, 7) * 4.5).toFixed(1)}px)`,
+        // Defocus is the near plane's job — but a near plane that LINGERS
+        // defocused is grey mush, and that is what made the middle of the dive
+        // subjectless. 2.4–5.6px, and (below) the letters are gone by 60% of
+        // the band, leaving exactly one crisp plane in the frame.
+        filter: (i) => `blur(${(2.4 + prand(i, 7) * 3.2).toFixed(1)}px)`,
         duration: 0.62,
         ease: 'power1.out',
         stagger: { each: 0.008, from: 'random' },
@@ -152,8 +158,8 @@ export function Dive() {
     );
     tl.to(
       letters,
-      { opacity: 0, duration: 0.4, ease: 'power1.in', stagger: { each: 0.008, from: 'random' } },
-      0.42,
+      { opacity: 0, duration: 0.32, ease: 'power1.in', stagger: { each: 0.008, from: 'random' } },
+      0.2,
     );
 
     // 5. DOM void → transparent: the fixed Cosmos canvas is revealed behind.

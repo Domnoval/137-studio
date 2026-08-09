@@ -74,6 +74,24 @@ const M_CAP: [number, number] = [0.646, 0.662];
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const win = (p: number, a: number, b: number) => smooth(clamp01((p - a) / (b - a)));
 
+/* ---- THE MEASURE'S TYPE SCALE ------------------------------------------
+   The flat mark is an SVG, so its caption is set in viewBox units and its
+   rendered size is whatever the box happens to scale to. MEASURED on a 390px
+   phone: the box resolves to 302px for 5.45 units, so 0.135 units rendered at
+   7.5px — the smallest type anywhere on the site, and the one tier that had to
+   be readable, because it carries the constant the whole site is named after.
+   The units are therefore set in CSS, not baked into the geometry, and the
+   phone gets its own value: 0.19u ≈ 10.5px there, while the desktop
+   reduced-motion path keeps the size it was drawn for. */
+const CAP_CSS = `
+.ct-cap { font-size: 0.135px; }
+.ct-cap-sub { font-size: 0.111px; }
+@media (max-width: 767px) {
+  .ct-cap { font-size: 0.19px; }
+  .ct-cap-sub { font-size: 0.167px; }
+}
+`;
+
 /* ---------------------------------------------------- the flat mark, as SVG */
 // Same authored strokes as the 3D mark, emitted as filled outlines so the
 // pressure variation survives into the fallback. y is flipped for SVG.
@@ -278,6 +296,8 @@ export function Contraction() {
 
   return (
     <>
+      <style>{CAP_CSS}</style>
+
       {/* Void veil — above the canvas, below DOM. The RETURN backdrop. */}
       <div
         ref={veilRef}
@@ -378,23 +398,23 @@ export function Contraction() {
               strokeWidth={0.012}
             />
             <text
+              className="ct-cap"
               x={FLAT.capX}
               y={FLAT.capY}
               fill={CHALK}
               fontFamily={MONO}
-              fontSize={FLAT.capSize}
               fontWeight={300}
               letterSpacing="0.2em"
             >
               α ≈ 1/137.035999
             </text>
             <text
+              className="ct-cap-sub"
               x={FLAT.capX1}
               y={FLAT.capY}
               textAnchor="end"
               fill="#a09890"
               fontFamily={MONO}
-              fontSize={FLAT.capSize * 0.82}
               fontWeight={300}
               letterSpacing="0.24em"
             >
@@ -487,9 +507,13 @@ export function Contraction() {
   );
 }
 
-/* ---- the flat ground's temperature: cold blue-black, then a shade warmer ---- */
+/* ---- the flat ground's temperature: a shade cooler, then a shade warmer ----
+   G_COLD was [9,11,18] — blue double red, i.e. a literal blue-black, which is
+   the one thing the palette rules out ("NO pure black. Always warm dark", and
+   never a second colour). [12,11,13] is the same temperature MOVE off #0e0c0a
+   at a twelfth the chroma, and matches the 3D ground in Sigil.tsx. */
 const G_BASE = [14, 12, 10];
-const G_COLD = [9, 11, 18];
+const G_COLD = [12, 11, 13];
 const G_WARM = [18, 12, 11];
 function mixGround(cool: number, warm: number): string {
   const c = G_BASE.map((v, i) => v + (G_COLD[i] - v) * cool);

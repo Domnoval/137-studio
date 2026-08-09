@@ -14,9 +14,11 @@
 //             (top, bottom, left) — you read brushwork and canvas weave, not
 //             composition. Satellites are gone; a clear right column is left
 //             for the caption.
-//   PULL-BACK every work in the body flies into one composed triangle 14 units
-//             ahead of the camera — rows of 1/2/3/4/5, which closes exactly on
-//             15 works — each small. The figure the CONTRACTION then draws.
+//   PULL-BACK every work in the body flies onto one φ SPIRAL 14 units ahead of
+//             the camera: angle from the golden angle, radius from r = e^(bθ)
+//             with b = ln φ / π, scale falling off with radius. It is the same
+//             curve — same b, same phase — that the CONTRACTION draws fifteen
+//             scroll-percent later, so the two beats are one system.
 //
 // Each slab projects its art quad to a screen rect every frame into
 // cosmosShared.slabRects — that table is what the occlusion-aware label system
@@ -30,23 +32,18 @@ import * as THREE from 'three';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress, texPath } from '../journey-utils';
 import { cosmosShared, easeInOut, ensureSlabRects, smoothstep } from './shared';
-import { addFormBounds, stage as stageState } from './stage-state';
+import { addFormBounds, publishFormRect, stage as stageState } from './stage-state';
 import {
   SLABS,
   SIGIL_Z,
   HERO_PULL_X,
   HERO_PULL_Y,
-  FORMATION,
-  FORMATION_D,
-  FORMATION_W,
-  FORMATION_H,
-  FORMATION_ITEM,
+  ARCHIVE,
+  ARCHIVE_CAP,
   VANTAGE_IN,
   VANTAGE_OUT,
-  VANTAGE_D,
-  VANTAGE_PITCH,
-  VANTAGE_YAW,
-  VANTAGE_RISE,
+  formationPlane,
+  planeToWorld,
   shotMix,
   type ShotMix,
   type SlabPlacement,
@@ -54,6 +51,7 @@ import {
 import { getGlowTexture } from './textures';
 import { NearPass } from './NearPass';
 import { FormationPlate } from './FormationPlate';
+import { ArchiveSpiral } from './ArchiveSpiral';
 
 const FRAME_PAD = 0.14; // dark frame border in world units
 const VANISH = new THREE.Vector3(0, 0, SIGIL_Z - 26);
@@ -134,6 +132,8 @@ const CORNERS: [number, number][] = [
 
 /** Shot blend weights this frame — recomputed per slab, never allocated. */
 const mix: ShotMix = { wide: 1, macro: 0, pullback: 0 };
+/** Scratch for the archive-plane solve. Mutated per slab, never allocated. */
+const worldPt = { x: 0, y: 0, z: 0 };
 
 /** Dev-only shot readout for the QA harness (see __cosmosShared in shared.ts). */
 const shotDebug = { p: 0, cp: 0, wide: 1, macro: 0, pull: 0 };
@@ -213,7 +213,18 @@ function SlabArt({ placement }: SlabProps) {
     : 0.8;
   const h = placement.height;
   const w = h * aspect;
-  const slot = FORMATION[index] ?? { fx: 0, fy: 0 };
+  const slot = ARCHIVE[index];
+  /**
+   * World scale that gives this work the archive's target AREA at its slot —
+   * so a 2:1 panel and a 1:2.6 column carry equal visual weight — then boxed at
+   * ARCHIVE_CAP so no canvas can be five times its neighbour for no reason.
+   * In spiral units; multiplied by the plane's `unit` at use.
+   */
+  const archiveScale = (() => {
+    const geo = Math.sqrt(w * h);
+    const s = slot.size / geo;
+    return Math.min(s, (ARCHIVE_CAP * slot.size) / h, (ARCHIVE_CAP * slot.size) / w);
+  })();
 
   const artMaterial = useMemo(
     () => new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0 }),
@@ -375,48 +386,43 @@ function SlabArt({ placement }: SlabProps) {
       ps = THREE.MathUtils.lerp(ps, macroScale, macroW);
     }
 
-    /* ---- PULL-BACK: fly into the composed triangle ahead of the camera ----
-     * TWO MOVEMENTS, not one. First the figure is read square-on (the composed
-     * triangle). Then `thru` takes over: the rig drops BELOW the formation and
-     * closes on it, the plane rakes back and yaws off-axis, and every work in
-     * it turns with the plane — so the second look at the formation is a
-     * different vantage rather than the same frame with a motion pass. The
-     * works nearest the base shear past the bottom of the frame as we come up
-     * underneath them. */
+    /* ---- PULL-BACK: fly onto the φ SPIRAL ahead of the camera ----
+     * The body of work resolves into fifteen points on the golden spiral — the
+     * same curve, same growth, same phase the CONTRACTION draws fifteen
+     * scroll-percent later. Position AND scale come from the slot's radius, so
+     * the hierarchy is derived from the curve rather than asserted.
+     *
+     * TWO MOVEMENTS, not one. First the figure is read square-on. Then `thru`
+     * takes over: the rig drops BELOW the spiral and closes on it, and the
+     * plane rakes, yaws AND ROLLS BY ONE WORK-POSITION — the archive visibly
+     * WINDS. Every work stands in that plane, so the whole figure turns as one
+     * body and the outer arm shears past the bottom of the frame. */
     const posW = smoothstep(0.15, 0.5, pbW);
     const thru = smoothstep(VANTAGE_IN, VANTAGE_OUT, cosP);
-    // plane pose, shared by the layout AND by every quad standing in it
-    const planePitch = VANTAGE_PITCH * thru;
-    const planeYaw = VANTAGE_YAW * thru;
+    // The plane is a closed form of (camera, thru), so every slab solves the
+    // identical transform and publishes it — no slab is privileged and nothing
+    // depends on the Suspense-determined useFrame order.
+    const plane = formationPlane(
+      cam.position.x,
+      cam.position.y,
+      cam.position.z,
+      cam.fov,
+      thru,
+      stageState.plane,
+    );
     if (index === 0) {
       stageState.formW = pbW;
       stageState.formThru = thru;
     }
+    const planePitch = plane.pitch;
+    const planeYaw = plane.yaw;
+    const planeRoll = plane.roll;
     if (posW > 0.001) {
-      // footprint stays fixed in WORLD units while the distance closes, so the
-      // formation genuinely grows in frame instead of being angularly pinned
-      const baseH = 2 * FORMATION_D * Math.tan((cam.fov * Math.PI) / 360);
-      const baseW = baseH * cam.aspect;
-      const dist = THREE.MathUtils.lerp(FORMATION_D, VANTAGE_D, thru);
-      // slot position in the formation plane, then rake it (X) and yaw it (Y)
-      const lx = slot.fx * baseW * FORMATION_W;
-      const ly = slot.fy * baseH * FORMATION_H;
-      const cx = Math.cos(planePitch);
-      const sx = Math.sin(planePitch);
-      const ry = ly * cx;
-      const rz = ly * sx; // pitch < 0 → the apex rakes AWAY from the lens
-      const cy = Math.cos(planeYaw);
-      const sy = Math.sin(planeYaw);
-      const rx = lx * cy + rz * sy;
-      const rz2 = -lx * sy + rz * cy;
-
-      const fx = cam.position.x + rx;
-      const fy = cam.position.y + ry + VANTAGE_RISE * baseH * thru;
-      const fz = cam.position.z - dist + rz2;
-      px = THREE.MathUtils.lerp(px, fx, posW);
-      py = THREE.MathUtils.lerp(py, fy, posW);
-      pz = THREE.MathUtils.lerp(pz, fz, posW);
-      ps = THREE.MathUtils.lerp(ps, (baseH * FORMATION_ITEM) / h, posW);
+      planeToWorld(plane, slot.x, slot.y, slot.z, worldPt);
+      px = THREE.MathUtils.lerp(px, worldPt.x, posW);
+      py = THREE.MathUtils.lerp(py, worldPt.y, posW);
+      pz = THREE.MathUtils.lerp(pz, worldPt.z, posW);
+      ps = THREE.MathUtils.lerp(ps, archiveScale * plane.unit, posW);
     }
 
     g.position.set(
@@ -443,15 +449,15 @@ function SlabArt({ placement }: SlabProps) {
       macroQuat.setFromEuler(tmpEuler);
       tmpQuat.slerp(macroQuat, macroW);
     }
-    // PULL-BACK: every work stands IN the formation plane, so when the plane
-    // rakes and yaws for the second vantage the whole triangle turns as one
-    // body — plus a small per-work deviation so it is a constellation of
+    // PULL-BACK: every work stands IN the archive plane, so when the plane
+    // rakes, yaws and rolls for the second vantage the whole spiral turns as
+    // one body — plus a small per-work deviation so it is a constellation of
     // oriented objects, not a sheet of stickers.
     if (posW > 0.001) {
       tmpEuler.set(
         planePitch + placement.fPitch,
         planeYaw + placement.fYaw,
-        placement.fRoll,
+        planeRoll + placement.fRoll,
       );
       formQuat.setFromEuler(tmpEuler);
       tmpQuat.slerp(formQuat, posW);
@@ -606,6 +612,9 @@ function SlabArt({ placement }: SlabProps) {
         g.updateWorldMatrix(true, false);
         if (projectQuad(g.matrixWorld, w / 2, h / 2, cam, state.size.width, state.size.height)) {
           addFormBounds(t, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
+          if (process.env.NODE_ENV !== 'production') {
+            publishFormRect(index, slot.slot, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
+          }
         }
       }
       return;
@@ -699,6 +708,8 @@ export function Slabs() {
           <SlabArt placement={placement} />
         </Suspense>
       ))}
+      {/* the φ curve the archive is hung on, drawn as a hairline */}
+      <ArchiveSpiral />
       {/* near-field passes: canvases that blow through the periphery */}
       <Suspense fallback={null}>
         <NearPass />

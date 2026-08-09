@@ -167,6 +167,392 @@ function rawProgress(): number {
   return max > 0 ? clamp01(window.scrollY / max) : 0;
 }
 
+/* ======================================================== THE HERO MARK ====
+ * The site proves at 77% that it can render its own iconography as crisp white
+ * line on void. It has to do that in the ONE frame everyone sees. So the hero
+ * mark is DRAWN, not photographed: a 2D-canvas line figure — triangle, eye,
+ * lashes, one red iris — stroked as chalk at full chalk luminance over the
+ * void, at the fidelity of the contraction sigil.
+ *
+ * And it is an OBJECT, not a poster. Every point of every polyline is pushed
+ * through a REFRACTIVE LENS centred on the pointer: inside the lens radius the
+ * figure magnifies radially, the strokes bow and thicken, and the equation
+ * field around it parts and re-forms. That happens before a single pixel of
+ * scroll — moving the mouse is the first thing that changes the frame.
+ *
+ * Through the dive the figure scales past the camera while its stroke width
+ * barely grows: it stays a LINE DRAWING, the one crisp plane in the frame,
+ * while the equation field defocuses into shaped bokeh behind it. That is the
+ * subject the middle of the dive was missing.
+ *
+ * Degradation: no fine pointer (touch) → lens strength 0, the mark still draws
+ * crisp and still scales through the dive. prefers-reduced-motion → painted
+ * once, statically, with no rAF at all.
+ */
+
+const CHALK_RGB = '232, 228, 220';
+const RED_RGB = '196, 18, 48';
+const TAU = Math.PI * 2;
+
+interface MarkStroke {
+  /** flat unit-space xy pairs (1 unit = the triangle's circumradius) */
+  pts: Float32Array;
+  /** stroke width in CSS px at scale 1 */
+  w: number;
+  alpha: number;
+  red: boolean;
+}
+
+/** Deterministic per-index noise — the hand-drawn wobble is stable across
+ *  frames and across mounts, so the mark never shimmers. */
+const rnd1 = (i: number, s: number): number => {
+  const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+const smooth01 = (a: number, b: number, t: number): number => {
+  const x = clamp01((t - a) / (b - a));
+  return x * x * (3 - 2 * x);
+};
+
+/** A drawn line is never true: displace each sample a little. */
+function chalkify(pts: number[], amp: number, salt: number): Float32Array {
+  const out = new Float32Array(pts.length);
+  for (let i = 0; i < pts.length; i += 2) {
+    const k = i >> 1;
+    out[i] = pts[i] + (rnd1(k, salt) - 0.5) * amp;
+    out[i + 1] = pts[i + 1] + (rnd1(k, salt + 9) - 0.5) * amp;
+  }
+  return out;
+}
+
+/** Arc sampled in TURNS (0–1), canvas orientation (y down). */
+function arcPts(cx: number, cy: number, r: number, t0: number, t1: number, n: number): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (t0 + (t1 - t0) * (i / (n - 1))) * TAU;
+    pts.push(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  return pts;
+}
+
+/** Eye centre, in circumradius units below the triangle's circumcentre. */
+const EYE_Y = 0.09;
+const EYE_R = 0.52;
+
+const MARK: MarkStroke[] = (() => {
+  const out: MarkStroke[] = [];
+
+  // Triangle, apex up. Drawn as three separate edges that OVERSHOOT their
+  // corners and bow a hair — the way a hand draws one, the way the 77% sigil
+  // is drawn. A perfect closed path would read as a CSS shape.
+  const corners: [number, number][] = [];
+  for (let c = 0; c < 3; c++) {
+    const a = Math.PI / 2 + (c * TAU) / 3;
+    corners.push([Math.cos(a), -Math.sin(a)]);
+  }
+  for (let e = 0; e < 3; e++) {
+    const [ax, ay] = corners[e];
+    const [bx, by] = corners[(e + 1) % 3];
+    const nx = -(by - ay);
+    const ny = bx - ax;
+    const nl = Math.hypot(nx, ny) || 1;
+    const ov = 0.05;
+    const pts: number[] = [];
+    const N = 44;
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const t = -ov + u * (1 + 2 * ov);
+      const bow = Math.sin(u * Math.PI) * 0.014 * (e === 1 ? -1 : 1);
+      pts.push(ax + (bx - ax) * t + (nx / nl) * bow, ay + (by - ay) * t + (ny / nl) * bow);
+    }
+    out.push({ pts: chalkify(pts, 0.007, e + 1), w: 2.2, alpha: 0.96, red: false });
+  }
+
+  // The eye: one circle wide enough to cross the triangle's base, opened by
+  // two gaps where the hand lifted.
+  out.push({ pts: chalkify(arcPts(0, EYE_Y, EYE_R, 0.055, 0.515, 76), 0.006, 7), w: 2.0, alpha: 0.92, red: false });
+  out.push({ pts: chalkify(arcPts(0, EYE_Y, EYE_R, 0.565, 1.03, 76), 0.006, 8), w: 2.0, alpha: 0.92, red: false });
+
+  // Lashes — radial, between iris and rim, uneven.
+  for (let i = 0; i < 17; i++) {
+    const a = (i / 17) * TAU + 0.11;
+    const r0 = 0.315 + rnd1(i, 21) * 0.03;
+    const r1 = 0.462 + rnd1(i, 22) * 0.05;
+    out.push({
+      pts: chalkify(
+        [Math.cos(a) * r0, EYE_Y + Math.sin(a) * r0, Math.cos(a) * r1, EYE_Y + Math.sin(a) * r1],
+        0.008,
+        30 + i,
+      ),
+      w: 1.5,
+      alpha: 0.6 + rnd1(i, 23) * 0.22,
+      red: false,
+    });
+  }
+
+  // Iris + pupil — the only red in the mark, ~0.1% of the frame.
+  out.push({ pts: chalkify(arcPts(0, EYE_Y, 0.245, 0.02, 1.0, 84), 0.005, 11), w: 2.8, alpha: 0.95, red: true });
+  out.push({ pts: chalkify(arcPts(0, EYE_Y, 0.09, 0.0, 1.0, 44), 0.004, 12), w: 2.2, alpha: 0.9, red: true });
+
+  return out;
+})();
+
+/** The equation vocabulary that surrounds the mark. Same register as the art. */
+const MARK_GLYPHS = [
+  'α', 'ψ', '∆', 'ℏ', 'λ', 'Ω', 'φ', '√5', '∂', 'Σ',
+  'θ', 'ε₀', '137', '1/137', 'α⁻¹', '∞', 'π', '≈', '∮', 'ζ(s)',
+  'χ', 'μ', 'iℏ∂ψ', '∇²', 'e²', 'φ²=φ+1', '137.035999', 'τ', 'Λ', 'ħω',
+];
+
+interface FieldGlyph {
+  /** offset from the mark centre at rest, CSS px */
+  dx: number;
+  dy: number;
+  ch: string;
+  size: number;
+  alpha: number;
+}
+
+export interface MarkPainter {
+  layout(): void;
+  paint(p: number, lx: number, ly: number, presence: number, speed: number): void;
+}
+
+function createMarkPainter(canvas: HTMLCanvasElement): MarkPainter | null {
+  const maybeCtx = canvas.getContext('2d');
+  if (!maybeCtx) return null;
+  const ctx: CanvasRenderingContext2D = maybeCtx;
+
+  let W = 1;
+  let H = 1;
+  let baseX = 0;
+  let baseY = 0;
+  let baseR = 0;
+  let glyphs: FieldGlyph[] = [];
+  let scratch = new Float32Array(256);
+
+  // lens state, written per paint so warp() can stay allocation-free
+  let lx = -9999;
+  let ly = -9999;
+  let lr = 1;
+  let lk = 0;
+  let wx = 0;
+  let wy = 0;
+  let wm = 1;
+
+  /** Radial magnification around the pointer: a lens sitting ON the drawing. */
+  function warp(x: number, y: number): void {
+    const dx = x - lx;
+    const dy = y - ly;
+    const r2 = dx * dx + dy * dy;
+    if (lk <= 0 || r2 >= lr * lr) {
+      wx = x;
+      wy = y;
+      wm = 1;
+      return;
+    }
+    const t2 = r2 / (lr * lr);
+    const f = 1 - t2;
+    const s = 1 + lk * f * f;
+    wx = lx + dx * s;
+    wy = ly + dy * s;
+    wm = s;
+  }
+
+  function layout(): void {
+    const rect = canvas.getBoundingClientRect();
+    W = Math.max(1, Math.round(rect.width));
+    H = Math.max(1, Math.round(rect.height));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // The masthead is the fixed element on this page; the mark gives way to it
+    // by MEASUREMENT, not by a guessed breakpoint. Right of the h1's real ink
+    // on wide screens, above it when the type spans the viewport.
+    const h1 = document.querySelector('.hero-title h1');
+    const box = h1?.getBoundingClientRect();
+    const railX = W - 60; // ScrollProgress reserves the right 55px, always
+    const phone = W < 768;
+
+    if (phone) {
+      const top = box ? box.top : H * 0.38;
+      baseR = Math.min(W * 0.3, Math.max(48, (top - 30) * 0.34));
+      baseX = W * 0.5;
+      baseY = Math.max(baseR + 16, top * 0.46);
+    } else {
+      const limit = (box ? box.right : W * 0.55) + 44;
+      baseR = Math.min(W * 0.175, H * 0.27);
+      baseX = W * 0.705;
+      for (let k = 0; k < 10; k++) {
+        const half = 0.866 * baseR;
+        const lo = limit + half;
+        const hi = railX - half;
+        if (lo <= hi) {
+          baseX = Math.min(Math.max(W * 0.705, lo), hi);
+          break;
+        }
+        baseR *= 0.9;
+      }
+      baseY = H * 0.472;
+    }
+
+    // Equation field: a flattened annulus around the mark, culled by MEASURED
+    // ink off the masthead and off the depth rail — a glyph is centred on its
+    // point, so half its advance has to clear both or the rail (the best craft
+    // on the site) ends up with type sitting on it.
+    const lim = phone ? 10 : (box ? box.right : W * 0.55) + 20;
+    const out: FieldGlyph[] = [];
+    for (let i = 0; i < 140 && out.length < 30; i++) {
+      const ang = i * 2.399963 + 0.7;
+      const rr = (0.66 + rnd1(i, 11) * 1.32) * baseR;
+      const x = baseX + Math.cos(ang) * rr * 1.12;
+      const y = baseY + Math.sin(ang) * rr * 0.94;
+      const ch = MARK_GLYPHS[i % MARK_GLYPHS.length];
+      const size = baseR * (0.048 + rnd1(i, 3) * 0.055);
+      ctx.font = `300 ${size.toFixed(1)}px 'JetBrains Mono', monospace`;
+      const half = ctx.measureText(ch).width / 2 + 4;
+      if (x - half < lim || x + half > railX - 6 || y < 34 || y > H - 34) continue;
+      out.push({
+        dx: x - baseX,
+        dy: y - baseY,
+        ch,
+        size,
+        alpha: 0.11 + rnd1(i, 5) * 0.17,
+      });
+    }
+    glyphs = out;
+  }
+
+  /** One polyline, warped and stroked with a chalk halo. */
+  function strokeChalk(pts: Float32Array, mx: number, my: number, R: number, w: number, alpha: number, red: boolean): void {
+    const n = pts.length;
+    if (scratch.length < n) scratch = new Float32Array(n);
+    let mag = 0;
+    for (let i = 0; i < n; i += 2) {
+      warp(mx + pts[i] * R, my + pts[i + 1] * R);
+      scratch[i] = wx;
+      scratch[i + 1] = wy;
+      mag += wm;
+    }
+    mag /= n / 2;
+
+    const path = new Path2D();
+    path.moveTo(scratch[0], scratch[1]);
+    for (let i = 2; i < n; i += 2) path.lineTo(scratch[i], scratch[i + 1]);
+
+    const rgb = red ? RED_RGB : CHALK_RGB;
+    // Stroke width grows only a little with the figure's scale — the mark stays
+    // a LINE DRAWING all the way through the dive rather than a swelling blob.
+    const lw = w * (1 + 0.1 * (R / Math.max(baseR, 1) - 1)) * (0.9 + 0.24 * mag);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = `rgba(${rgb}, ${(alpha * 0.07).toFixed(3)})`;
+    ctx.lineWidth = lw * 5.2;
+    ctx.stroke(path);
+    ctx.strokeStyle = `rgba(${rgb}, ${(alpha * 0.16).toFixed(3)})`;
+    ctx.lineWidth = lw * 2.3;
+    ctx.stroke(path);
+    ctx.strokeStyle = `rgba(${rgb}, ${alpha.toFixed(3)})`;
+    ctx.lineWidth = lw;
+    ctx.stroke(path);
+  }
+
+  function paint(p: number, px: number, py: number, presence: number, speed: number): void {
+    ctx.clearRect(0, 0, W, H);
+    const dive = clamp01((p - ARRIVAL_END) / (PHASES.dive.end - ARRIVAL_END));
+    if (dive >= 1) return;
+
+    const a = clamp01(p / ARRIVAL_END);
+    const ez = dive * dive; // the fall accelerates
+    const eo = 1 - (1 - dive) * (1 - dive); // …and the figure settles to centre
+    const scale = 1 + 3.4 * ez;
+    // THE RAIL IS INVIOLABLE — including here.
+    // The mark's widest feature is the triangle's base, which runs to 0.93
+    // circumradii either side of centre once the overshoot is counted. On a
+    // 390px phone the dive drove the figure to centre 0.6W = 234 at R ≈ 168,
+    // so the right vertex landed at x ≈ 378: through the HUD's 55px reserve,
+    // through the rail hairline at 367 and out over the rotated chapter label.
+    // On mobile the figure therefore settles into the SAFE box (16 → W−55) and
+    // its radius is capped to fit it. Desktop is untouched: at 1440 the safe
+    // box is 1369 wide and nothing ever reaches it.
+    const mobile = W < 768;
+    const RAIL_SAFE = W - 55;
+    const HALF = 0.93;
+    const target = mobile ? (16 + RAIL_SAFE) / 2 : W * 0.6;
+    const mx = baseX + (target - baseX) * eo;
+    const my = baseY + (H * 0.5 - baseY) * eo;
+    const room = Math.max(24, Math.min(mx - 16, RAIL_SAFE - mx));
+    const R = mobile ? Math.min(baseR * scale, room / HALF) : baseR * scale;
+    // ON A PHONE THE MARK HAS TO BE GONE EARLIER.
+    // On desktop the mark dissolves onto the WebGL cosmos, so a half-opacity
+    // line drawing lying over it at dive≈0.87 is depth. On mobile there is no
+    // canvas underneath — the 2D archive's own chapter rule, "The work" display
+    // line and first canvas are DOM, and at 17% scroll the mark's strokes were
+    // running straight through that heading at ~0.47 alpha. Below the WebGL
+    // breakpoint it clears out over dive 0.44–0.68, before the archive's first
+    // beat is on screen, so the two never share the frame.
+    const fade = W < 768 ? 1 - smooth01(0.44, 0.68, dive) : 1 - smooth01(0.72, 0.97, dive);
+
+    lx = px;
+    ly = py;
+    lr = Math.max(150, Math.min(W, H) * 0.24);
+    // The lens deforms harder the faster the pointer moves — it has mass.
+    lk = (0.3 + Math.min(speed * 0.00085, 0.24)) * presence;
+
+    // ---- the equation field: parts around the pointer, then defocuses -----
+    const bok = smooth01(0.0, 0.14, dive);
+    const gFade = 1 - smooth01(0.6, 1.0, dive);
+    const gr = lr * 0.86;
+    const gp = 44 * presence;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < glyphs.length; i++) {
+      const g = glyphs[i];
+      const spread = 1 + dive * 2.1 + ez * 0.7;
+      let gx = mx + g.dx * spread;
+      let gy = my + g.dy * spread;
+      const ddx = gx - lx;
+      const ddy = gy - ly;
+      const rr = Math.hypot(ddx, ddy) || 1;
+      const f = Math.exp(-(rr * rr) / (gr * gr));
+      gx += (ddx / rr) * gp * f;
+      gy += (ddy / rr) * gp * f;
+      const al = g.alpha * (1 - f * 0.6 * presence) * gFade * (0.55 + a * 0.45);
+      if (al <= 0.004) continue;
+      if (bok < 0.999) {
+        ctx.fillStyle = `rgba(${CHALK_RGB}, ${(al * (1 - bok)).toFixed(3)})`;
+        ctx.font = `300 ${g.size.toFixed(1)}px 'JetBrains Mono', monospace`;
+        ctx.fillText(g.ch, gx, gy);
+      }
+      if (bok > 0.001) {
+        // Out-of-focus highlights become SHAPED bokeh: a disc with a hot rim,
+        // not a gaussian smear of the glyph.
+        const rad = g.size * (0.6 + dive * 7.2);
+        ctx.beginPath();
+        ctx.arc(gx, gy, rad, 0, TAU);
+        ctx.fillStyle = `rgba(${CHALK_RGB}, ${(al * bok * 0.17).toFixed(3)})`;
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, rad * 0.1);
+        ctx.strokeStyle = `rgba(${CHALK_RGB}, ${(al * bok * 0.44).toFixed(3)})`;
+        ctx.stroke();
+      }
+    }
+
+    // ---- the mark itself: the one crisp plane -----------------------------
+    const markA = (0.9 + a * 0.1) * fade;
+    if (markA <= 0.004) return;
+    for (let i = 0; i < MARK.length; i++) {
+      const s = MARK[i];
+      strokeChalk(s.pts, mx, my, R, s.w, s.alpha * markA, s.red);
+    }
+  }
+
+  return { layout, paint };
+}
+
 export function Hero() {
   const { reducedMotion } = useJourney();
   const [art, setArt] = useState<(typeof HERO_ART)[number] | null>(null);
@@ -179,6 +565,7 @@ export function Hero() {
   const ruleLineRef = useRef<HTMLDivElement>(null);
   const ruleGlowRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
+  const markRef = useRef<HTMLCanvasElement>(null);
 
   /** Per-piece brightness gain that lands every ghost at the same presence. */
   const artGain = art ? Math.min(1.7, Math.max(0.6, ART_TARGET_LUM / art.lum)) : 1;
@@ -192,8 +579,78 @@ export function Hero() {
   }, []);
 
   // Per-frame arrival choreography — zero re-renders, dt-based smoothing so it
-  // tracks scroll identically at 3fps and at 120fps.
+  // tracks scroll identically at 3fps and at 120fps. This is also the loop that
+  // paints the hero mark: one rAF owns the whole entrance, so the lens, the
+  // equation field, the parallax and the rule all read the same clock.
   useEffect(() => {
+    const canvas = markRef.current;
+    if (!canvas) return;
+    const painter = createMarkPainter(canvas);
+    if (!painter) return;
+    painter.layout();
+
+    const fine =
+      typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    // ---- reduced motion: the mark is drawn ONCE, crisp, and never moves ----
+    // layout() re-sizes the backing store, which CLEARS it, so every relayout
+    // has to be followed by a repaint here — there is no frame loop to do it.
+    if (reducedMotion) {
+      const draw = () => {
+        painter.layout();
+        painter.paint(0, -9999, -9999, 0, 0);
+      };
+      draw();
+      void document.fonts?.ready.then(draw);
+      window.addEventListener('resize', draw);
+      return () => window.removeEventListener('resize', draw);
+    }
+
+    // The mark is laid out off the masthead's REAL ink, so it has to be
+    // re-measured once Cormorant has actually swapped in.
+    void document.fonts?.ready.then(() => painter.layout());
+
+    // Pointer: raw target, spring-damped lens position, and a presence ramp so
+    // the object arrives rather than snapping into being.
+    let ptrX = -9999;
+    let ptrY = -9999;
+    let lensX = -9999;
+    let lensY = -9999;
+    let ptrSpeed = 0;
+    let presTarget = 0;
+    let pres = 0;
+    let seen = false;
+    let nx = 0; // normalized cursor for the parallax layers
+    let ny = 0;
+    let pnx = 0;
+    let pny = 0;
+
+    const onMove = (e: PointerEvent) => {
+      if (!fine) return;
+      const px = e.clientX;
+      const py = e.clientY;
+      if (seen) {
+        const d = Math.hypot(px - ptrX, py - ptrY);
+        ptrSpeed = Math.max(ptrSpeed, d * 60);
+      } else {
+        lensX = px;
+        lensY = py;
+        seen = true;
+      }
+      ptrX = px;
+      ptrY = py;
+      nx = (px / window.innerWidth) * 2 - 1;
+      ny = (py / window.innerHeight) * 2 - 1;
+      presTarget = 1;
+    };
+    const onLeave = () => {
+      presTarget = 0;
+    };
+    const onResize = () => painter.layout();
+    if (fine) window.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerleave', onLeave);
+    window.addEventListener('resize', onResize);
+
     let raf = 0;
     let hidden = false;
     let smooth = rawProgress();
@@ -227,16 +684,32 @@ export function Hero() {
       // Scroll cue fades on first scroll (returns if user scrolls back to top).
       if (cueRef.current) cueRef.current.style.opacity = smooth < 0.004 ? '1' : '0';
 
+      // ---- the pointer: lens, presence, parallax -------------------------
+      // Spring-damped so the lens has mass: the drawing does not snap to the
+      // cursor, it follows it. Speed decays per second, not per frame.
+      pres += (presTarget - pres) * (1 - Math.exp(-dt * 6));
+      const lensK = 1 - Math.exp(-dt * 11);
+      if (seen) {
+        lensX += (ptrX - lensX) * lensK;
+        lensY += (ptrY - lensY) * lensK;
+      }
+      ptrSpeed *= Math.exp(-dt * 5);
+      pnx += (nx - pnx) * (1 - Math.exp(-dt * 5));
+      pny += (ny - pny) * (1 - Math.exp(-dt * 5));
+
+      if (!hidden && painter) painter.paint(smooth, lensX, lensY, pres, ptrSpeed);
+
       if (smooth < ARRIVAL_END + 0.001 && !reducedMotion) {
         const a = clamp01(smooth / ARRIVAL_END); // 0→1 across the arrival
 
         // Artwork rises INTO legibility as you approach the dive — it is the
         // thing you are about to fall into, so it gains presence, not less.
         if (fadeRef.current) {
-          fadeRef.current.style.opacity = loaded ? (0.38 + a * 0.15).toFixed(3) : '0';
+          fadeRef.current.style.opacity = loaded ? (0.34 + a * 0.15).toFixed(3) : '0';
         }
         if (orbitRef.current) {
-          orbitRef.current.style.transform = `translate3d(${(a * -1.6).toFixed(3)}vw, 0, 0) scale(${(1 + a * 0.055).toFixed(4)})`;
+          // The ghost is the FURTHEST plane, so it answers the pointer least.
+          orbitRef.current.style.transform = `translate3d(${(a * -1.6 - pnx * 0.42 * pres).toFixed(3)}vw, ${(-pny * 0.28 * pres).toFixed(3)}vh, 0) scale(${(1 + a * 0.055).toFixed(4)})`;
         }
 
         // Red rule: length answers BOTH scroll position (it extends as you
@@ -251,15 +724,22 @@ export function Hero() {
           ruleGlowRef.current.style.opacity = (0.16 + a * 0.1 + Math.min(v * 2.6, 0.62)).toFixed(3);
         }
 
-        // Whisper of parallax on the name during arrival.
+        // Whisper of parallax on the name during arrival — and a COUNTER-shift
+        // against the pointer, so the masthead and the mark sit on visibly
+        // different planes the moment the mouse moves.
         if (titleRef.current) {
-          titleRef.current.style.transform = `translate3d(0, ${(a * -2.2).toFixed(3)}vh, 0)`;
+          titleRef.current.style.transform = `translate3d(${(pnx * 0.32 * pres).toFixed(3)}vh, ${(a * -2.2 + pny * 0.34 * pres).toFixed(3)}vh, 0)`;
         }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (fine) window.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('resize', onResize);
+    };
   }, [reducedMotion, loaded]);
 
   // Letter-level spans — the Dive animates them in Z (class contract:
@@ -352,8 +832,13 @@ export function Hero() {
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    opacity: loaded ? 0.38 : 0,
-                    filter: `brightness(${artGain.toFixed(3)}) contrast(1.12) saturate(0.62)`,
+                    opacity: loaded ? 0.34 : 0,
+                    // The mark is now the drawing in this frame, so the
+                    // artwork is GROUND: pushed toward neutral chalk-grey and
+                    // separated (contrast) so its own handwriting reads as
+                    // texture instead of as brown-grey mud competing for the
+                    // eye. Nothing here is allowed to tint the void.
+                    filter: `brightness(${artGain.toFixed(3)}) contrast(1.34) saturate(0.34)`,
                     transition: 'opacity 1.4s ease',
                   }}
                 >
@@ -524,6 +1009,24 @@ export function Hero() {
               />
             </div>
           </div>
+
+          {/* THE MARK. Full-viewport canvas so the figure can scale past the
+              frame during the dive without a clip. Above the masthead in the
+              stack: during the arrival the two do not overlap (the mark is
+              laid out off the h1's measured ink), and during the dive the
+              crisp line drawing must read THROUGH the defocused letters. */}
+          <canvas
+            ref={markRef}
+            className="hero-mark"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+            }}
+          />
 
           {/* Scroll cue — flush-left with the masthead. Fades on first scroll. */}
           <div

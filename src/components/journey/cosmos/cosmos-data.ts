@@ -106,8 +106,8 @@ export const SLABS: SlabPlacement[] = sorted.map((work, i) => {
 //               viewport edges, no satellites, caption in the clear right
 //               column, top-right. You read brushwork, not composition.
 //   PULL-BACK — the camera retreats until every work in the body resolves
-//               into ONE composed triangle (the 137 sigil, prefigured), each
-//               work small. No caption, no chips.
+//               onto ONE φ spiral — the curve the CONTRACTION then draws —
+//               scaled by radius. No caption, no chips.
 //
 // Sequenced WIDE / MACRO / WIDE / MACRO / PULL-BACK across 18%–62% so that
 // consecutive beats never repeat a framing.
@@ -204,72 +204,288 @@ export function descentSpeed(cp: number): number {
   return sampleTable(speedTable, cp);
 }
 
-/* ---------------------------------------------------- pull-back formation */
+/* -------------------------------------------- THE ARCHIVE ON THE PHI SPIRAL */
+//
+// The body of work does not land in rows. It lands ON THE CURVE.
+//
+// A contact sheet with jitter says the arrangement is a container. This chapter
+// has an arrangement algorithm stamped all over its own frame — √5, φ, 137.508°
+// — and fifteen scroll-percent later the CONTRACTION draws that curve flawlessly.
+// So the fifteen works are placed on it, and the placement is DERIVED end to end:
+//
+//   ANGLE   consecutive works step a THIRD of the golden angle, so every third
+//           work stands exactly 137.508° round the curve and the fifteen close
+//           on five complete golden-angle triads (5 · 3 — the √5 and the φ the
+//           glyph layer is already printing).
+//   RADIUS  r = e^(bθ) with b = ln φ / π — radius × φ every half turn. This is
+//           the SAME b, the SAME phase and the SAME winding sense as the sigil
+//           stroke in sigil-form.ts, so the archive and the contraction are one
+//           curve seen twice, not two curves that resemble each other.
+//   SCALE   a work's area falls off as r^0.7. Because a logarithmic spiral is
+//           self-similar, the gap to the next work is a FIXED fraction of the
+//           local radius — so scaling with radius is the only scaling that
+//           keeps every work in a chamber of its own size. The hierarchy is
+//           read off the curve instead of being asserted.
+//   DEPTH   the eye of the spiral sits ARCHIVE_DEPTH further from the lens than
+//           its outer end: a shallow funnel whose throat is exactly the point
+//           the CONTRACTION collapses into.
+//
+// Aspect is normalised by AREA, not by height — a 2:1 panel and a 1:2.6 column
+// carry the same visual weight at the same radius — and then boxed at
+// ARCHIVE_CAP so no single canvas can be five times its neighbour for no
+// legible reason.
+//
+// The whole figure is published (ARCHIVE, ARCHIVE_* and formationPlane below)
+// so the CONTRACTION can consume the identical geometry.
 
-/** Distance ahead of the camera at which the composed triangle is assembled. */
+/** Distance ahead of the camera at which the archive is assembled. */
 export const FORMATION_D = 14;
-/** Triangle footprint as a fraction of the frustum at FORMATION_D. */
-export const FORMATION_W = 0.72;
-export const FORMATION_H = 0.62;
-/** Height of a single work in the formation, as a fraction of the frame. */
-export const FORMATION_ITEM = 0.088;
 
-export interface FormationSlot {
-  /** -0.5 .. 0.5 across the triangle footprint */
-  fx: number;
-  /** +0.5 (apex) .. -0.5 (base) */
-  fy: number;
-}
+export const PHI = (1 + Math.sqrt(5)) / 2;
+/** Growth: radius × φ every HALF turn. Shared verbatim with the sigil stroke. */
+export const PHI_SPIRAL_B = Math.log(PHI) / Math.PI;
+/** Angular phase of the curve. Shared verbatim with the sigil stroke. */
+export const PHI_SPIRAL_PHASE = Math.PI * 0.72;
+/** Angular step between consecutive slots — one THIRD of the golden angle, so
+ *  every third work stands exactly 137.508° round the curve and the fifteen
+ *  close on five complete golden-angle triads. */
+export const ARCHIVE_STEP = GOLDEN_ANGLE / 3;
+/** θ of the OUTERMOST work. Slot k sits at ARCHIVE_THETA_MAX − k·ARCHIVE_STEP,
+ *  so slot 0 is the outer arm and slot 14 is the eye of the spiral. */
+export const ARCHIVE_THETA_MAX = (SLABS.length - 1) * ARCHIVE_STEP;
+/** Exponent of the radius→size law. 1 would be exact self-similarity; 0.72
+ *  lifts the inner works just enough to stay legible while keeping every work
+ *  inside its own chamber — solved, not guessed: no two quads overlap. */
+export const ARCHIVE_FALLOFF = 0.9;
+/** Geometric-mean size of the OUTERMOST work, in spiral units. */
+export const ARCHIVE_SIZE = 0.52;
+/** No work may exceed this multiple of its own geometric-mean size on an axis. */
+export const ARCHIVE_CAP = 1.3;
+/** Funnel depth: the eye sits this far behind the outer end, in spiral units. */
+export const ARCHIVE_DEPTH = 0.2;
+/** Fraction of the frustum half-height the figure is allowed to reach. */
+const ARCHIVE_SAFE = 0.455;
 
 /**
- * Rows of 1, 2, 3, … — with 15 works this closes exactly on a five-row
- * equilateral triangle, apex up: the same figure the CONTRACTION then draws.
+ * WHICH WORK GETS WHICH SLOT.
+ *
+ * Not the corridor order. Replaying the corridor at a distance would put the
+ * works you have just been shown back in the sequence you were just shown them
+ * in — and it stacks near-neighbours (two of these files are literally the same
+ * scan) side by side at the two largest slots.
+ *
+ * They are DEALT by the golden-angle sequence itself: order the works by
+ * frac(k · 137.508° / 360°) and read them out. The same constant that sets the
+ * spacing sets the order, and because that sequence is the canonical
+ * low-discrepancy one, no two corridor neighbours can land next to each other
+ * on the curve. The archive is a composition, not a rerun.
  */
-function buildFormation(n: number): FormationSlot[] {
-  const rows: number[] = [];
-  let done = 0;
-  let r = 1;
-  while (done < n) {
-    const take = Math.min(r, n - done);
-    rows.push(take);
-    done += take;
-    r++;
-  }
-  const R = rows.length;
-  const out: FormationSlot[] = [];
-  for (let ri = 0; ri < R; ri++) {
-    const t = R > 1 ? ri / (R - 1) : 0;
-    const halfW = 0.5 * t;
-    const count = rows[ri];
-    for (let j = 0; j < count; j++) {
-      const u = count > 1 ? j / (count - 1) : 0.5;
-      out.push({ fx: count > 1 ? -halfW + 2 * halfW * u : 0, fy: 0.5 - t });
-    }
+export const ARCHIVE_DEAL: number[] = (() => {
+  const frac = GOLDEN_ANGLE / (Math.PI * 2); // 1 − 1/φ = 0.381966…
+  return SLABS.map((_, k) => ({ k, f: (k * frac) % 1 }))
+    .sort((a, b) => a.f - b.f)
+    .map((e) => e.k);
+})();
+/** Inverse of ARCHIVE_DEAL: work index → slot index. */
+const SLOT_OF: number[] = (() => {
+  const out = new Array<number>(ARCHIVE_DEAL.length);
+  ARCHIVE_DEAL.forEach((work, slot) => {
+    out[work] = slot;
+  });
+  return out;
+})();
+
+export interface ArchiveSlot {
+  /** the WORK this slot belongs to — ARCHIVE is indexed by work, not by slot */
+  index: number;
+  /** position along the curve: 0 = outer arm, 14 = the eye */
+  slot: number;
+  /** angle along the curve, radians */
+  theta: number;
+  /** normalised radius — 1 at the outer end, ARCHIVE_R_MIN at the eye */
+  r: number;
+  /** position in SPIRAL UNITS; the origin is the eye of the spiral, which the
+   *  staging puts on the camera axis — exactly where the sigil then forms */
+  x: number;
+  y: number;
+  z: number;
+  /** geometric-mean size of this work, in spiral units */
+  size: number;
+}
+
+/** A point on the archive spiral, in spiral units. */
+export function archiveSpiralPoint(
+  theta: number,
+  out: { x: number; y: number; z: number },
+): void {
+  const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
+  out.x = Math.cos(theta + PHI_SPIRAL_PHASE) * r;
+  out.y = Math.sin(theta + PHI_SPIRAL_PHASE) * r;
+  out.z = -ARCHIVE_DEPTH * (1 - Math.min(1, r));
+}
+
+export const ARCHIVE: ArchiveSlot[] = (() => {
+  const p = { x: 0, y: 0, z: 0 };
+  return SLABS.map((_, k) => {
+    const slot = SLOT_OF[k];
+    const theta = ARCHIVE_THETA_MAX - slot * ARCHIVE_STEP;
+    archiveSpiralPoint(theta, p);
+    const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
+    return {
+      index: k,
+      slot,
+      theta,
+      r,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      size: ARCHIVE_SIZE * Math.pow(r, ARCHIVE_FALLOFF),
+    };
+  });
+})();
+
+/** Radius at the eye of the spiral (the innermost slot). */
+export const ARCHIVE_R_MIN = Math.exp(-PHI_SPIRAL_B * ARCHIVE_THETA_MAX);
+
+/**
+ * Half-extent of the figure from the eye of the spiral, in spiral units.
+ * Solved against the CAP box rather than against live texture aspects, so the
+ * containment is deterministic and cannot move when a texture finishes loading.
+ */
+export const ARCHIVE_EX = ARCHIVE.reduce(
+  (m, s) => Math.max(m, Math.abs(s.x) + (s.size * ARCHIVE_CAP) / 2),
+  0,
+);
+export const ARCHIVE_EY = ARCHIVE.reduce(
+  (m, s) => Math.max(m, Math.abs(s.y) + (s.size * ARCHIVE_CAP) / 2),
+  0,
+);
+/** Spiral units → world, as a fraction of the frame HEIGHT at FORMATION_D.
+ *  One isotropic scale: a spiral squashed on one axis is not a golden spiral. */
+export const ARCHIVE_UNIT = ARCHIVE_SAFE / ARCHIVE_EY;
+
+/**
+ * The stroke itself, sampled OUTER-FIRST so a progressive draw sweeps the
+ * widest arc first and winds in — the same reading order as the sigil's spiral.
+ * `lead` extends the curve past the outermost work; `tail` keeps winding past
+ * the innermost one, into the throat the contraction collapses through.
+ */
+export function archiveSpiralPath(n: number, lead = 0.34, tail = 7.2): Float32Array {
+  const out = new Float32Array(n * 3);
+  const p = { x: 0, y: 0, z: 0 };
+  const hi = ARCHIVE_THETA_MAX + lead;
+  const lo = -tail;
+  for (let i = 0; i < n; i++) {
+    const theta = hi + (lo - hi) * (i / (n - 1));
+    archiveSpiralPoint(theta, p);
+    out[i * 3] = p.x;
+    out[i * 3 + 1] = p.y;
+    out[i * 3 + 2] = p.z;
   }
   return out;
 }
 
-export const FORMATION: FormationSlot[] = buildFormation(SLABS.length);
-
-/* ------------------------------------------- the formation's SECOND vantage */
-// The composed triangle is the best frame in the chapter, so it is not thrown
+/* ------------------------------------------- the archive's SECOND vantage */
+// The composed spiral is the best frame in the chapter, so it is not thrown
 // away — it is walked around. Once the figure has been read square-on, the rig
-// drops BELOW it and closes: the plane tilts back, yaws off-axis, and every
-// work in it turns with the plane. Same formation, genuinely different vantage
-// — and the works nearest the base shear past the bottom of the frame as we
-// come up under them.
+// drops BELOW it and closes: the plane rakes back, yaws off-axis AND ROLLS BY
+// EXACTLY ONE WORK-POSITION (ARCHIVE_STEP), so the whole archive visibly WINDS
+// — the one move only a spiral can make, and one no re-zoom can fake. The works
+// nearest the outer arm shear past the bottom of the frame as we come up under
+// them.
 
 /** Cosmos-phase window over which the second vantage takes over. */
 export const VANTAGE_IN = 0.855;
 export const VANTAGE_OUT = 1.0;
-/** Distance to the formation at the end of the move (from FORMATION_D). */
-export const VANTAGE_D = 11.2;
+/** Distance to the figure at the end of the move (from FORMATION_D). */
+export const VANTAGE_D = 11.6;
 /** Plane tilt (about X, negative = top rakes AWAY: we are underneath). */
-export const VANTAGE_PITCH = -0.46;
-/** Plane yaw (about Y) — the triangle is no longer square to the lens. */
-export const VANTAGE_YAW = 0.19;
-/** How far the formation's centre rises in frame, as a fraction of its own height. */
-export const VANTAGE_RISE = 0.11;
+export const VANTAGE_PITCH = -0.5;
+/** Plane yaw (about Y) — the figure is no longer square to the lens. */
+export const VANTAGE_YAW = 0.26;
+/** In-plane roll: the spiral turns by one work-position as we come round. */
+export const VANTAGE_ROLL = ARCHIVE_STEP;
+/** How far the figure's centre moves in frame, as a fraction of the frame.
+ *  Slightly NEGATIVE: the spiral already leans up-right of its own eye, so a
+ *  positive rise threw the largest work off the top of the picture. */
+export const VANTAGE_RISE = -0.045;
+
+/**
+ * THE WORLD TRANSFORM OF THE ARCHIVE PLANE — the contract the CONTRACTION
+ * consumes. Everything the sigil needs to start from where the archive ended
+ * is here: where the eye of the spiral is in world space, how the plane is
+ * oriented, and how many world units one spiral unit is worth.
+ *
+ * The footprint is solved against the frustum at FORMATION_D and then held
+ * FIXED in world units while the distance closes, so the second vantage
+ * genuinely grows in frame instead of being angularly pinned.
+ */
+export interface FormationPlane {
+  /** world position of the eye of the spiral */
+  cx: number;
+  cy: number;
+  cz: number;
+  /** plane orientation, radians, applied in THREE's YXZ order (Ry·Rx·Rz) */
+  pitch: number;
+  yaw: number;
+  roll: number;
+  /** world units per spiral unit */
+  unit: number;
+  /** lens → plane origin, world units */
+  dist: number;
+  /** 0-1 weight of the second vantage */
+  thru: number;
+}
+
+export function makeFormationPlane(): FormationPlane {
+  return { cx: 0, cy: 0, cz: 0, pitch: 0, yaw: 0, roll: 0, unit: 1, dist: FORMATION_D, thru: 0 };
+}
+
+export function formationPlane(
+  camX: number,
+  camY: number,
+  camZ: number,
+  fovDeg: number,
+  thru: number,
+  out: FormationPlane,
+): FormationPlane {
+  const baseH = 2 * FORMATION_D * Math.tan((fovDeg * Math.PI) / 360);
+  out.unit = baseH * ARCHIVE_UNIT;
+  out.dist = FORMATION_D + (VANTAGE_D - FORMATION_D) * thru;
+  out.pitch = VANTAGE_PITCH * thru;
+  out.yaw = VANTAGE_YAW * thru;
+  out.roll = VANTAGE_ROLL * thru;
+  out.cx = camX;
+  out.cy = camY + VANTAGE_RISE * baseH * thru;
+  out.cz = camZ - out.dist;
+  out.thru = thru;
+  return out;
+}
+
+/** Spiral-unit point → world, through the plane's pose. YXZ: roll, pitch, yaw. */
+export function planeToWorld(
+  pl: FormationPlane,
+  lx: number,
+  ly: number,
+  lz: number,
+  out: { x: number; y: number; z: number },
+): void {
+  const u = pl.unit;
+  const cr = Math.cos(pl.roll);
+  const sr = Math.sin(pl.roll);
+  const ax = (lx * cr - ly * sr) * u;
+  const ay = (lx * sr + ly * cr) * u;
+  const az = lz * u;
+  const cp = Math.cos(pl.pitch);
+  const sp = Math.sin(pl.pitch);
+  const by = ay * cp - az * sp;
+  const bz = ay * sp + az * cp;
+  const cy = Math.cos(pl.yaw);
+  const sy = Math.sin(pl.yaw);
+  out.x = pl.cx + ax * cy + bz * sy;
+  out.y = pl.cy + by;
+  out.z = pl.cz - ax * sy + bz * cy;
+}
 
 /* ------------------------------------------------------ near-field passes */
 // The difference between a flown camera and a zoomed one is what happens at
@@ -441,7 +657,6 @@ export const APP_NODES: AppNode[] = APPS_RAW.map((app, k) => {
 // sampled as dense polylines so lines can draw progressively (setDrawRange)
 // and dust particles can target points along the same curves.
 
-const PHI = (1 + Math.sqrt(5)) / 2;
 const SPIRAL_B = Math.log(PHI) / (Math.PI / 2); // true golden spiral growth
 
 export function sampleSpiral(n: number): Float32Array {
