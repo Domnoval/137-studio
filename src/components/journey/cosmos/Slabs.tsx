@@ -96,7 +96,7 @@ import { FormationPlate } from './FormationPlate';
 /** Radius→size exponent. Flattest law the φ chambers allow (see above). */
 const ARCH_FALLOFF = 0.86;
 /** …and the aspect box it is solved against. Replaces ARCHIVE_CAP here. */
-const ARCH_CAP = 1.2;
+const ARCH_CAP = 1.16;
 /**
  * Extra leftward shift of the composed figure, in spiral units.
  *
