@@ -111,6 +111,15 @@ const ARCH_SHIFT_X = 0.16;
  *  0.2 was a flat plate: at the raking second vantage every work sat at the
  *  same distance and the figure read as a carousel. */
 const ARCH_DEPTH = 0.5;
+/**
+ * Lift applied to the figure as the SECOND VANTAGE takes over, in spiral units.
+ * The rig drops below the plane and closes on it, which walks the whole figure
+ * down the frame: MEASURED at 62%, the projected box centred at y=691 against a
+ * frame centre of 450 and the outer arm was 366px below the viewport. 0.42
+ * spiral units ≈ 154px of lift keeps the raking pass composed while leaving the
+ * shear — the outer arm still sweeps past the bottom edge, which is the point.
+ */
+const ARCH_VANTAGE_LIFT = 0.42;
 /** Fraction of the frame HEIGHT (half) the composed figure may reach. */
 const ARCH_SAFE_Y = 0.472;
 /** …and of the frame height, horizontally. 1.30 is the narrowest desktop
@@ -543,7 +552,7 @@ function SlabArt({ placement }: SlabProps) {
     const planeYaw = plane.yaw;
     const planeRoll = plane.roll;
     if (posW > 0.001) {
-      planeToWorld(plane, slot.x, slot.y, slot.z, worldPt);
+      planeToWorld(plane, slot.x, slot.y + ARCH_VANTAGE_LIFT * thru, slot.z, worldPt);
       px = THREE.MathUtils.lerp(px, worldPt.x, posW);
       py = THREE.MathUtils.lerp(py, worldPt.y, posW);
       pz = THREE.MathUtils.lerp(pz, worldPt.z, posW);
@@ -889,8 +898,10 @@ function buildStrokeGeometry(hwScale: number): THREE.BufferGeometry {
     // width tapers with the local radius: a drawn line, thinning into the eye
     const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
     const hw = STROKE_HW * hwScale * FIGURE.k * (0.42 + 0.58 * Math.pow(Math.min(1, r), 0.45));
-    // the arm carries the line; the throat goes dark
-    const v = 0.96 * (1 - smoothstep(0.5, 1, t) * 0.9) * (1 - smoothstep(0.0, 0.06, -t + 0.06) * 0.0);
+    // the arm carries the line; the throat goes dark. The outer tip fades in
+    // from nothing over the first 5% — a stroke that starts at full weight in
+    // mid-air is a line with an end, and this curve is not supposed to have one.
+    const v = 0.96 * smoothstep(0, 0.055, t) * (1 - smoothstep(0.5, 1, t) * 0.9);
     for (let s = 0; s < 2; s++) {
       const o = (i * 2 + s) * 3;
       const sgn = s === 0 ? -1 : 1;
@@ -1008,6 +1019,8 @@ function ArchiveStroke() {
     e.set(pl.pitch, pl.yaw, pl.roll);
     g.quaternion.setFromEuler(e);
     g.scale.setScalar(Math.max(0.0001, pl.unit * (1 - recEase * 0.999)));
+    // the curve rides the same vantage lift as the works it runs through
+    g.translateY(ARCH_VANTAGE_LIFT * pl.unit * stageState.formThru * (1 - recEase));
   });
 
   return (
