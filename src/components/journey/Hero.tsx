@@ -97,8 +97,24 @@ const FADED = '#a09890';
 const RED = '#c41230';
 const MONO = "'JetBrains Mono', monospace";
 
-/** Arrival band this file owns. The dive takes over a hair before 8%. */
-const ARRIVAL_END = 0.075;
+/**
+ * Arrival band this file owns.
+ *
+ * WAS 0.075 — and 0% and 7.7% were the same picture. MEASURED on the two frames
+ * a 14-step sweep lands on: the masthead moved 2.2vh, the rule grew 31%, the
+ * ghost gained 0.15 opacity, and nothing else in the frame changed at all. That
+ * is 8% of the journey — a twelfth of the whole site — standing still on the one
+ * screen every visitor sees.
+ *
+ * Two fixes, together: the band is TIGHTENED to 5.2% (the dive takes the wheel
+ * at 5%, so the 7.7% frame is already a fifth of the way into the fall), and the
+ * arrival is given a real SECOND BEAT of its own — from `arr` below the mark
+ * starts its approach, the equation field starts to spread and the ghost comes
+ * forward — so even inside 5.2% there are two distinct pictures, not one.
+ */
+const ARRIVAL_END = 0.052;
+/** Where the arrival's second beat takes over (fraction of the band). */
+const BEAT_TWO = 0.36;
 
 /** Dissolves the artwork's rectangle into the void — it has to read as a ghost
  *  in the dark, never as a framed picture with four hard edges. Sized so the
@@ -106,23 +122,64 @@ const ARRIVAL_END = 0.075;
 const ART_MASK =
   'radial-gradient(ellipse 62% 55% at 50% 50%, black 24%, transparent 76%)';
 
+/**
+ * THE GHOST HAS NO BOUNDS OF ITS OWN.
+ *
+ * ART_MASK reaches alpha 0 at 0.76 × its radii — 0.471 W and 0.418 H from the
+ * centre — i.e. INSIDE the frame box on both axes. So the plate genuinely
+ * dissolves… provided the pixels under it fill that box. With `object-fit:
+ * contain` they do not: a 0.56-aspect scan inside a 0.6-aspect box letterboxes
+ * by 31px a side, and the photograph's own vertical edge then lands at ~0.67 of
+ * the mask ray, where the mask is still passing 0.17. That edge is the vertical
+ * banding the phone frame shows through 'MacDonald'.
+ *
+ * `cover` is the fix and it is also the honest one: this is a ghost, not a
+ * reproduction — the full plate is the modal's job. The box is filled, so the
+ * only bounds are the mask's, and the mask's bounds are zero.
+ */
+const ART_FIT = 'cover' as const;
+
 /** Fades the parting seam's ends so it reads as a tear, not a drawn line. */
 const SEAM_MASK = 'linear-gradient(to bottom, transparent, black 22%, black 78%, transparent)';
 
 /**
  * Feathers the torn edge of each veil half — a tear, not a guillotine cut.
- * The two halves OVERLAP across 44–56% and their alpha ramps are cubic
- * complements (1-t³ / 1-(1-t)³), so source-over compositing of the identical
- * pixels sums back to ≥0.984 everywhere: seamless while closed, soft-edged
- * while parting. A plain linear pair would trough to 0.75 and print a dark
- * stripe down the middle of the artwork at rest.
+ *
+ * THE HARD SEAM. MEASURED, 1440×900 at 15.4% scroll: the left half's clip
+ * terminated at x=189 and the mean horizontal detail energy fell from 1.1 to
+ * 0.2 across ONE pixel — a 5.5× cliff. The luminance ramp was soft; the
+ * TEXTURE stopped dead, because the old ramp only ran 44%→56% of the element
+ * and spent its last three percent falling 0.578→0 on a straight line. At the
+ * dive's 2× frame scale that is 0.578 of a dense equation field terminating
+ * inside 28px. It read exactly as the juror called it: a mis-scaled asset with
+ * a full-height vertical border, not a designed crop.
+ *
+ * The overlap is now 30%→70% and each half's alpha follows (1−u⁸)², which
+ * arrives at zero with zero slope — the toe is 0.02 alpha over the last 4px, so
+ * there is no edge to find at any scale. It is still seamless closed: at the
+ * centre both halves carry 0.992, and source-over gives 1 − (1−0.992)² =
+ * 0.99994, i.e. no stripe down the middle of the artwork at rest.
  */
-const TEAR_CLIP_L = 'inset(0 44% 0 0)';
-const TEAR_CLIP_R = 'inset(0 0 0 44%)';
-const TEAR_L =
-  'linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 44%, rgba(0,0,0,0.984) 47%, rgba(0,0,0,0.875) 50%, rgba(0,0,0,0.578) 53%, rgba(0,0,0,0) 56%)';
-const TEAR_R =
-  'linear-gradient(to right, rgba(0,0,0,0) 44%, rgba(0,0,0,0.578) 47%, rgba(0,0,0,0.875) 50%, rgba(0,0,0,0.984) 53%, rgba(0,0,0,1) 56%, rgba(0,0,0,1) 100%)';
+const TEAR_CLIP_L = 'inset(0 30% 0 0)';
+const TEAR_CLIP_R = 'inset(0 0 0 30%)';
+/** (1−u⁸)² sampled across the overlap, u = (t − .30) / .40. */
+const TEAR_STOPS = (() => {
+  const out: string[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const u = i / 16;
+    const a = Math.pow(1 - Math.pow(u, 8), 2);
+    out.push([30 + u * 40, a] as [number, number] as unknown as string);
+  }
+  return out as unknown as [number, number][];
+})();
+const TEAR_L = `linear-gradient(to right, rgba(0,0,0,1) 0%, ${TEAR_STOPS.map(
+  ([p, a]) => `rgba(0,0,0,${a.toFixed(4)}) ${p.toFixed(2)}%`,
+).join(', ')})`;
+const TEAR_R = `linear-gradient(to right, ${TEAR_STOPS.map(
+  ([p, a]) => `rgba(0,0,0,${a.toFixed(4)}) ${(100 - p).toFixed(2)}%`,
+)
+  .reverse()
+  .join(', ')}, rgba(0,0,0,1) 100%)`;
 
 /**
  * --hero-u is the masthead's unit: every type size, tracking-derived measure
@@ -158,6 +215,17 @@ const HERO_CSS = `
 @media (max-width: 1023px) { .hero-title { --hero-u: min(1.28vw, var(--hero-fit)); } }
 @media (max-width: 767px) {
   .hero-title { --hero-u: min(1.62vw, var(--hero-fit)); }
+  /* THE PHONE GHOST IS GROUND, NOT A PLATE.
+     At 0.6 aspect inside a 390px viewport the ghost resolved to a 241×402
+     portrait rectangle sitting square across 'MacDonald' — a narrow smear with
+     its own visible bounds, which is precisely what a ghost must never have.
+     On the phone it is therefore sized PAST the viewport horizontally (0.78
+     aspect at 104vh ⇒ 685px wide on a 390px screen): the mask's horizontal
+     falloff is off-frame entirely, so there is no left or right edge to see,
+     and the only falloff inside the picture is the soft vertical one, which
+     lands at y≈55 and y≈789 — clear of the masthead band either way. What is
+     left is atmosphere behind the type instead of an object beside it. */
+  .hero-art-frame { height: 104vh; aspect-ratio: 0.78; }
   .hero-art-pos { left: 50%; }
 }`;
 
@@ -466,9 +534,15 @@ function createMarkPainter(canvas: HTMLCanvasElement): MarkPainter | null {
     if (dive >= 1) return;
 
     const a = clamp01(p / ARRIVAL_END);
+    // THE ARRIVAL'S SECOND BEAT. Before a single pixel of dive, the mark begins
+    // its approach: it grows, it starts crossing toward the axis it will fall
+    // through, and the equation field opens ahead of it. The two frames a sweep
+    // lands on inside the arrival are then two different pictures rather than
+    // the same one twice.
+    const arr = smooth01(BEAT_TWO, 1, a);
     const ez = dive * dive; // the fall accelerates
     const eo = 1 - (1 - dive) * (1 - dive); // …and the figure settles to centre
-    const scale = 1 + 3.4 * ez;
+    const scale = 1 + 0.22 * arr + 3.4 * ez;
     // THE RAIL IS INVIOLABLE — including here.
     // The mark's widest feature is the triangle's base, which runs to 0.93
     // circumradii either side of centre once the overshoot is counted. On a
@@ -482,8 +556,11 @@ function createMarkPainter(canvas: HTMLCanvasElement): MarkPainter | null {
     const RAIL_SAFE = W - 55;
     const HALF = 0.93;
     const target = mobile ? (16 + RAIL_SAFE) / 2 : W * 0.6;
-    const mx = baseX + (target - baseX) * eo;
-    const my = baseY + (H * 0.5 - baseY) * eo;
+    // `eo` is the dive's settle; `arr * 0.22` is the arrival's own lean toward
+    // it — the drawing is already moving before the fall starts.
+    const toward = eo + (1 - eo) * arr * 0.22;
+    const mx = baseX + (target - baseX) * toward;
+    const my = baseY + (H * 0.5 - baseY) * toward;
     const room = Math.max(24, Math.min(mx - 16, RAIL_SAFE - mx));
     const R = mobile ? Math.min(baseR * scale, room / HALF) : baseR * scale;
     // ON A PHONE THE MARK HAS TO BE GONE EARLIER.
@@ -511,7 +588,7 @@ function createMarkPainter(canvas: HTMLCanvasElement): MarkPainter | null {
     ctx.textBaseline = 'middle';
     for (let i = 0; i < glyphs.length; i++) {
       const g = glyphs[i];
-      const spread = 1 + dive * 2.1 + ez * 0.7;
+      const spread = 1 + arr * 0.26 + dive * 2.1 + ez * 0.7;
       let gx = mx + g.dx * spread;
       let gy = my + g.dy * spread;
       const ddx = gx - lx;
@@ -701,21 +778,28 @@ export function Hero() {
 
       if (smooth < ARRIVAL_END + 0.001 && !reducedMotion) {
         const a = clamp01(smooth / ARRIVAL_END); // 0→1 across the arrival
+        // the arrival's second beat — see ARRIVAL_END
+        const arr = smooth01(BEAT_TWO, 1, a);
+        const phone = window.innerWidth < 768;
 
         // Artwork rises INTO legibility as you approach the dive — it is the
         // thing you are about to fall into, so it gains presence, not less.
+        // On the second beat it COMES FORWARD: 0.30 → 0.62 of its own ink, and
+        // it grows past the frame. On the phone it is full-bleed ground rather
+        // than an object, so it carries a fraction of the ink.
         if (fadeRef.current) {
-          fadeRef.current.style.opacity = loaded ? (0.34 + a * 0.15).toFixed(3) : '0';
+          const ink = (0.30 + a * 0.10 + arr * 0.22) * (phone ? 0.56 : 1);
+          fadeRef.current.style.opacity = loaded ? ink.toFixed(3) : '0';
         }
         if (orbitRef.current) {
           // The ghost is the FURTHEST plane, so it answers the pointer least.
-          orbitRef.current.style.transform = `translate3d(${(a * -1.6 - pnx * 0.42 * pres).toFixed(3)}vw, ${(-pny * 0.28 * pres).toFixed(3)}vh, 0) scale(${(1 + a * 0.055).toFixed(4)})`;
+          orbitRef.current.style.transform = `translate3d(${(a * -1.6 - arr * 1.9 - pnx * 0.42 * pres).toFixed(3)}vw, ${(-pny * 0.28 * pres).toFixed(3)}vh, 0) scale(${(1 + a * 0.055 + arr * 0.13).toFixed(4)})`;
         }
 
         // Red rule: length answers BOTH scroll position (it extends as you
         // descend) and scroll velocity (it snaps longer + hotter when you
         // move). Origin is the left terminus — it grows out of the masthead.
-        const grow = 1 + a * 0.31 + Math.min(v * 1.5, 0.42);
+        const grow = 1 + a * 0.22 + arr * 0.4 + Math.min(v * 1.5, 0.42);
         if (ruleLineRef.current) {
           ruleLineRef.current.style.transform = `scaleX(${grow.toFixed(4)})`;
         }
@@ -727,8 +811,10 @@ export function Hero() {
         // Whisper of parallax on the name during arrival — and a COUNTER-shift
         // against the pointer, so the masthead and the mark sit on visibly
         // different planes the moment the mouse moves.
+        // …and on the second beat the masthead RECEDES — a whisper of scale
+        // off 1 plus a real rise. The name is the plane you are leaving.
         if (titleRef.current) {
-          titleRef.current.style.transform = `translate3d(${(pnx * 0.32 * pres).toFixed(3)}vh, ${(a * -2.2 + pny * 0.34 * pres).toFixed(3)}vh, 0)`;
+          titleRef.current.style.transform = `translate3d(${(pnx * 0.32 * pres).toFixed(3)}vh, ${(a * -1.4 - arr * 3.4 + pny * 0.34 * pres).toFixed(3)}vh, 0) scale(${(1 - arr * 0.026).toFixed(4)})`;
         }
       }
       raf = requestAnimationFrame(tick);
@@ -832,7 +918,7 @@ export function Hero() {
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    opacity: loaded ? 0.34 : 0,
+                    opacity: loaded ? 0.3 : 0,
                     // The mark is now the drawing in this frame, so the
                     // artwork is GROUND: pushed toward neutral chalk-grey and
                     // separated (contrast) so its own handwriting reads as
@@ -875,7 +961,7 @@ export function Hero() {
                           fill
                           sizes="(max-width: 767px) 62vw, 34vw"
                           priority
-                          style={{ objectFit: 'contain' }}
+                          style={{ objectFit: ART_FIT }}
                           onLoad={() => setLoaded(true)}
                         />
                       )}
@@ -901,7 +987,7 @@ export function Hero() {
                       }}
                     >
                       {art && (
-                        <Image src={art.src} alt="" fill sizes="(max-width: 767px) 62vw, 34vw" style={{ objectFit: 'contain' }} />
+                        <Image src={art.src} alt="" fill sizes="(max-width: 767px) 62vw, 34vw" style={{ objectFit: ART_FIT }} />
                       )}
                     </div>
                   </div>

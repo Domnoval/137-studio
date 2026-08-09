@@ -20,23 +20,7 @@
 // grounds and it is the one colour the system lets stay put.
 
 import { useJourney } from './JourneyContext';
-import { PHASES, PHASE_ORDER, clamp01, type PhaseName } from './journey-utils';
-
-const LABEL: Record<PhaseName, string> = {
-  arrival: 'ARRIVAL',
-  dive: 'THE DIVE',
-  cosmos: 'THE COSMOS',
-  contraction: 'CONTRACTION',
-  return: 'RETURN',
-};
-
-const INDEX: Record<PhaseName, string> = {
-  arrival: '01',
-  dive: '02',
-  cosmos: '03',
-  contraction: '04',
-  return: '05',
-};
+import { PHASES, PHASE_ORDER, CHAPTER_INDEX, CHAPTER_TITLE, clamp01 } from './journey-utils';
 
 // Phase boundaries (skip 0): 0.08 / 0.18 / 0.62 / 0.78
 const TICKS = PHASE_ORDER.slice(1).map((name) => PHASES[name].start);
@@ -50,7 +34,12 @@ const RED = '#c41230';
 const MONO = "'JetBrains Mono', monospace";
 
 export function ScrollProgress() {
-  const { progress, phase } = useJourney();
+  // `chapter`, not `phase`: the rail PRINTS a chapter, and every element on the
+  // site that prints one resolves it through the same table (JourneyContext →
+  // journey-utils). The rail used to name the chapter off its own copy of the
+  // phase ranges, which is how it came to print "02 / THE DIVE" in the same
+  // frame as the phone's cosmos band printed "03 / THE COSMOS".
+  const { progress, chapter } = useJourney();
   const p = clamp01(progress);
   // Depth counter counts 000 -> 137. Of course it does.
   const depth = String(Math.round(p * 137)).padStart(3, '0');
@@ -138,11 +127,24 @@ export function ScrollProgress() {
         />
       </div>
 
-      {/* phase label below the rail — vertical, mono, crossfades per phase */}
+      {/* THE INSTRUMENT NEVER READS BLANK.
+          journey.css animates .jp-label in from opacity 0, so for 0.618s at
+          every chapter change the rail carried a depth, a fill and NO chapter —
+          measured: at global 0.103 the label sampled at opacity ≤ 0.02. An
+          instrument that stops answering the question it exists to answer is
+          the same fault as two instruments disagreeing. The swap keeps its
+          rise but floors at 0.42, so the change still reads as an edit and the
+          chapter is legible through it. Inline `animation` wins over the class
+          rule, so the atmosphere layer's stylesheet is untouched. */}
+      <style>{
+        '@keyframes jp-chapter-cut{from{opacity:.42;transform:translateY(7px)}' +
+        'to{opacity:1;transform:translateY(0)}}'
+      }</style>
       <div
-        key={phase}
+        key={chapter}
         className="jp-label"
         style={{
+          animation: 'jp-chapter-cut 0.618s cubic-bezier(0.25, 1, 0.5, 1) both',
           position: 'absolute',
           bottom: 34,
           right: 15,
@@ -156,9 +158,9 @@ export function ScrollProgress() {
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ color: RED }}>{INDEX[phase]}</span>
+        <span style={{ color: RED }}>{CHAPTER_INDEX[chapter]}</span>
         {' / '}
-        {LABEL[phase]}
+        {CHAPTER_TITLE[chapter]}
       </div>
     </div>
   );

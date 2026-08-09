@@ -29,6 +29,63 @@ export const PHASES: Record<PhaseName, PhaseRange> = {
 
 export const PHASE_ORDER: PhaseName[] = ['arrival', 'dive', 'cosmos', 'contraction', 'return'];
 
+/* ---------------------------------------------------------------- CHAPTERS */
+/**
+ * THE CHAPTER TABLE — the ONE place the journey's chapters are named, numbered
+ * and given an onset. Anything that PRINTS a chapter (the HUD rail, a section's
+ * own title plate) resolves it through `chapterFor()` below. Nothing derives a
+ * chapter name from a threshold of its own.
+ *
+ * This exists because the site had two readers disagreeing in one frame: the
+ * right-hand rail printed "02 / THE DIVE" off `PHASES` while the mobile cosmos
+ * band's title plate printed "03 / THE COSMOS" off its own fade-in constant.
+ * A HUD whose whole conceit is that it is an instrument cannot contradict the
+ * page it is measuring, so the onset is now a property of the CHAPTER, not of
+ * whichever component happens to be drawing it.
+ */
+export const CHAPTER_INDEX: Record<PhaseName, string> = {
+  arrival: '01',
+  dive: '02',
+  cosmos: '03',
+  contraction: '04',
+  return: '05',
+};
+
+export const CHAPTER_TITLE: Record<PhaseName, string> = {
+  arrival: 'ARRIVAL',
+  dive: 'THE DIVE',
+  cosmos: 'THE COSMOS',
+  contraction: 'CONTRACTION',
+  return: 'RETURN',
+};
+
+/**
+ * THE PHONE HAS NO DIVE, SO ITS COSMOS STARTS EARLIER.
+ *
+ * On desktop the DIVE is a real 3D fall that owns 8%–18% of the track. On a
+ * phone there is no WebGL dive at all: CosmosFallback's band — chapter plate
+ * first — takes the frame from this depth, which is why the plate was on screen
+ * while the rail still said DIVE. The chapter a reader is IN is the chapter
+ * whose content owns the frame, so on mobile THE COSMOS begins here.
+ *
+ * CONTRACT: this is the onset the mobile cosmos band's own reveal must key to.
+ * If that band's fade-in moves, this constant moves with it — they are one
+ * decision, stated once.
+ */
+export const MOBILE_COSMOS_ONSET = 0.138;
+
+/**
+ * The chapter to PRINT at this depth. `mobile` shifts THE COSMOS's onset back
+ * to the point its band actually takes the frame (see MOBILE_COSMOS_ONSET).
+ * Returns a plain PhaseName so callers can index CHAPTER_INDEX / CHAPTER_TITLE
+ * without allocating — this runs every animation frame.
+ */
+export function chapterFor(globalProgress: number, mobile = false): PhaseName {
+  const p = clamp01(globalProgress);
+  if (mobile && p >= MOBILE_COSMOS_ONSET && p < PHASES.cosmos.end) return 'cosmos';
+  return phaseFor(p);
+}
+
 /** Total scroll length of the journey (desktop). page.tsx sizes .journey-root with this. */
 export const JOURNEY_HEIGHT_VH = 700;
 

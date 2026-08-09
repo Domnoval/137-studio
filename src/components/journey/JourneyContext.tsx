@@ -15,6 +15,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import {
   type PhaseName,
   phaseFor,
+  chapterFor,
   detectWebGL,
   detectMobile,
   detectReducedMotion,
@@ -24,8 +25,18 @@ import {
 export interface JourneyState {
   /** 0-1 lerp-smoothed global scroll progress of the whole journey. */
   progress: number;
-  /** Phase derived from progress (VISION.md percentages). */
+  /** Phase derived from progress (VISION.md percentages). Geometry/choreography. */
   phase: PhaseName;
+  /**
+   * THE CHAPTER TO PRINT. The single source of truth for every element that
+   * DISPLAYS where the reader is — the HUD rail and any section title plate.
+   * It is viewport-aware (the phone's cosmos band takes the frame before the
+   * desktop dive would have ended), which `phase` deliberately is not: `phase`
+   * drives geometry, `chapter` drives type. Anything that prints a chapter name
+   * or number reads it from here — and its name/number from CHAPTER_TITLE /
+   * CHAPTER_INDEX in journey-utils — never from a threshold of its own.
+   */
+  chapter: PhaseName;
   /** Smoothed scroll velocity in progress-units/second (signed). */
   velocity: number;
   reducedMotion: boolean;
@@ -113,10 +124,14 @@ export function JourneyProvider({ children }: { children: React.ReactNode }) {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  // Resolved through the ONE chapter table (journey-utils), never inline.
+  const chapter = chapterFor(progress, isMobile);
+
   const value = useMemo<JourneyState>(
     () => ({
       progress,
       phase,
+      chapter,
       velocity,
       reducedMotion,
       isMobile,
@@ -126,7 +141,7 @@ export function JourneyProvider({ children }: { children: React.ReactNode }) {
       progressRef,
       velocityRef,
     }),
-    [progress, phase, velocity, reducedMotion, isMobile, webglOk, selectedWork],
+    [progress, phase, chapter, velocity, reducedMotion, isMobile, webglOk, selectedWork],
   );
 
   return <JourneyContext.Provider value={value}>{children}</JourneyContext.Provider>;

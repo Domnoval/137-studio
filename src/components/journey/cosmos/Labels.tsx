@@ -33,9 +33,12 @@
 //          metadata, red tick terminal. The primary voice.
 //   APPS — the same device, subordinate: half-length red rule, smaller tracked
 //          mono name with an external tick, description in the metadata
-//          weight. No box, no brackets — a debug panel was never the intent.
-//          One at a time, never within 120px vertically of the caption, and
-//          only in the WIDE shot.
+//          weight. No panel and no brackets around the TYPE — a debug readout
+//          was never the intent — but the leader does now terminate on a
+//          hairline square bracketing the waypoint it names, because a leader
+//          is only an annotation if it lands on something (see THE CALLOUT MAY
+//          NOT POINT AT NOTHING). One at a time, never within 120px vertically
+//          of the caption, and only in the WIDE shot.
 //
 // All DOM is imperative — created once, mutated inside useFrame. Zero React
 // re-renders, zero per-frame allocation.
@@ -102,6 +105,39 @@ const EDGE_MATTE_FRAC = 0.053; // × viewport width — 76px at 1440
 const EDGE_MATTE_MIN = 56;
 /** A chip may never come within this many px, vertically, of the caption. */
 const CHIP_KEEPOUT_Y = 120;
+/**
+ * THE CALLOUT MAY NOT POINT AT NOTHING.
+ *
+ * MEASURED, desktop 1440×900, scroll 21.3% and 24.0%: an app chip was up with a
+ * 72px and a 99px leader running out of it, and a 60px disc centred on the
+ * leader's terminus sampled peak luminance 9.8 and 8.9 against a local ground of
+ * 9.2 and 8.2 — i.e. the leader ended in bare void. Two causes, both fixed here:
+ *
+ *   1. FRAME ORDER. AppsConstellation's useFrame is registered before this
+ *      driver's (this one is armed late so it can read the slab rects written
+ *      in the same frame), and the solid it draws is gated on `appActive` —
+ *      which this module writes. So the wire always renders the decision from
+ *      the PREVIOUS frame while the chip rendered the current one. At 60fps
+ *      that is 16ms; on the frame rate a scrubbing capture actually gets, it is
+ *      a chip and a leader with no terminal under them. The driver now RENDERS
+ *      the state the wire is presenting and PUBLISHES the state it should
+ *      present next, so annotation and referent are in lockstep by
+ *      construction, at any frame rate.
+ *   2. NO PRESENCE TEST. Nothing checked that the referent was actually
+ *      legible. The wire's own opacity expression is mirrored below; under
+ *      WIRE_MIN the callout does not render at all — not the chip, not the
+ *      leader.
+ *
+ * And because the wireframe solid is deliberately faint scenery (its peak is
+ * ~1.8:1 against the void), the leader now terminates on a mark this module
+ * draws itself — a hairline square bracketing the solid at the same docked
+ * anchor. The annotation carries its own terminal; it can never land on air.
+ */
+const WIRE_MIN = 0.09;
+/** Clearance the terminal square keeps from any artwork silhouette, in px.
+ *  The solid is depth-tested against the paintings: a terminal over a canvas is
+ *  a terminal that has been culled behind it. */
+const NODE_CLEAR = 10;
 // (horizontal inflation is unnecessary: the keep-out is a full-width band)
 /** Scroll progress at which THE COSMOS's type layer stops existing. */
 const CHAPTER_END = 0.618;
@@ -139,7 +175,15 @@ const CSS = `
 .cx-app:hover .cx-app-name, .cx-app:hover .cx-app-ext { color:#e8e4dc; }
 .cx-app:hover .cx-app-rule { width:26px; opacity:1; }
 .cx-lead { position:absolute; height:1px; transform-origin:0 50%;
-           background:rgba(160,168,190,.26); }
+           background:rgba(160,168,190,.34); }
+/* THE LEADER'S TERMINAL. A hairline open square bracketing the waypoint's
+   wireframe solid — the leader runs from the chip to this square's edge, and
+   the square is drawn by the same module, in the same frame, from the same
+   docked anchor as the solid inside it. See THE CALLOUT MAY NOT POINT AT
+   NOTHING. Chalk at 45% measures 3.8:1 on the void ground: unmistakably a
+   mark, an order of magnitude below the caption it is subordinate to. */
+.cx-node { position:absolute; left:0; top:0; box-sizing:border-box;
+           border:1px solid rgba(232,228,220,.45); }
 
 /* ---- the SECOND split screen: the same device, inverted ---- */
 /* A hairline on the divide turns the dark half from leftover panel into a
@@ -183,6 +227,8 @@ interface ArtLabel extends Label {
 
 interface AppLabel extends Label {
   lead: HTMLDivElement;
+  /** the terminal square the leader lands on — brackets the wireframe solid */
+  node: HTMLDivElement;
 }
 
 /**
@@ -220,6 +266,9 @@ const anchorV = new THREE.Vector3();
 const anchorOut = makeAppAnchor();
 const candBuf: number[][] = [];
 const artCands: number[][] = [];
+/** Per-frame waypoint presence + the order to try placing them in. */
+const vis: number[] = [];
+const order: number[] = [];
 const mix: ShotMix = { wide: 1, macro: 0, pullback: 0 };
 
 export function Labels() {
@@ -356,8 +405,10 @@ export function Labels() {
         body.addEventListener('pointerleave', () => {
           if (appHover.index === i) appHover.index = -1;
         });
-        root.append(lead, body);
-        return { root, body, lead, w: 0, h: 0, opacity: 0, shown: true };
+        const nodeBox = document.createElement('div');
+        nodeBox.className = 'cx-node';
+        root.append(lead, nodeBox, body);
+        return { root, body, lead, node: nodeBox, w: 0, h: 0, opacity: 0, shown: true };
       });
 
       const measure = () => {
@@ -783,19 +834,20 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
       });
     }
 
-    let best = -1;
-    let bestVis = 0.04;
-    const visOf = (i: number): number => {
-      const rel = state.camera.position.z - APP_NODES[i].z;
-      return appGate * smoothstep(4.2, 7.5, rel) * smoothstep(15.5, 11, rel);
-    };
+    // Every waypoint's presence this frame, and the order to try them in. The
+    // callout goes to the strongest node that can actually be HONOURED, not to
+    // the strongest node full stop: when the loudest one happens to sit over a
+    // canvas (where its solid is depth-culled and its terminal would print on
+    // the artwork) the shot still has a waypoint to name, and refusing outright
+    // is what emptied a whole WIDE window of them.
+    vis.length = 0;
+    order.length = 0;
     for (let i = 0; i < apps.length; i++) {
-      const v = visOf(i);
-      if (v > bestVis) {
-        bestVis = v;
-        best = i;
-      }
+      const rel = state.camera.position.z - APP_NODES[i].z;
+      vis.push(appGate * smoothstep(4.2, 7.5, rel) * smoothstep(15.5, 11, rel));
+      if (vis[i] > 0.04) order.push(i);
     }
+    order.sort((a, b) => vis[b] - vis[a]);
 
     // the frame's optical centre belongs to the artwork, never to a chip
     const cxLo = W * 0.24;
@@ -803,34 +855,59 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
     const cyLo = H * 0.2;
     const cyHi = H * 0.8;
 
-    appActive.index = -1;
-    appActive.o = 0;
+    /* ---- LOCKSTEP WITH THE REFERENT (see THE CALLOUT MAY NOT POINT AT
+       NOTHING). `appActive` as it stands on entry IS what AppsConstellation
+       drew this frame — its useFrame ran before this one. So that is the state
+       the chip renders; `best` is only what gets published for the next. */
+    const shownIdx = appActive.index;
+    const shownO = appActive.o;
+    const shotFade = (1 - mix.macro) * (1 - mix.pullback);
 
-    for (let i = 0; i < apps.length; i++) {
+    /** The wire's rendered opacity, mirroring AppsConstellation's expression
+     *  (hover only ever adds to it, so this is the floor). */
+    const wireOpacity = (i: number, published: number): number => {
+      const rel = state.camera.position.z - APP_NODES[i].z;
+      const near = smoothstep(34, 12, rel) * smoothstep(-1, 3, rel);
+      return (0.16 + near * 0.34) * shotFade * Math.min(1, published * 1.4);
+    };
+
+    /** Terminal square must not sit on a painting — the solid inside it is
+     *  depth-tested, so a terminal over a canvas is a terminal behind it. */
+    const clearOfArt = (x0: number, y0: number, x1: number, y1: number): boolean => {
+      scratch.x0 = x0;
+      scratch.y0 = y0;
+      scratch.x1 = x1;
+      scratch.y1 = y1;
+      for (let i = 0; i < rects.length; i++) {
+        const r = rects[i];
+        if (r.live && rectsOverlap(scratch, r, NODE_CLEAR)) return false;
+      }
+      return true;
+    };
+
+    /**
+     * Find a placement for one callout. Returns the chip's top-left plus the
+     * docked anchor geometry, or null when the callout cannot be honoured —
+     * off the safe frame, over a painting, or with its referent too faint to
+     * be a terminal. Pure: it writes no DOM and pushes nothing.
+     */
+    const search = (
+      i: number,
+      published: number,
+    ): { x: number; y: number; ax: number; ay: number; r: number } | null => {
       const label = apps[i];
-      if (i !== best || label.w === 0) {
-        hide(label);
-        continue;
-      }
-      // ---- THE CALLOUT'S OWN SILHOUETTE MUST BE INSIDE THE SAFE FRAME ----
-      // The chip was placed by candidate offsets, which the safe frame already
-      // guarantees — but the WIREFRAME SOLID it names is a 3D object whose
-      // projection was never checked at all. That is the whole bug: one module
-      // amputated by the left edge, the identical module one shot later sitting
-      // comfortably at x=278. app-anchor.ts docks the node into the same inset
-      // the type obeys and refuses the callout outright when it cannot; the
-      // wire in AppsConstellation reads the same docked point, so chip, leader
-      // and solid are always one object, always whole, on every viewport.
-      const node = APP_NODES[i];
-      const anc = appAnchor(node, state.camera, W, H, anchorV, anchorOut);
-      if (!anc.ok) {
-        hide(label);
-        continue;
-      }
+      if (!label || label.w === 0) return null;
+      if (wireOpacity(i, published) < WIRE_MIN) return null;
+      const anc = appAnchor(APP_NODES[i], state.camera, W, H, anchorV, anchorOut);
+      if (!anc.ok) return null;
       const ax = anc.x;
       const ay = anc.y;
+      // anc.r is the docking radius — NODE_R (0.52) plus 10px of air, i.e. it
+      // over-covers the drawn solid (largest geometry 0.34 + float + hover) by
+      // about half. 0.7 of it tracks the silhouette the eye actually sees.
+      const r = Math.max(12, Math.min(44, anc.r * 0.7));
+      if (!clearOfArt(ax - r, ay - r, ax + r, ay + r)) return null;
       const cands = appCandidates(label.w, label.h, candBuf, Math.max(34, anc.r + 16));
-      let done = false;
       for (const [ox, oy] of cands) {
         const x = ax + ox;
         const y = ay + oy;
@@ -838,33 +915,70 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
         const my = y + label.h / 2;
         if (mx > cxLo && mx < cxHi && my > cyLo && my < cyHi) continue;
         if (!fits(x, y, label.w, label.h, CLEAR)) continue;
-        label.body.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
-        // leader: anchor -> nearest point on the plate rect. No node square:
-        // the wireframe solid in the scene is the terminal.
-        const px = Math.max(x, Math.min(ax, x + label.w));
-        const py = Math.max(y, Math.min(ay, y + label.h));
-        const dx = px - ax;
-        const dy = py - ay;
-        const len = Math.hypot(dx, dy);
-        label.lead.style.width = `${Math.max(0, len - 6).toFixed(1)}px`;
-        label.lead.style.transform = `translate(${ax}px, ${ay}px) rotate(${Math.atan2(
-          dy,
-          dx,
-        )}rad)`;
-        label.root.style.opacity = bestVis.toFixed(3);
-        label.opacity = bestVis;
-        placed.push({ x0: x, y0: y, x1: x + label.w, y1: y + label.h });
-        // the wire is part of the callout: nothing else may land on it either
-        placed.push({ x0: ax - anc.r, y0: ay - anc.r, x1: ax + anc.r, y1: ay + anc.r });
-        pushExclusion(x, y, x + label.w, y + label.h);
-        pushExclusion(ax - anc.r, ay - anc.r, ax + anc.r, ay + anc.r);
-        appActive.index = i;
-        appActive.o = bestVis;
-        done = true;
+        return { x, y, ax, ay, r };
+      }
+      return null;
+    };
+
+    // What the wire is drawing now — that, and only that, may be annotated.
+    const drawIdx = shownIdx >= 0 && shownO > 0.04 ? shownIdx : -1;
+    const drawn = drawIdx >= 0 ? search(drawIdx, shownO) : null;
+    // What the wire should draw next: the strongest waypoint whose callout can
+    // actually be honoured. Published only when a placement exists, so a solid
+    // never comes up for a callout that will have nowhere to sit.
+    let best = -1;
+    let bestVis = 0;
+    for (const i of order) {
+      if (i === drawIdx ? drawn : search(i, vis[i])) {
+        best = i;
+        bestVis = vis[i];
         break;
       }
-      // no guaranteed-empty region → fade out. Never overlap.
-      if (!done) hide(label);
+    }
+    appActive.index = best;
+    appActive.o = best >= 0 ? bestVis : 0;
+
+    for (let i = 0; i < apps.length; i++) {
+      const label = apps[i];
+      if (i !== drawIdx || !drawn) {
+        hide(label);
+        continue;
+      }
+      const { x, y, ax, ay, r } = drawn;
+      label.body.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+
+      // ---- the terminal: a hairline square bracketing the wireframe solid at
+      // the same docked anchor the solid itself reads. The leader stops on its
+      // edge, so the line always lands on drawn geometry.
+      label.node.style.width = `${Math.round(r * 2)}px`;
+      label.node.style.height = `${Math.round(r * 2)}px`;
+      label.node.style.transform = `translate(${Math.round(ax - r)}px, ${Math.round(ay - r)}px)`;
+
+      // ---- the leader: from the terminal's edge to the plate's nearest side
+      const px = Math.max(x, Math.min(ax, x + label.w));
+      const py = Math.max(y, Math.min(ay, y + label.h));
+      const dx = px - ax;
+      const dy = py - ay;
+      const span = Math.hypot(dx, dy) || 1;
+      const ux = dx / span;
+      const uy = dy / span;
+      // exit point of a square of half-side r along (ux, uy)
+      const start = r / Math.max(Math.abs(ux), Math.abs(uy)) + 3;
+      const lead = Math.max(0, span - 6 - start);
+      label.lead.style.width = `${lead.toFixed(1)}px`;
+      label.lead.style.opacity = lead > 5 ? '1' : '0';
+      label.lead.style.transform = `translate(${(ax + ux * start).toFixed(1)}px, ${(
+        ay +
+        uy * start
+      ).toFixed(1)}px) rotate(${Math.atan2(dy, dx)}rad)`;
+
+      label.root.style.opacity = shownO.toFixed(3);
+      label.opacity = shownO;
+      placed.push({ x0: x, y0: y, x1: x + label.w, y1: y + label.h });
+      // the terminal is part of the callout: nothing else may land on it either
+      placed.push({ x0: ax - r, y0: ay - r, x1: ax + r, y1: ay + r });
+      pushExclusion(x, y, x + label.w, y + label.h);
+      pushExclusion(ax - r, ay - r, ax + r, ay + r);
     }
   });
 

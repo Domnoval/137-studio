@@ -27,9 +27,17 @@ import gsap from 'gsap';
 import { useJourney } from './JourneyContext';
 import { PHASES, clamp01 } from './journey-utils';
 
-/** The dive takes the wheel a hair before the nominal 8% so its first frames
- *  land inside the arrival's tail rather than all at once at the boundary. */
-const DIVE_START = 0.075;
+/**
+ * The dive takes the wheel WELL before the nominal 8%.
+ *
+ * At 0.075 the whole 0–8% band was one picture: a sweep's 0% and 7.7% frames
+ * differed by 2.2vh of drift and nothing else. Starting the fall at 5% means
+ * the 7.7% frame is already 21% into the dive — the veil is opening, the
+ * letters have begun to separate and the void has started to lift — so no 8%
+ * stretch of the journey stands still. (Hero.tsx's ARRIVAL_END matches this;
+ * the two are one decision.)
+ */
+const DIVE_START = 0.05;
 const DIVE_END = PHASES.dive.end; // 0.18
 
 /** Deterministic per-letter pseudo-random (stable across mounts). */
@@ -118,7 +126,10 @@ export function Dive() {
     //    The veil gains presence as it opens: you are falling through a
     //    painting, and a painting you cannot read is a smudge.
     tl.to('.hero-art-fade', { opacity: 0.68, duration: 0.34, ease: 'power1.out' }, 0);
-    tl.to('.hero-art-frame', { opacity: 0, duration: 0.28, ease: 'power1.in' }, 0.7);
+    //    …and the veil is GONE before either half can become a strip standing
+    //    on the frame edge. Started at 0.62 rather than 0.70 so the last third
+    //    of the fall is a dissolve, not two rectangles sliding out of shot.
+    tl.to('.hero-art-frame', { opacity: 0, duration: 0.36, ease: 'power1.in' }, 0.62);
 
     // 4. Letters: separate + swell + blur FIRST (power1.out — visible at once),
     //    then fly through the camera in Z (power2.in — the fall accelerates).

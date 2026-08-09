@@ -72,6 +72,8 @@ import { PHASES, clamp01 } from './journey-utils';
 const CHALK = '#e8e4dc';
 const FADED = '#a09890';
 const RED = '#c41230';
+/** --text-glow. Rare, emphasis only — here it is the link hover state. */
+const GLOW = '#ffffff';
 const MONO = "'JetBrains Mono', monospace";
 const SERIF = "'Cormorant Garamond', Georgia, serif";
 const CINZEL = "'Cinzel', Georgia, serif";
@@ -311,34 +313,55 @@ const CSS = `
   color: ${FADED};
   margin-bottom: 8px;
 }
+/* ---- CRIMSON IS THE MARKER, NOT THE INK ---------------------------------
+   The two contact links were set in the accent: #c41230 on the (14,12,10)
+   ground measures 3.23:1 — under AA for 12.8px type — while the "Find the
+   work" label directly above them measures 6.88:1. The system already knew
+   better; the accent had simply been spent on the one thing a visitor
+   actually has to read.
+   So every link on this plate is set in chalk (15.41:1) and the crimson moves
+   to the RULE under it and the terminal square that closes it — the same
+   rule+tick+dot device the art captions and the folio band already use. The
+   contact pair wears the crimson rule at rest, which is what marks it as the
+   way to reach the work; the two navigation links wear the chalk hairline and
+   ignite crimson on hover. Nothing loses the accent, and nothing is read at
+   3:1. Hover RAISES contrast (chalk → #ffffff, 21.0:1) — it never lowers it,
+   which is what the old red-on-hover did. */
 .fin-link {
   font-family: ${MONO};
   font-size: 0.8rem;
   font-weight: 400;
-  color: ${RED};
+  color: ${CHALK};
   letter-spacing: 0.1em;
   text-decoration: none;
   background: none;
   border: none;
-  border-bottom: 1px solid rgba(196, 18, 48, 0.3);
+  border-bottom: 1px solid rgba(232, 228, 220, 0.25);
   padding: 0 0 4px;
   width: fit-content;
   text-align: left;
+  position: relative;
   transition: border-color 0.3s ease, color 0.3s ease;
 }
 .fin-link:hover,
 .fin-link:focus-visible {
-  border-color: ${RED};
+  color: ${GLOW};
+  border-bottom-color: ${RED};
   outline: none;
 }
-.fin-link--chalk {
-  color: ${CHALK};
-  border-bottom-color: rgba(232, 228, 220, 0.25);
-}
-.fin-link--chalk:hover,
-.fin-link--chalk:focus-visible {
-  color: ${RED};
+/* the contact pair: chalk ink, crimson marker + terminal */
+.fin-link--mark {
   border-bottom-color: ${RED};
+  padding-right: 13px;
+}
+.fin-link--mark::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  width: 3px;
+  height: 3px;
+  background: ${RED};
 }
 .fin-fact {
   font-family: ${MONO};
@@ -643,23 +666,23 @@ export function Finale() {
               <div className="fin-col">
                 <span className="fin-label">Find the work</span>
                 <a
-                  className="fin-link"
+                  className="fin-link fin-link--mark"
                   href="https://instagram.com/domnoval_art"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   @domnoval_art
                 </a>
-                <a className="fin-link" href="mailto:the37thmover@gmail.com">
+                <a className="fin-link fin-link--mark" href="mailto:the37thmover@gmail.com">
                   the37thmover@gmail.com
                 </a>
               </div>
               <div className="fin-col">
                 <span className="fin-label">Where next</span>
-                <button className="fin-link fin-link--chalk" type="button" onClick={restart}>
+                <button className="fin-link" type="button" onClick={restart}>
                   Descend again ↑
                 </button>
-                <a className="fin-link fin-link--chalk" href="/137">
+                <a className="fin-link" href="/137">
                   The temple — /137 →
                 </a>
               </div>
