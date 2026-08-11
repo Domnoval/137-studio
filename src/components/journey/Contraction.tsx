@@ -7,6 +7,17 @@
 //      sigil publishes its projected base line every frame; the caption sits a
 //      golden-ratio gap under it and left-aligns to the base's left corner, so
 //      it belongs to the mark instead of floating below it.
+//
+//      THE MEASURE REGISTERS TO THE INK, NOT TO AN IDEAL VERTEX. BASE_X0/BASE_X1
+//      used to be the triangle's mathematical corners, while the armature is
+//      STRUCK — it runs past them — so the rule landed inside the base it
+//      annotates (MEASURED at 390×844: rule 32→317 against base ink 23→320, i.e.
+//      9px in on the left and 3px in on the right; 1440×900 was 11px and 9px).
+//      A measurement that is 9px out is not a measurement. sigil-form.ts now
+//      pairs the overshoot at every corner and exports BASE_X0/BASE_X1 as the
+//      base stroke's own analytic ink terminals, so the ticks land on the
+//      terminals at every viewport by construction — this file positions
+//      nothing independently, it only projects those two numbers.
 //   2. A 2D contraction for mobile / no-WebGL / reduced-motion, where there is
 //      no Three scene at all: the SAME mark, generated from the same stroke
 //      data (cosmos/sigil-form.ts) as pressure-varied filled outlines, arriving
@@ -21,7 +32,7 @@
 // re-renders, fully deterministic against scroll position.
 // reducedMotion: things appear and disappear — no blur, no drift.
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import gsap from 'gsap';
 import { useJourney } from './JourneyContext';
 import { clamp01 } from './journey-utils';
@@ -87,6 +98,28 @@ const M_PULSE_SIGMA = 0.014;
 const M_OUT_START = 0.77;
 const M_OUT_END = 0.792;
 const M_CAP: [number, number] = [0.628, 0.646];
+
+/* The measure's terminals. Both are 1px wide and both STRADDLE their datum
+   (translateX(-50%)), so the extension line's centre — not one of its edges —
+   lands on the projected base vertex. */
+const EXT_TICK: CSSProperties = {
+  position: 'absolute',
+  left: 0,
+  top: 0,
+  bottom: 0,
+  width: '1px',
+  transform: 'translateX(-50%)',
+  background: 'rgba(196, 18, 48, 0.42)',
+};
+const END_TICK: CSSProperties = {
+  position: 'absolute',
+  left: 0,
+  top: '-4px',
+  width: '1px',
+  height: '9px',
+  transform: 'translateX(-50%)',
+  background: RED,
+};
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const win = (p: number, a: number, b: number) => smooth(clamp01((p - a) / (b - a)));
@@ -549,26 +582,14 @@ export function Contraction() {
                 pointerEvents: 'none',
               }}
             >
-              <i
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: '1px',
-                  background: 'rgba(196, 18, 48, 0.42)',
-                }}
-              />
-              <i
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: '1px',
-                  background: 'rgba(196, 18, 48, 0.42)',
-                }}
-              />
+              {/* STRADDLE THE DATUM, don't sit beside it. `left:0` puts the
+                  1px line just inside the left terminal and `right:0` puts it
+                  just inside the right one — the pair measures 2px narrower
+                  than the two numbers it is drawn from, in opposite directions.
+                  Centring each line ON its terminal is both the drafting
+                  convention and the only version that measures true. */}
+              <i style={EXT_TICK} />
+              <i style={{ ...EXT_TICK, left: '100%' }} />
             </div>
             <div
               ref={ruleRef}
@@ -580,26 +601,9 @@ export function Contraction() {
                 transform: 'scaleX(0)',
               }}
             />
-            <i
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: '-4px',
-                width: '1px',
-                height: '9px',
-                background: RED,
-              }}
-            />
-            <i
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: '-4px',
-                width: '1px',
-                height: '9px',
-                background: RED,
-              }}
-            />
+            {/* the terminals, centred on the two projected base vertices */}
+            <i style={END_TICK} />
+            <i style={{ ...END_TICK, left: '100%' }} />
           </div>
           <div
             style={{

@@ -2,11 +2,27 @@
 //
 // THE PAYLOAD. Not the borrowed eye-in-triangle: this is Michael's OWN eye,
 // the one that recurs in the Totem canvas and stares out of the Teal Skull —
-// a round socket struck in one overlapping pass, a heavy brow arc that
-// overshoots it on both sides, an OFF-CENTRE iris with a small pupil and a
-// crescent catchlight, and the filaments that radiate out of the iris into the
-// white. Blown to full scale as line-work, it is an ownable mark; the stock
-// symbol was not.
+// a round socket struck in ONE CLOSED pass, a heavy brow that is re-struck over
+// the crown and rejoins the socket line at both ends, a CONCENTRIC iris with a
+// small pupil and a crescent catchlight, and the filaments that radiate out of
+// the iris into the white. Blown to full scale as line-work, it is an ownable
+// mark; the stock symbol was not.
+//
+// THE KEYSTONE IS EXACT. This is the section called THE CONSTANT, so the mark
+// is built so that its centres COINCIDE BY CONSTRUCTION, not by nudging:
+//
+//   · every ring's radius wobble uses EVEN harmonics only, so r(θ+π) = r(θ)
+//     and therefore x(θ+π) = −x(θ). The drawn bounding box of a hand-wobbled
+//     ring is then exactly centred on its nominal centre — it breathes like a
+//     hand-drawn circle and still measures like a compassed one.
+//   · every ring closes: exactly one revolution (turns = 2, in units of π) with
+//     a radius that is a pure function of θ, so the last sample lands on the
+//     first. No spiral drift term, no unclosed overshoot doubling back on one
+//     side of the circle only.
+//   · the iris and the pupil sit on the socket's own centre, [0, EYE_CY].
+//   · the armature's hand-drawn overshoots are SYMMETRIC at every corner, so
+//     the triangle's drawn extent is centred on x = 0 and its base terminates
+//     at exactly ±BASE_X1 — the two points the dimension line registers to.
 //
 // The 137 armature survives as three STRUCK strokes that cross past each other
 // at the corners — a hand-drawn triangle, not a closed vector badge — and the
@@ -29,18 +45,43 @@ export const TRI_CY = 0;
 export const APEX: Pt = [0, TRI_CY + TRI_R];
 export const CORNER_R: Pt = [TRI_R * Math.cos(-Math.PI / 6), TRI_CY + TRI_R * Math.sin(-Math.PI / 6)];
 export const CORNER_L: Pt = [-CORNER_R[0], CORNER_R[1]];
+
+/* THE ARMATURE'S OVERSHOOTS, as a fraction of a stroke's vertex-to-vertex
+   length. A struck triangle runs past its own corners — that is the whole
+   difference between a drawn mark and a vector badge — but the two ends of any
+   one corner must run past it by the SAME amount, or the mark's drawn extent
+   is off-centre from the geometry it claims to be. All three sides of an
+   equilateral triangle share one length (R·√3), so these are directly
+   comparable numbers and the base's two terminals are analytic. */
+const OVER_BASE = 0.024; // past each end of the base
+const OVER_FOOT = 0.026; // the two side strokes, past the feet
+const OVER_APEX = 0.030; // the two side strokes, past the apex
+/** Vertex-to-vertex length of every side of the triangle. */
+const SIDE_LEN = TRI_R * Math.sqrt(3);
+
 /** The line the caption baseline-locks to. */
 export const BASE_Y = CORNER_R[1];
-export const BASE_X0 = CORNER_L[0];
-export const BASE_X1 = CORNER_R[0];
+/** The base stroke's own INK TERMINALS — vertex plus its symmetric overshoot.
+ *  The wobble and the bow are both applied along the stroke's normal, which for
+ *  the base is vertical, so these two x values are exact: the drawn base begins
+ *  and ends on them. The dimension line in Contraction.tsx is derived from
+ *  these, which is what makes its extension ticks land on the ink rather than
+ *  8px inside it. */
+export const BASE_X1 = SIDE_LEN * (0.5 + OVER_BASE);
+export const BASE_X0 = -BASE_X1;
 
 const SOCKET_R = 1.25;
 /** The eye sits below the triangle's centre, so the whole mark is optically
  *  centred in frame instead of riding the top edge. */
 export const EYE_CY = -0.42;
-const IRIS_C: Pt = [0.15, -0.50];
+/** ONE CENTRE. Socket, iris, pupil. The eye used to be drawn with the iris
+ *  0.15 units right of the socket — an authored "off-centre iris" that measured
+ *  as a 28px, 16%-of-radius eccentricity at the apex of the section called THE
+ *  CONSTANT. The character it was buying is now carried by the catchlight, the
+ *  brow and the filaments, none of which is a concentric-circle claim. */
+const IRIS_C: Pt = [0, EYE_CY];
 const IRIS_R = 0.66;
-const PUPIL_C: Pt = [0.20, -0.54];
+const PUPIL_C: Pt = [0, EYE_CY];
 const PUPIL_R = 0.25;
 
 /* ------------------------------------------------------------------ util */
@@ -88,18 +129,42 @@ function struck(
   };
 }
 
-/** hand-drawn ring: overlaps its own start, radius breathes, never a compass */
-function ring(cx: number, cy: number, r: number, opts: { turns?: number; start?: number; seed?: number; irr?: number }) {
-  const turns = opts.turns ?? 2.10;
+/**
+ * A hand-drawn ring's radius, as a pure function of θ.
+ *
+ * TWO PROPERTIES, BOTH LOAD-BEARING.
+ *
+ * (1) It is 2π-periodic, so a full revolution CLOSES on itself exactly. The
+ *     previous ring drew 2.11π — one revolution plus 19.8° — on a radius that
+ *     also drifted +2% along the sweep, so the tail ran parallel to the head
+ *     instead of over it: an arc that doubles back on one side of the circle
+ *     only and never closes. That is a rendering error, not draughtsmanship.
+ *
+ * (2) Every harmonic is EVEN, so r(θ+π) = r(θ), so x(θ+π) = −x(θ) and
+ *     y(θ+π) = −y(θ). The drawn extent is therefore centred on (cx, cy) to
+ *     within the sampling step — the ring still breathes out of round (the 2nd
+ *     harmonic is exactly the slight ellipse a hand draws) but it can no longer
+ *     measure off-centre. The old ring's odd 3rd harmonic put r(0) and r(π) up
+ *     to 2·irr·R apart, which is where the socket's own ~3px bias came from.
+ */
+function ringRadius(r: number, irr: number, seed: number) {
+  return (th: number) =>
+    r *
+    (1 +
+      irr * Math.sin(2 * th + seed) +
+      irr * 0.55 * Math.sin(6 * th + seed * 2.1) +
+      irr * 0.34 * Math.cos(4 * th + seed * 1.3));
+}
+
+/** hand-drawn ring: one closed revolution, radius breathes, never a compass */
+function ring(cx: number, cy: number, r: number, opts: { start?: number; seed?: number; irr?: number }) {
   const start = opts.start ?? -0.42 * Math.PI;
   const seed = opts.seed ?? 0;
   const irr = opts.irr ?? 0.016;
+  const rad = ringRadius(r, irr, seed);
   return (t: number): Pt => {
-    const th = start + t * Math.PI * turns;
-    const rr =
-      r *
-      (1 + irr * Math.sin(th * 3 + seed) + irr * 0.55 * Math.sin(th * 7.4 + seed * 2.1)) *
-      (1 + 0.02 * t);
+    const th = start + t * Math.PI * 2;
+    const rr = rad(th);
     return [cx + Math.cos(th) * rr, cy + Math.sin(th) * rr];
   };
 }
@@ -107,11 +172,16 @@ function ring(cx: number, cy: number, r: number, opts: { turns?: number; start?:
 /* ---------------------------------------------------------- the armature */
 
 export function armatureStrokes(): Stroke[] {
+  // Overshoots are paired at every corner (foot/foot, apex/apex, base/base), so
+  // the mark runs past its own corners the way a struck triangle does while its
+  // drawn extent stays centred on x = 0. The base's OVER_BASE pair is the widest
+  // pair, which is why BASE_X0/BASE_X1 — and therefore the dimension line — are
+  // derived from it.
   const defs: Array<[Pt, Pt, number, number, number, number]> = [
     // [from, to, pre, post, bow, seed]
-    [CORNER_L, APEX, 0.012, 0.030, 0.032, 1.4],
-    [APEX, CORNER_R, 0.016, 0.034, -0.028, 3.1],
-    [CORNER_R, CORNER_L, 0.010, 0.038, -0.030, 5.6],
+    [CORNER_L, APEX, OVER_FOOT, OVER_APEX, 0.032, 1.4],
+    [APEX, CORNER_R, OVER_APEX, OVER_FOOT, -0.028, 3.1],
+    [CORNER_R, CORNER_L, OVER_BASE, OVER_BASE, -0.030, 5.6],
   ];
   return defs.map(([a, b, pre, post, bow, seed], i) => {
     const pts = curve(140, struck(a, b, { pre, post, bow, seed, amp: 0.011 }));
@@ -126,22 +196,44 @@ export function armatureStrokes(): Stroke[] {
 
 /* ----------------------------------------------------------- the socket */
 
+const SOCKET_IRR = 0.017;
+const SOCKET_SEED = 0.7;
+/** The socket's own radius law. The brow is built on it, so the two lines are
+ *  the same line wherever the brow's lift is zero. */
+const socketRadius = ringRadius(SOCKET_R, SOCKET_IRR, SOCKET_SEED);
+/** Angular span of the re-struck brow, centred on the crown. */
+const BROW_SPAN = 0.88 * Math.PI;
+/** How far the re-strike bows off the socket at the crown, as a fraction of R. */
+const BROW_LIFT = 0.052;
+
 export function socketStrokes(): Stroke[] {
-  // the eye itself: one struck, overlapping ring
-  const socket = curve(240, ring(0, EYE_CY, SOCKET_R, { turns: 2.11, start: -0.38 * Math.PI, seed: 0.7, irr: 0.017 }));
-  // the upper contour, RE-STRUCK: the hand goes back over the top-left of the
-  // socket a second time at a hair more radius and a lot more weight. That is
-  // the heavy black sweep on the Teal Skull's eye — not a floating second ring.
-  const brow = curve(170, (t: number): Pt => {
-    const th = 0.14 * Math.PI + t * 0.92 * Math.PI;
-    const r = SOCKET_R * (1.075 + 0.02 * Math.sin(th * 2.6));
-    return [Math.cos(th) * r, EYE_CY + Math.sin(th) * r + wob(t, 2.2, 0.012, 3.1)];
+  // THE EYE ITSELF: ONE CONTINUOUS CLOSED STROKE. Exactly one revolution on a
+  // radius that is a pure function of θ, sampled 241 points (an even number of
+  // steps, so θ and θ+π are both landed on and the drawn bbox is symmetric to
+  // the sampling grid as well as to the maths).
+  const socket = curve(241, ring(0, EYE_CY, SOCKET_R, { start: -0.38 * Math.PI, seed: SOCKET_SEED, irr: SOCKET_IRR }));
+  // THE BROW: the hand goes back over the crown a second time, heavier — and
+  // it LEAVES AND REJOINS THE SOCKET LINE. Its lift is a bell that is exactly
+  // zero at both terminals and it rides the socket's own radius law, so the
+  // re-strike merges into the circle instead of terminating as a second,
+  // parallel arc hanging off one side. (MEASURED before: two parallel strokes
+  // 15px apart at the socket's left horizontal, which is where the old brow's
+  // constant 1.075R offset simply stopped. That is the doubled arc.)
+  // It is also centred on the crown rather than skewed left, so if you read the
+  // doubling at all, you read it on both shoulders equally.
+  const BROW_N = 171;
+  const brow = curve(BROW_N, (t: number): Pt => {
+    const th = Math.PI / 2 - BROW_SPAN / 2 + t * BROW_SPAN;
+    const bell = Math.pow(Math.sin(Math.PI * t), 0.7);
+    const r = socketRadius(th) * (1 + (BROW_LIFT + wob(t, 2.2, 0.013, 3.1)) * bell);
+    return [Math.cos(th) * r, EYE_CY + Math.sin(th) * r];
   });
-  const bw = new Float32Array(170);
-  for (let i = 0; i < 170; i++) {
-    const t = i / 169;
-    // lands hard, runs out — a struck contour, heaviest across the crown
-    bw[i] = 0.35 + 3.5 * Math.pow(Math.sin(t * Math.PI), 0.55) * (1 - 0.30 * t);
+  const bw = new Float32Array(BROW_N);
+  for (let i = 0; i < BROW_N; i++) {
+    const t = i / (BROW_N - 1);
+    // lands and lifts symmetrically — a re-strike, heaviest across the crown,
+    // vanishing to nothing exactly where it rejoins the socket
+    bw[i] = 0.3 + 3.3 * Math.pow(Math.sin(t * Math.PI), 0.55);
   }
   return [
     {
@@ -162,7 +254,11 @@ export function lashStrokes(): Stroke[] {
     // irregular angular spacing — nothing here is on a clock face
     const th = (i / N) * Math.PI * 2 + (rnd() - 0.5) * 0.19 + 0.3;
     const r0 = IRIS_R * (1.09 + rnd() * 0.13);
-    const len = 0.12 + Math.pow(rnd(), 1.6) * 0.44;
+    // the filaments radiate into the white and STOP there. Uncapped they ran to
+    // 1.37R — through the socket ring — which on a now-concentric eye would put
+    // stray chalk outside the circle at the very angles the circle is measured
+    // on. They are clipped a hair inside the socket instead.
+    const len = Math.min(0.12 + Math.pow(rnd(), 1.6) * 0.44, Math.max(0.06, SOCKET_R * 0.94 - r0));
     const bend = (rnd() - 0.5) * 0.28;
     const pts = curve(12, (t: number): Pt => {
       const a = th + bend * t * t;
@@ -182,8 +278,11 @@ export function lashStrokes(): Stroke[] {
 /* ---------------------------------------------------------------- the iris */
 
 export function irisStrokes(): Stroke[] {
-  const iris = curve(160, ring(IRIS_C[0], IRIS_C[1], IRIS_R, { turns: 2.13, start: 0.24 * Math.PI, seed: 2.3, irr: 0.021 }));
-  const pupil = curve(104, ring(PUPIL_C[0], PUPIL_C[1], PUPIL_R, { turns: 2.16, start: -0.9 * Math.PI, seed: 5.1, irr: 0.03 }));
+  // Both closed, both concentric with the socket, both sampled on an even
+  // number of steps. Their drawn extents are centred on [0, EYE_CY] by the
+  // same even-harmonic argument as the socket — no magic offset anywhere.
+  const iris = curve(161, ring(IRIS_C[0], IRIS_C[1], IRIS_R, { start: 0.24 * Math.PI, seed: 2.3, irr: 0.021 }));
+  const pupil = curve(105, ring(PUPIL_C[0], PUPIL_C[1], PUPIL_R, { start: -0.9 * Math.PI, seed: 5.1, irr: 0.03 }));
   return [
     { pts: iris, w: pressure(iris, { base: 2.0, min: 1.05, max: 3.4, loop: true, curveBias: 0.8, seed: 1.3 }) },
     { pts: pupil, w: pressure(pupil, { base: 2.5, min: 1.3, max: 3.9, loop: true, curveBias: 0.7, seed: 6.2 }) },
@@ -195,7 +294,10 @@ export function catchlightStrokes(): Stroke[] {
   const pts = curve(46, (t: number): Pt => {
     const th = 0.52 * Math.PI + t * 0.92 * Math.PI;
     const r = 0.155 * (1 + 0.07 * Math.sin(th * 3));
-    return [IRIS_C[0] - 0.25 + Math.cos(th) * r, IRIS_C[1] + 0.27 + Math.sin(th) * r];
+    // pushed a little further off the (now concentric) centre so the crescent
+    // still clears the pupil's edge — the catchlight is where the eye's
+    // asymmetry lives now, and a highlight is not a concentricity claim
+    return [IRIS_C[0] - 0.3 + Math.cos(th) * r, IRIS_C[1] + 0.3 + Math.sin(th) * r];
   });
   const w = new Float32Array(46);
   for (let i = 0; i < 46; i++) w[i] = 0.55 + 0.85 * Math.sin((i / 45) * Math.PI);

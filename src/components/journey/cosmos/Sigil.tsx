@@ -652,7 +652,15 @@ export function Sigil() {
     const t = state.clock.elapsedTime;
     const d = (cp - PULSE_AT) / PULSE_SIGMA;
     const pulse = Math.exp(-d * d);
-    g.rotateZ(Math.sin(t * 0.07) * 0.012);
+    // THE MARK SETTLES SQUARE FOR THE MEASUREMENT.
+    // The slow breathing tilt is life through the approach, but it is a RIGID
+    // rotation about the triangle's circumcentre, so at 0.69° it slides the
+    // base's midpoint 2.5px and the eye's centre 0.7px in opposite senses — the
+    // two features whose agreement this section is named after, pulled ~2px
+    // apart at the one frame anybody measures. It eases to exactly zero across
+    // the same window the apex luminance comes up on, so the finished mark
+    // stands still and square, and every centre in it is one centre.
+    g.rotateZ(Math.sin(t * 0.07) * 0.012 * (1 - beat));
     g.scale.setScalar(1 + pulse * 0.05);
     g.updateMatrixWorld();
 

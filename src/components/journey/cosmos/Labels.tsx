@@ -84,6 +84,34 @@ const CLEAR = 32;
 const GHOST_INK = 0.34;
 
 /**
+ * WHAT THE PANEL SAYS.
+ *
+ * It used to print the plate index — "06/15" — at 7.4rem. MEASURED at 31% and
+ * 46%: the caption two tiers below it already reads "… · 2024 · 06/15", so the
+ * loudest object in the dark half of the split screen was a restatement of six
+ * characters of the label, and the module's whole justification (a panel that
+ * measures the crop against the plate) went unstated.
+ *
+ * The numeral now carries the one fact the caption cannot: HOW MUCH OF THE
+ * PLATE THIS FRAME IS SHOWING. It is measured, not asserted — the share of the
+ * work's own projected box that falls inside the viewport, read off the same
+ * live projection the caption avoids overlapping — so it changes between the
+ * two macro instances and it says what a museum detail card says. Same ink,
+ * same weight, same grid; only the information changed.
+ */
+const GHOST_LEGEND = 'of plate in frame';
+
+/** Share of a work's projected box that is inside the viewport, 0–1. */
+function plateShare(r: ScreenRect, W: number, H: number): number {
+  const fw = r.x1 - r.x0;
+  const fh = r.y1 - r.y0;
+  if (!(fw > 0) || !(fh > 0)) return 0;
+  const vw = Math.max(0, Math.min(r.x1, W) - Math.max(r.x0, 0));
+  const vh = Math.max(0, Math.min(r.y1, H) - Math.max(r.y0, 0));
+  return Math.min(1, (vw * vh) / (fw * fh));
+}
+
+/**
  * THE PLATE EDGE.
  *
  * A macro shot crops the canvas off three edges and terminates it on the
@@ -191,9 +219,11 @@ const CSS = `
    space is composed rather than empty. Neither adds a colour. */
 .cx-divide { position:absolute; width:1px; top:0; left:0;
              background:rgba(232,228,220,.16); }
-.cx-ghost { position:absolute; top:0; left:0; white-space:nowrap;
-            font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
-            letter-spacing:.005em; color:#e8e4dc; }
+.cx-ghost { position:absolute; top:0; left:0; white-space:nowrap; color:#e8e4dc; }
+.cx-ghost-n { font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
+              letter-spacing:.005em; }
+.cx-ghost-t { margin-top:14px; font-family:${MONO}; font-weight:400; font-size:.5rem;
+              line-height:1; letter-spacing:.24em; text-transform:uppercase; }
 
 /* the plate edge: an opaque matte of the ground laid over the last of the
    canvas, so the photograph's own paper border can never be part of the frame */
@@ -219,6 +249,7 @@ interface ArtLabel extends Label {
   meta: HTMLDivElement;
   divide: HTMLDivElement;
   ghost: HTMLDivElement;
+  ghostN: HTMLDivElement;
   ghostText: string;
   ghostW: number;
   ghostH: number;
@@ -350,6 +381,12 @@ export function Labels() {
         const ghost = document.createElement('div');
         ghost.className = 'cx-ghost';
         ghost.style.opacity = '0';
+        const ghostN = document.createElement('div');
+        ghostN.className = 'cx-ghost-n';
+        const ghostT = document.createElement('div');
+        ghostT.className = 'cx-ghost-t';
+        ghostT.textContent = GHOST_LEGEND;
+        ghost.append(ghostN, ghostT);
         root.append(divide, ghost, body, tick, dot);
         artRef.current = {
           root,
@@ -360,6 +397,7 @@ export function Labels() {
           meta,
           divide,
           ghost,
+          ghostN,
           ghostText: '',
           ghostW: 0,
           ghostH: 0,
@@ -769,12 +807,10 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
             } else {
               art.divide.style.opacity = '0';
             }
-            const num = `${String(heroIndex + 1).padStart(2, '0')}/${String(
-              SLABS.length,
-            ).padStart(2, '0')}`;
+            const num = `${Math.max(1, Math.round(plateShare(heroRect, W, H) * 100))}%`;
             if (art.ghostText !== num) {
               art.ghostText = num;
-              art.ghost.textContent = num;
+              art.ghostN.textContent = num;
               const gr = art.ghost.getBoundingClientRect();
               art.ghostW = gr.width;
               art.ghostH = gr.height;

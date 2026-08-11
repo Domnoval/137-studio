@@ -39,7 +39,6 @@ import {
   HERO_PULL_X,
   HERO_PULL_Y,
   ARCHIVE,
-  ARCHIVE_SIZE,
   ARCHIVE_UNIT,
   ARCHIVE_THETA_MAX,
   PHI_SPIRAL_B,
@@ -52,7 +51,7 @@ import {
   type ShotMix,
   type SlabPlacement,
 } from './cosmos-data';
-import { getGlowTexture } from './textures';
+import { getGlowTexture, matCropFor } from './textures';
 import { NearPass } from './NearPass';
 import { FormationPlate } from './FormationPlate';
 
@@ -61,31 +60,38 @@ import { FormationPlate } from './FormationPlate';
  *
  * The φ layout is the strength here and none of it moves: same b = ln φ / π,
  * same phase, same one-third-golden-angle step, same slots, same works. What
- * changes is that the FIGURE is now composed in the frame instead of being
- * left wherever the algorithm's origin happened to put it. Three measured
- * corrections, all derived from the curve itself:
+ * changes is that the FIGURE is composed in the frame instead of being left
+ * wherever the algorithm's origin happened to put it, and that its scale law is
+ * solved IN SCREEN SPACE:
  *
- *   CENTRED   The eye of the spiral is not the centre of its own mass. The
- *             fifteen CAP boxes span x ∈ [−0.736, +1.183] — MEASURED — so
- *             hanging the eye on the camera axis put the whole cluster 0.224
- *             spiral units (82px on a 1440×900 frame; 92px measured off the
- *             capture) right of the optical centre and left a dead left third.
- *             The figure is therefore offset by its own bounding centre, so
- *             the FIGURE is centred and the eye sits where the composition
- *             wants it rather than where the maths starts.
- *   FILLED    Centring frees the frame it was wasting: the worst-case half
- *             extent drops, so the whole figure is scaled back up into the
- *             space that recovers (ARCH_K, solved below, not chosen).
- *   GRADED    Size falls off as r^0.86 instead of r^0.90, and the aspect box is
- *             tightened from 1.30 to 1.16 to pay for it. On a log spiral the
- *             gap to the next work is a fixed fraction of the local radius, so
- *             exponent and box are not independent — they are bound by
- *             CAP · S · (1+e^(−bΔθ))^f / 2 ≤ 0.7416 · r^(1−f), whose worst pair
- *             is (13, 14). SOLVED: at f = 0.86 the box may be 1.201, so 0.86 /
- *             1.16 is inside the flattest law the φ chambers allow with zero overlap.
- *             (0.78 was tried and MEASURED: it lifts the throat but opens five
- *             collisions at the square-on read, min gap −15px. A pile of chips
- *             is not an improvement on small chips.)
+ *   CENTRED   The eye of the spiral is not the centre of its own mass, so
+ *             hanging the eye on the camera axis put the whole cluster right of
+ *             the optical centre and left a dead left third. The figure is
+ *             offset by its own bounding centre; the eye sits where the
+ *             composition wants it rather than where the maths starts.
+ *   FILLED    Centring frees the frame it was wasting, so the figure is scaled
+ *             back up into the space that recovers (FIGURE.k, solved, not chosen).
+ *   MONOTONE  THE ONE THAT WAS WRONG. Size used to be normalised by AREA and
+ *             then boxed at 1.16× on each axis, so a work's HEIGHT — the thing
+ *             the eye actually reads — carried a 1/√aspect factor and a clamp.
+ *             MEASURED at 54%, projected heights by slot were
+ *               260 113 198 175 153 137 123 104 92 84 74 69 61 52 49
+ *             i.e. slot 1 (a 2:1 panel) came out less than half of slot 0 and
+ *             smaller than slots 2–5 that stand FURTHER IN. A logarithmic
+ *             spiral only reads as receding if the ratio is exact, so the law
+ *             is now stated on the quantity that is read:
+ *
+ *                 world height  =  ARCH_SIZE · r^ARCH_FALLOFF
+ *
+ *             — no aspect term, no cap. Projected height is that over the
+ *             distance, and the funnel puts the small radii FURTHER away, so
+ *             projected height is strictly decreasing in slot by construction.
+ *             Each work keeps its true aspect; only its height is governed.
+ *   CLEARED   Height normalisation makes a 2:1 panel twice as wide as a
+ *             portrait of the same height, so the chamber budget is re-solved
+ *             against the real texture aspects (registered as textures land,
+ *             see solveFigure) rather than against a box. ARCH_SIZE = 0.47 is
+ *             inside the zero-overlap bound of 0.507 for f = 0.86.
  *
  * And the throat is honest about what it is: the last works are not shrunk
  * chips pretending to be legible, they are ATMOSPHERE — dimmed and desaturated
@@ -93,10 +99,36 @@ import { FormationPlate } from './FormationPlate';
  * strikes out of.
  */
 
-/** Radius→size exponent. Flattest law the φ chambers allow (see above). */
+/** Radius→size exponent. */
 const ARCH_FALLOFF = 0.86;
-/** …and the aspect box it is solved against. Replaces ARCHIVE_CAP here. */
-const ARCH_CAP = 1.16;
+/**
+ * GEOMETRIC-MEAN size √(w·h) of the OUTERMOST work, in spiral units, before
+ * FIGURE.k.
+ *
+ * This governs √(w·h), NOT the height. Governing the height let the WIDTH ride
+ * free on the texture aspect, and the mounted aspects across the fifteen run
+ * 0.375 to 1.997 — so the law the figure is named for did not survive contact
+ * with the catalogue. MEASURED off the running frame at 53% scroll, square-on,
+ * heights were perfectly monotone (220…41px) while the plates a juror actually
+ * sees were not: slot 1 read √(w·h)=268px against the outer arm's 178px (a 2:1
+ * canvas, 379px wide — the largest object in a figure whose whole argument is
+ * that size falls with radius), and slot 9 collapsed to 43px, smaller than the
+ * four works inside it. Three strict-monotonicity violations at every frame of
+ * the square-on archive.
+ *
+ * Under √(w·h) governance the projected size is aspect-free by construction and
+ * strict monotonicity is guaranteed, while each plate keeps its TRUE aspect —
+ * nothing is cropped, stretched or re-framed; only the scale each plate is
+ * hung at changes.
+ *
+ * 0.42 (from 0.47) because tall works grow under the new law: re-solved, it
+ * reproduces the old figure's tightest chamber clearance — 4.0px between slots
+ * 13 and 14, against 4.1px before — and FIGURE.k takes the outer arm to 183px,
+ * slightly LARGER than the 172px it had.
+ */
+const ARCH_SIZE = 0.42;
+/** Aspect assumed for a work whose texture has not landed yet. */
+const ARCH_ASPECT_FALLBACK = 0.75;
 /**
  * Extra leftward shift of the composed figure, in spiral units.
  *
@@ -131,29 +163,57 @@ interface FigSlot {
   x: number;
   y: number;
   z: number;
-  /** geometric-mean size in the same units */
-  size: number;
+  /** WORLD HEIGHT in the same units. The GOVERNED quantity is √(w·h); this is
+   *  that size already split by the plate's own aspect (see ARCH_SIZE). */
+  h: number;
   /** 0-1 normalised radius: 1 = outer arm, ~0.18 = the throat */
   r: number;
 }
 
-const FIGURE: { slots: FigSlot[]; cx: number; cy: number; k: number } = (() => {
-  const raw = ARCHIVE.map((s) => ({
-    x: s.x,
-    y: s.y,
-    r: s.r,
-    size: ARCHIVE_SIZE * Math.pow(s.r, ARCH_FALLOFF),
-  }));
+/**
+ * THE FIGURE, RE-SOLVED WHENEVER A TEXTURE LANDS.
+ *
+ * √(w·h) comes off the curve alone; the SPLIT into width and height comes off
+ * the real texture aspects, so neither the plates nor the bounding box the
+ * composition is fitted to can be known until the textures are decoded. The
+ * solve is therefore re-run (in place — every slot
+ * object identity is stable, so the per-slab closures that hold one keep
+ * working) as each aspect is registered, and converges once by the time the
+ * archive is on screen at ~50% scroll.
+ */
+const figAspects = new Array<number>(ARCHIVE.length).fill(ARCH_ASPECT_FALLBACK);
+
+const FIGURE: { slots: FigSlot[]; cx: number; cy: number; k: number } = {
+  cx: 0,
+  cy: 0,
+  k: 1,
+  slots: ARCHIVE.map((s) => ({ x: s.x, y: s.y, z: 0, h: ARCH_SIZE, r: s.r })),
+};
+
+/**
+ * Half-HEIGHT of the slot at normalised radius `r` for a plate of aspect `a`,
+ * such that √(w·h) = ARCH_SIZE·r^ARCH_FALLOFF exactly — the one split that is
+ * strictly monotone in r no matter what the catalogue's aspects are.
+ */
+function archHalfHeight(r: number, a: number): number {
+  return (ARCH_SIZE * Math.pow(r, ARCH_FALLOFF)) / (2 * Math.sqrt(a));
+}
+
+function solveFigure(): void {
   let x0 = Infinity;
   let x1 = -Infinity;
   let y0 = Infinity;
   let y1 = -Infinity;
-  for (const s of raw) {
-    const h = (s.size * ARCH_CAP) / 2;
-    x0 = Math.min(x0, s.x - h);
-    x1 = Math.max(x1, s.x + h);
-    y0 = Math.min(y0, s.y - h);
-    y1 = Math.max(y1, s.y + h);
+  for (let i = 0; i < ARCHIVE.length; i++) {
+    const s = ARCHIVE[i];
+    // √(w·h) is the governed quantity; the aspect only decides how that size is
+    // SPLIT between the two axes, so the plate keeps its true proportions.
+    const hh = archHalfHeight(s.r, figAspects[i]);
+    const hw = hh * figAspects[i];
+    x0 = Math.min(x0, s.x - hw);
+    x1 = Math.max(x1, s.x + hw);
+    y0 = Math.min(y0, s.y - hh);
+    y1 = Math.max(y1, s.y + hh);
   }
   const cx = (x0 + x1) / 2 + ARCH_SHIFT_X;
   const cy = (y0 + y1) / 2;
@@ -163,24 +223,100 @@ const FIGURE: { slots: FigSlot[]; cx: number; cy: number; k: number } = (() => {
   const k = Math.min(
     ARCH_SAFE_Y / (ey * ARCHIVE_UNIT),
     ARCH_SAFE_X / (ex * ARCHIVE_UNIT),
-    1.14,
+    // Ceiling only; with the height law the SAFE_Y term is what binds (MEASURED:
+    // 0.424 of the half-frame reached against 0.472 allowed at the old 1.14 cap,
+    // i.e. the figure was being held 11% under the frame it had earned).
+    1.27,
   );
-  return {
-    cx,
-    cy,
-    k,
-    slots: raw.map((s) => ({
-      x: (s.x - cx) * k,
-      y: (s.y - cy) * k,
-      z: -ARCH_DEPTH * (1 - Math.min(1, s.r)) * k,
-      size: s.size * k,
-      r: s.r,
-    })),
-  };
-})();
+  FIGURE.cx = cx;
+  FIGURE.cy = cy;
+  FIGURE.k = k;
+  for (let i = 0; i < ARCHIVE.length; i++) {
+    const s = ARCHIVE[i];
+    const slot = FIGURE.slots[i];
+    slot.x = (s.x - cx) * k;
+    slot.y = (s.y - cy) * k;
+    slot.z = -ARCH_DEPTH * (1 - Math.min(1, s.r)) * k;
+    slot.h = 2 * archHalfHeight(s.r, figAspects[i]) * k;
+    slot.r = s.r;
+  }
+}
+
+/** A slab reports its MOUNTED aspect (after the mat crop) exactly once. */
+function registerAspect(i: number, aspect: number): void {
+  if (!(aspect > 0) || Math.abs(figAspects[i] - aspect) < 1e-4) return;
+  figAspects[i] = aspect;
+  solveFigure();
+}
+
+solveFigure();
 
 const FRAME_PAD = 0.14; // dark frame border in world units
 const VANISH = new THREE.Vector3(0, 0, SIGIL_Z - 26);
+
+/* ------------------------------------------------------------- THE MOUNT
+ *
+ * ONE FRAMING TREATMENT, IDENTICAL ON ALL FIFTEEN WORKS.
+ *
+ * Two halves, and neither of them touches a file in public/art:
+ *
+ *   1. THE WINDOW. textures.ts measures each photograph's incidental studio
+ *      mount and excludes it from the UV window (six of fifteen carry one,
+ *      3%–15% of the short side, all different). The artist's file is
+ *      untouched; what is PRESENTED is the plate.
+ *   2. THE EDGE. Every work is then mounted the same way: an inner shadow of
+ *      MOUNT_BAND (a fraction of the work's own SHORT side, so it is the same
+ *      band on both axes), falling to MOUNT_FLOOR at the very edge, and a dark
+ *      keyline whose width is set from screen-space derivatives — so it is the
+ *      SAME ~1.3px on a 700px macro canvas and on a 50px chip at the throat.
+ *
+ * The result: whatever the photograph happened to include, every work reads as
+ * the same kind of object, with the same edge, at every scale in the chapter.
+ */
+/** Inner-shadow band, as a fraction of the work's short side. */
+const MOUNT_BAND = 0.018;
+/** Luminance the band falls to at the very edge. */
+const MOUNT_FLOOR = 0.26;
+/** …and the multiplier of the keyline itself, over the outermost ~1.3px. */
+const MOUNT_KEY = 0.12;
+
+interface MountUniforms {
+  uMountWH: { value: THREE.Vector2 };
+}
+
+/**
+ * Attach THE EDGE to a MeshBasicMaterial. Returns the uniform the caller keeps
+ * up to date with the quad's (width, height) normalised by its short side.
+ */
+function applyMount(m: THREE.MeshBasicMaterial): MountUniforms {
+  const u: MountUniforms = { uMountWH: { value: new THREE.Vector2(1, 1) } };
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uMountWH = u.uMountWH;
+    shader.vertexShader =
+      'varying vec2 vMount;\n' +
+      shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n  vMount = uv;',
+      );
+    shader.fragmentShader =
+      'varying vec2 vMount;\nuniform vec2 uMountWH;\n' +
+      shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          vec2 e = min(vMount, 1.0 - vMount) * uMountWH;
+          float dEdge = min(e.x, e.y);
+          diffuseColor.rgb *= mix(${MOUNT_FLOOR.toFixed(3)}, 1.0,
+            smoothstep(0.0, ${MOUNT_BAND.toFixed(4)}, dEdge));
+          vec2 fw = fwidth(vMount) * uMountWH;
+          float px = min(e.x / max(fw.x, 1e-6), e.y / max(fw.y, 1e-6));
+          diffuseColor.rgb *= mix(1.0, ${MOUNT_KEY.toFixed(3)},
+            1.0 - smoothstep(0.35, 1.65, px));
+        }`,
+      );
+  };
+  return u;
+}
 
 /** World scale of a slab that is NOT the subject of the frame. */
 const SATELLITE_SCALE = 0.55;
@@ -328,29 +464,38 @@ function SlabArt({ placement }: SlabProps) {
     scale: SATELLITE_SCALE,
   });
 
-  const texture = useTexture(texPath(work.file), (t) => {
+  const shared = useTexture(texPath(work.file), (t) => {
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 8;
   });
 
-  const aspect = texture.image
-    ? (texture.image as { width: number; height: number }).width /
-      (texture.image as { width: number; height: number }).height
-    : 0.8;
+  /**
+   * THE WINDOW. The photograph's incidental studio mount is measured once and
+   * excluded from the UV window. A CLONE carries the crop because drei's loader
+   * hands the same THREE.Texture to every consumer (NearPass reads these too)
+   * and clones share `source`, so this costs one extra JS object and no VRAM.
+   */
+  const texture = useMemo(() => {
+    const img = shared.image as { width?: number; height?: number } | undefined;
+    const mat = matCropFor(work.file, img);
+    const t = shared.clone();
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    t.offset.set(mat.left, mat.bottom);
+    t.repeat.set(1 - mat.left - mat.right, 1 - mat.top - mat.bottom);
+    t.needsUpdate = true;
+    return t;
+  }, [shared, work.file]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  const aspect = (() => {
+    const img = shared.image as { width?: number; height?: number } | undefined;
+    if (!img?.width || !img?.height) return 0.8;
+    return (img.width * texture.repeat.x) / (img.height * texture.repeat.y);
+  })();
   const h = placement.height;
   const w = h * aspect;
   const slot = FIGURE.slots[index];
-  /**
-   * World scale that gives this work the archive's target AREA at its slot —
-   * so a 2:1 panel and a 1:2.6 column carry equal visual weight — then boxed at
-   * ARCHIVE_CAP so no canvas can be five times its neighbour for no reason.
-   * In spiral units; multiplied by the plane's `unit` at use.
-   */
-  const archiveScale = (() => {
-    const geo = Math.sqrt(w * h);
-    const s = slot.size / geo;
-    return Math.min(s, (ARCH_CAP * slot.size) / h, (ARCH_CAP * slot.size) / w);
-  })();
   /**
    * ATMOSPHERE, NOT CHIPS. A work at the throat is a tenth the area of one on
    * the outer arm; no exponent fixes that without breaking the chambers, so
@@ -360,10 +505,20 @@ function SlabArt({ placement }: SlabProps) {
    */
   const archiveAir = smoothstep(0.2, 0.58, slot.r);
 
-  const artMaterial = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0 }),
-    [texture],
-  );
+  const art = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0 });
+    return { material: m, mount: applyMount(m) };
+  }, [texture]);
+  const artMaterial = art.material;
+  // THE EDGE is stated in units of the work's SHORT side, so the band and the
+  // keyline are the same on a 2:1 panel and on a 1:2.6 column.
+  useLayoutEffect(() => {
+    const s = Math.min(w, h);
+    art.mount.uMountWH.value.set(w / s, h / s);
+  }, [art, w, h]);
+  // …and the composition of the archive is re-solved against the real aspect
+  // the moment this work's texture has landed (see solveFigure).
+  useLayoutEffect(() => registerAspect(index, aspect), [index, aspect]);
   const frameMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -561,7 +716,11 @@ function SlabArt({ placement }: SlabProps) {
       px = THREE.MathUtils.lerp(px, worldPt.x, posW);
       py = THREE.MathUtils.lerp(py, worldPt.y, posW);
       pz = THREE.MathUtils.lerp(pz, worldPt.z, posW);
-      ps = THREE.MathUtils.lerp(ps, archiveScale * plane.unit, posW);
+      // The slab is scaled so its world height is exactly the slot's — which
+      // makes its √(w·h) exactly ARCH_SIZE·r^f, the governed quantity. Read
+      // from the live slot (solveFigure re-runs as textures land) rather than
+      // captured at mount.
+      ps = THREE.MathUtils.lerp(ps, (slot.h / h) * plane.unit, posW);
     }
 
     g.position.set(
@@ -866,6 +1025,21 @@ function SlabGhost({ placement }: SlabProps) {
 const STROKE_N = 720;
 /** Core half-width in spiral units (≈1.1px at 1440×900). */
 const STROKE_HW = 0.0029;
+/**
+ * HOW FAR BEHIND THE WORKS THE THREAD RUNS, in world units.
+ *
+ * The curve is sampled at exactly the works' own funnel depth, so at the raking
+ * second vantage each work's plane CROSSES it: MEASURED at 62%, the stroke
+ * printed straight across the collage card at upper right and the teal card at
+ * left. renderOrder alone could not fix it — a painter-order fix is a lie about
+ * geometry and it failed here anyway — so the thread is now depth-tested and
+ * pushed behind the body of work by scaling the whole stroke ABOUT THE CAMERA.
+ * Perspective projection is invariant under scaling about the eye, so this is
+ * pixel-identical on screen while sitting a clear 0.9 world units further away
+ * than any work's tilted corner (worst-case corner excursion, measured off the
+ * per-work fPitch/fYaw at archive scale: ~0.31).
+ */
+const STROKE_BEHIND = 0.9;
 /** How much wider the halo pass is. */
 const STROKE_HALO = 3.4;
 /** θ past the outermost work, and past the innermost. */
@@ -882,11 +1056,14 @@ function buildStrokeGeometry(hwScale: number): THREE.BufferGeometry {
   const idx = new Uint16Array((STROKE_N - 1) * 6);
   const hi = ARCHIVE_THETA_MAX + STROKE_LEAD;
   const lo = -STROKE_TAIL;
+  // RAW spiral space. The composition (FIGURE.cx/cy/k) is re-solved as textures
+  // land, so it is applied by a live inner transform rather than baked in here
+  // — otherwise the thread would be hung on the figure's first guess.
   const pt = (theta: number, out: { x: number; y: number; z: number }) => {
     const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
-    out.x = (Math.cos(theta + PHI_SPIRAL_PHASE) * r - FIGURE.cx) * FIGURE.k;
-    out.y = (Math.sin(theta + PHI_SPIRAL_PHASE) * r - FIGURE.cy) * FIGURE.k;
-    out.z = -ARCH_DEPTH * (1 - Math.min(1, r)) * FIGURE.k;
+    out.x = Math.cos(theta + PHI_SPIRAL_PHASE) * r;
+    out.y = Math.sin(theta + PHI_SPIRAL_PHASE) * r;
+    out.z = -ARCH_DEPTH * (1 - Math.min(1, r));
   };
   const a = { x: 0, y: 0, z: 0 };
   const b = { x: 0, y: 0, z: 0 };
@@ -902,7 +1079,7 @@ function buildStrokeGeometry(hwScale: number): THREE.BufferGeometry {
     dy /= dl;
     // width tapers with the local radius: a drawn line, thinning into the eye
     const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
-    const hw = STROKE_HW * hwScale * FIGURE.k * (0.42 + 0.58 * Math.pow(Math.min(1, r), 0.45));
+    const hw = STROKE_HW * hwScale * (0.42 + 0.58 * Math.pow(Math.min(1, r), 0.45));
     // the arm carries the line; the throat goes dark. The outer tip fades in
     // from nothing over the first 5% — a stroke that starts at full weight in
     // mid-air is a line with an end, and this curve is not supposed to have one.
@@ -939,6 +1116,7 @@ function buildStrokeGeometry(hwScale: number): THREE.BufferGeometry {
 function ArchiveStroke() {
   const { progressRef } = useJourney();
   const groupRef = useRef<THREE.Group>(null);
+  const figRef = useRef<THREE.Group>(null);
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
 
   const kit = useMemo(() => {
@@ -950,20 +1128,21 @@ function ArchiveStroke() {
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        depthTest: false,
+        // DEPTH-TESTED. See STROKE_BEHIND: painter order alone was measured
+        // drawing the thread across the card faces at the second vantage, and
+        // ordering is the wrong instrument for a question about geometry. The
+        // works write depth; the stroke is pushed behind them and tested.
+        depthTest: true,
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.frustumCulled = false;
-      // BEHIND the paintings: a stroke drawn over a canvas is a scratch on it.
+      // …and it draws AFTER the works, so their depth is already in the buffer
+      // by the time the thread is tested against it.
       mesh.renderOrder = order;
       return { geometry, material, mesh };
     };
-    // MEASURED: at renderOrder −2/−1 the stroke still printed over the paintings
-    // in the composed frame. −60/−59 puts it unambiguously first in the
-    // transparent pass, so every canvas covers it and the curve threads BEHIND
-    // the body of work — a line drawn over a painting is a scratch on it.
-    return { halo: make(STROKE_HALO, -60), core: make(1, -59) };
+    return { halo: make(STROKE_HALO, 6), core: make(1, 7) };
   }, []);
 
   const liveRef = useRef<typeof kit | null>(null);
@@ -981,7 +1160,15 @@ function ArchiveStroke() {
   useFrame((state) => {
     const g = groupRef.current;
     if (!g) return;
-    if (!liveRef.current) liveRef.current = { ...kit };
+    if (!liveRef.current) {
+      liveRef.current = { ...kit };
+      if (process.env.NODE_ENV !== 'production') {
+        // Dev-only QA hook, same pattern as __shot / __stage / __formRects. The
+        // z-order claim is checked by keying this stroke to a colour nothing
+        // else in the frame carries and counting how much of it lands on paint.
+        (window as unknown as { __stroke?: unknown }).__stroke = liveRef.current;
+      }
+    }
     const live = liveRef.current;
     const w = stageState.formW;
     const cp = phaseProgress(progressRef.current ?? 0, 'contraction');
@@ -1015,23 +1202,39 @@ function ArchiveStroke() {
       stageState.formThru,
       stageState.plane,
     );
+    const px = pl.cx * (1 - recEase);
+    const py = (pl.cy + ARCH_VANTAGE_LIFT * pl.unit * stageState.formThru) * (1 - recEase);
+    const pz = pl.cz + (STROKE_VANISH_Z - pl.cz) * recEase;
+    // BEHIND THE BODY OF WORK, at no cost to the picture. Scaling the whole
+    // stroke about the CAMERA leaves its projection exactly unchanged (a
+    // perspective projection is invariant under scaling about the eye) while
+    // moving it STROKE_BEHIND further down the view ray, so the depth test
+    // resolves in the works' favour at every vantage instead of slicing them.
+    const back = Math.max(0.0001, cam.position.z - pz);
+    const push = 1 + STROKE_BEHIND / back;
     g.position.set(
-      pl.cx * (1 - recEase),
-      // the curve rides the same world-space vantage lift as the works it runs
-      // through (see ARCH_VANTAGE_LIFT)
-      (pl.cy + ARCH_VANTAGE_LIFT * pl.unit * stageState.formThru) * (1 - recEase),
-      pl.cz + (STROKE_VANISH_Z - pl.cz) * recEase,
+      cam.position.x + (px - cam.position.x) * push,
+      cam.position.y + (py - cam.position.y) * push,
+      cam.position.z + (pz - cam.position.z) * push,
     );
     const e = euler.current;
     e.set(pl.pitch, pl.yaw, pl.roll);
     g.quaternion.setFromEuler(e);
-    g.scale.setScalar(Math.max(0.0001, pl.unit * (1 - recEase * 0.999)));
+    g.scale.setScalar(Math.max(0.0001, pl.unit * push * (1 - recEase * 0.999)));
+    // the composition the works are standing in, applied live (see buildStrokeGeometry)
+    const f = figRef.current;
+    if (f) {
+      f.position.set(-FIGURE.cx * FIGURE.k, -FIGURE.cy * FIGURE.k, 0);
+      f.scale.setScalar(FIGURE.k);
+    }
   });
 
   return (
     <group ref={groupRef} visible={false}>
-      <primitive object={kit.halo.mesh} />
-      <primitive object={kit.core.mesh} />
+      <group ref={figRef}>
+        <primitive object={kit.halo.mesh} />
+        <primitive object={kit.core.mesh} />
+      </group>
     </group>
   );
 }

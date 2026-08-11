@@ -88,8 +88,16 @@ const FRAG = /* glsl */ `
     float a = smoothstep(0.0, 0.30 + 0.42 * g1 * uGrain, edge);
     // the mark skips, the way chalk skips over tooth
     a *= mix(1.0, 0.62 + 0.38 * g2, uGrain);
-    // soften the drawing tip so nothing pops into being
-    a *= 1.0 - smoothstep(uDraw - 0.012, uDraw, vU);
+    // Soften the DRAWING tip so nothing pops into being — and then let go of
+    // it. Ungated, this ramp is still eroding the last 1.2% of the timeline at
+    // uDraw = 1.0, i.e. the tail of the last stroke never finishes. MEASURED on
+    // the armature (3 strokes, 0.42 overlap → the base owns 46% of the
+    // timeline): the base's left terminal faded out over its final 19px while
+    // its right terminal was a hard cut, so the finished triangle's ink was
+    // 2px off-centre from its own geometry and the dimension line — which is
+    // derived from the geometry — could not register to it. The soft tip is
+    // now released as the stroke completes.
+    a *= 1.0 - smoothstep(uDraw - 0.012, uDraw, vU) * (1.0 - smoothstep(0.984, 1.0, uDraw));
     a *= uOpacity;
     if (a < 0.004) discard;
     gl_FragColor = vec4(uColor * (0.85 + 0.15 * g1), a);
@@ -302,27 +310,42 @@ export function pressure(
   const seed = opts.seed ?? 0;
   const out = new Float32Array(count);
 
+  // A CLOSED STROKE MUST NOT HAVE A SEAM. On a loop the last point IS the first
+  // point, so both the turning term and the wrist modulation are made periodic:
+  // neighbours wrap around the join, and the breathing harmonics are whole
+  // cycles of t. Otherwise w(0) ≠ w(1) and a ring that is geometrically closed
+  // still reads as a stroke with two ends parked on top of each other.
+  const loop = opts.loop ?? false;
+  const last = count - 1;
   for (let i = 0; i < count; i++) {
-    const t = count === 1 ? 0 : i / (count - 1);
+    const t = count === 1 ? 0 : i / last;
     // turning angle at this point → weight at direction changes
     let turn = 0;
-    if (i > 0 && i < count - 1) {
-      const ax = pts[i * 3] - pts[(i - 1) * 3];
-      const ay = pts[i * 3 + 1] - pts[(i - 1) * 3 + 1];
-      const bx = pts[(i + 1) * 3] - pts[i * 3];
-      const by = pts[(i + 1) * 3 + 1] - pts[i * 3 + 1];
+    const hasPrev = i > 0 || loop;
+    const hasNext = i < last || loop;
+    if (count > 2 && hasPrev && hasNext) {
+      // on a loop, index 0 and index `last` are the same point: step over it
+      const ip = i > 0 ? i - 1 : last - 1;
+      const iq = i < last ? i + 1 : 1;
+      const ax = pts[i * 3] - pts[ip * 3];
+      const ay = pts[i * 3 + 1] - pts[ip * 3 + 1];
+      const bx = pts[iq * 3] - pts[i * 3];
+      const by = pts[iq * 3 + 1] - pts[i * 3 + 1];
       const la = Math.hypot(ax, ay) || 1e-6;
       const lb = Math.hypot(bx, by) || 1e-6;
       const cross = Math.abs((ax / la) * (by / lb) - (ay / la) * (bx / lb));
       turn = Math.min(1, cross * 9);
     }
     let w = base;
-    if (!opts.loop) {
+    if (!loop) {
       w *= 1 + startBias * Math.exp(-t * 6.5) - endLift * t * t;
     }
     w *= 1 + curveBias * turn * 0.35;
     // the wrist breathes: a slow modulation plus a little tooth
-    w *= 1 + 0.20 * Math.sin(t * 7.3 + seed) + 0.10 * Math.sin(t * 23.1 + seed * 2.7);
+    const TAU = Math.PI * 2;
+    w *= loop
+      ? 1 + 0.2 * Math.sin(t * TAU * 3 + seed) + 0.1 * Math.sin(t * TAU * 11 + seed * 2.7)
+      : 1 + 0.2 * Math.sin(t * 7.3 + seed) + 0.1 * Math.sin(t * 23.1 + seed * 2.7);
     out[i] = Math.min(max, Math.max(min, w));
   }
   return out;

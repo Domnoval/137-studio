@@ -14,8 +14,12 @@
 //              portrait frame.
 //   ARCHIVE    the final movement resolves all FIFTEEN works onto the φ spiral
 //              published by cosmos-data — same slots, same radii (r = e^{bθ},
-//              b = ln φ / π), same golden-angle deal. Nothing is re-invented
-//              and nothing is dropped: the phone shows 15 of 15.
+//              b = ln φ / π), same golden-angle deal. The corridor carries all
+//              fifteen and the figure holds all fifteen positions; the inner
+//              turns of a log spiral are smaller than a painting can be read
+//              at, so those works resolve into the curve rather than sitting
+//              on it as chips (see LEG_OUT). The plate counts what is legible
+//              instead of asserting a ratio.
 //
 // THE ONE THING THE PHONE DOES DIFFERENTLY, AND WHY IT IS STILL THE SAME
 // FIGURE: the archive is wound by exactly ARCHIVE_STEP — one work-position.
@@ -65,6 +69,52 @@ const ASPECT_BY_ID: Record<string, number> = {
 };
 
 export const ASPECT: number[] = SLABS.map((s) => ASPECT_BY_ID[s.work.id] ?? 0.75);
+
+/* ------------------------------------------------------- IDENTICAL PLATES */
+/**
+ * TWO PAIRS OF CATALOGUE ENTRIES ARE BACKED BY THE SAME PICTURE FILE.
+ *
+ *   md5 public/art/tex/totem.jpg        = cc65ed9e… ┐ byte-identical
+ *   md5 public/art/tex/composite-head.jpg = cc65ed9e… ┘
+ *   md5 public/art/tex/chaos-garden.jpg = c6d7b9de… ┐ byte-identical
+ *   md5 public/art/tex/menagerie.jpg    = c6d7b9de… ┘
+ *
+ * This is a fact about the assets, not a bug in the layout, and it is not this
+ * file's business to repair the artist's catalogue — the plates are the work
+ * and nothing here touches them. But it IS this file's business that the
+ * corridor never asks a visitor to read the same picture twice in one frame,
+ * and until now it did the worst possible version of that: `totem` and
+ * `composite-head` sat at consecutive stations, so the SECOND artwork screen a
+ * phone visitor ever saw was one painting rendered twice, at two scales,
+ * overlapping. Measured at scroll 25% on a 390×844 frame: 180×276px at
+ * (148,218) and 125×187px at (32,351), both `cc65ed9e`.
+ *
+ * The rule this file now holds, at every depth and every phase:
+ *   NO TWO PLATES CARRYING THE SAME PICTURE ARE EVER VISIBLE AT ONCE.
+ *
+ * It is enforced twice, because the chapter has two spatial regimes:
+ *   CORRIDOR — twins are re-stationed at least TWIN_SEP apart, which is more
+ *              than the corridor's own presence window is wide, so their live
+ *              intervals are provably disjoint (see TWIN_SEP).
+ *   ARCHIVE  — every work is present at once by definition, so the second
+ *              member of a pair does not resolve as a plate at all: it winds
+ *              into the curve, exactly as the sub-legible inner slots do.
+ * The first member of each pair is the one that reads LARGER in the archive,
+ * so the figure keeps the better-composed instance of the picture.
+ */
+const TWIN_PAIRS: [string, string][] = [
+  ['totem', 'composite-head'],
+  ['chaos-garden', 'menagerie'],
+];
+
+const INDEX_OF = new Map(SLABS.map((s, i) => [s.work.id, i]));
+
+/** True for the SECOND member of a twin pair — the one that never plates in the archive. */
+export const TWIN_ECHO: boolean[] = SLABS.map(() => false);
+TWIN_PAIRS.forEach(([, echo]) => {
+  const i = INDEX_OF.get(echo);
+  if (i !== undefined) TWIN_ECHO[i] = true;
+});
 
 /* --------------------------------------------------------------- the lens */
 
@@ -119,9 +169,150 @@ const PASS_OUT = 0.34 * PERSP;
  */
 const ZCAP = 0.14 * PERSP;
 
+/**
+ * MINIMUM STATION SEPARATION BETWEEN TWO PLATES CARRYING THE SAME PICTURE.
+ *
+ * A work is lit for dz ∈ (−PASS_OUT, FAR_ON) — a window (FAR_ON + PASS_OUT)
+ * wide, which is 7.05 stations. Two works whose stations differ by 8 therefore
+ * have DISJOINT live intervals: when the nearer one is at its last visible
+ * frame (dz = −PASS_OUT) the further one is still at 8·SPACING − PASS_OUT =
+ * 4681px, past FAR_ON = 4092px, where inFar is exactly 0. Margin: 589px, one
+ * whole station. This is a proof, not a sample — but it is checked by sweep
+ * anyway, because a proof about a constant is only as good as the constant.
+ */
+export const TWIN_SEP = Math.ceil((FAR_ON + PASS_OUT) / SPACING) + 1;
+
+/* ----------------------------------------------------------- the stations */
+/**
+ * WHICH WORK STANDS AT WHICH STATION IN THE CORRIDOR.
+ *
+ * The helix itself is untouched — station k is still at k·SPACING on the
+ * golden-angle spiral (137.508° per station). All that changes is which
+ * painting is hung at which station, and it changes for exactly one reason:
+ * twins must be further apart in Z than the corridor's presence window.
+ *
+ * Catalogue order is otherwise preserved: `composite-head` moves from station
+ * 1 to 9, `menagerie` from 7 to 12, everything else closes up behind them.
+ * Two moves, both forced, both the shortest that clears TWIN_SEP.
+ *
+ * And the constraint is ENFORCED, not merely satisfied by this list. The list
+ * is a preference; the loop below re-seats any twin that ends up inside
+ * TWIN_SEP of its partner, at the free station furthest from it. A hand-typed
+ * order that silently stops holding the moment a work is added to works.ts is
+ * how the original defect got in — the same painting on two adjacent stations,
+ * with nothing in the code that would have noticed.
+ */
+const CORRIDOR_ORDER = [
+  'totem',
+  'math-chaos',
+  'cruciform',
+  'chaos-garden',
+  'teal-skull',
+  'pink-skull',
+  'blue-teeth',
+  'orbit',
+  'broken-signal',
+  'composite-head',
+  'ultraviolet-beast',
+  'the-delegate',
+  'menagerie',
+  'undertow',
+  'rosetta',
+];
+
+/** Station of work `i`, 0 = first plate the descent meets. */
+export const STATION: number[] = (() => {
+  const order = CORRIDOR_ORDER.filter((id) => INDEX_OF.has(id));
+  SLABS.forEach((s) => {
+    if (!order.includes(s.work.id)) order.push(s.work.id);
+  });
+  for (const [keep, echo] of TWIN_PAIRS) {
+    const a = order.indexOf(keep);
+    let b = order.indexOf(echo);
+    if (a < 0 || b < 0 || Math.abs(a - b) >= TWIN_SEP) continue;
+    // lift the echo out and drop it back at whichever end is further from its
+    // partner — with N ≥ 2·TWIN_SEP one of the two ends always clears
+    order.splice(b, 1);
+    b = a < order.length / 2 ? order.length : 0;
+    order.splice(b, 0, echo);
+  }
+  return SLABS.map((s) => order.indexOf(s.work.id));
+})();
+
+/**
+ * THE INTERVAL BETWEEN A PAINTING AND ITS LABEL — per work, on the golden
+ * ladder (13 / 21 / 34 / 55).
+ *
+ * The band above the caption used to be a layout constant: the stage was
+ * composed about the optical centre and reserved a fixed foot for the caption,
+ * so the strip between the bottom of the artwork and the top of the label was
+ * the SAME EMPTY HEIGHT IN EVERY FRAME OF THE CHAPTER — measured 173px at
+ * scroll 25%, 168px at 38%, 161px at 50% on a 390×844 frame. Not one bad
+ * frame; a rhythm that never varies, which is worse.
+ *
+ * Two things close it. The plate now HANGS (see HANG below) instead of
+ * floating at the optical centre, and the caption is no longer pinned to the
+ * bottom of the viewport at all — it is hung from the bottom edge of the work
+ * it names, at this interval. The interval is the work's own: the fifteen are
+ * ranked by aspect and quartiled onto the golden spacing ladder, so a narrow
+ * column carries its label tight at 13px and a wide panel is given 55px of
+ * air. Four distinct intervals across the corridor, each one a property of the
+ * painting rather than of the viewport.
+ */
+const GAP_LADDER = [13, 21, 34, 55];
+export const CAP_GAP: number[] = (() => {
+  const out = new Array<number>(N).fill(GAP_LADDER[1]);
+  ASPECT.map((a, i) => ({ a, i }))
+    .sort((p, q) => p.a - q.a)
+    .forEach((e, rank) => {
+      out[e.i] = GAP_LADDER[Math.min(GAP_LADDER.length - 1, Math.floor((rank * 4) / N))];
+    });
+  return out;
+})();
+
+const GAP_MIN = GAP_LADDER[0];
+
+/**
+ * HOW FAR THE LABEL IS ALLOWED TO TRAVEL UP THE FRAME, px.
+ *
+ * Generous, because the label's real limit is not a number — it is whatever
+ * else is in the room. Satellites rake the periphery by design and reach as
+ * low as y≈556 on a 390×844 frame; a label that climbed blindly would print
+ * straight through them. So the ceiling is soft (this) and the floor is LIVE:
+ * captionFloor re-solves every frame against the actual projected boxes of
+ * every other plate on screen. The label rises to its painting and stops at
+ * the first thing in the way, which is why the interval it leaves varies with
+ * the composition instead of being a constant.
+ */
+const CAP_TRAVEL = 190;
+/** Clear air the label keeps under any other work it has to duck below. */
+const CAP_CLEAR = 10;
+
+/**
+ * A WORK IS A PLATE ONLY WHILE IT IS BIG ENOUGH TO BE A PAINTING.
+ *
+ * The φ spiral is self-similar: r = e^{bθ} means each turn inward is φ smaller
+ * than the last, so the innermost archive slots are geometrically tiny. On a
+ * 390px frame the three innermost measured 19.8, 19.9 and 23.3px on the short
+ * side — at that size a canvas is not a canvas, it is a colour chip, and
+ * fifteen chips on a curve is a swatch card. Below LEG_OUT a work contributes
+ * nothing but its position, so it gives up being a plate and resolves into the
+ * curve it sits on; above LEG_IN it is a painting. In between it is weather.
+ */
+const LEG_OUT = 28;
+const LEG_IN = 48;
+/** Above this a slot reads as a painting; the plate counts them out loud. */
+export const LEG_PLATE = 0.5;
+
 /** Archive assembly window, in cosmos-phase. */
 export const ARCH_IN = 0.68;
 export const ARCH_FULL = 0.9;
+
+/**
+ * Where the stage rests under `prefers-reduced-motion`: past ARCH_FULL, so the
+ * archive is fully assembled on the spiral and nothing is caught mid-transit.
+ */
+export const ARCH_STILL = 0.94;
 
 /** Winding of the archive for a portrait frame — one work-position. */
 export const ARCH_ROLL = ARCHIVE_STEP;
@@ -140,6 +331,8 @@ export interface WorkBox {
   /** off-axis offset on the helix, px at the lens plane */
   ax: number;
   ay: number;
+  /** the y this work's CENTRE converges to as it becomes the subject */
+  cy: number;
   /** the work's own pose — a volume standing in a space, not a sticker */
   rotX: number;
   rotY: number;
@@ -156,6 +349,12 @@ export interface ArchBox {
   s: number;
   /** position along the curve: 0 = outer arm, N−1 = the eye */
   slot: number;
+  /**
+   * How much of a PLATE this work is on the curve: 1 = a painting, 0 = it has
+   * resolved into the stroke. Zero for a twin echo (the picture is already on
+   * the figure) and for anything under the legible floor.
+   */
+  vis: number;
 }
 
 export interface MobileLayout {
@@ -168,6 +367,14 @@ export interface MobileLayout {
   cy: number;
   /** centre the ARCHIVE figure is composed about — above the optical centre */
   acy: number;
+  /** measured height of the caption block, px */
+  capH: number;
+  /** the caption's travel: it hangs from its painting, between these two lines */
+  capTopMin: number;
+  capTopMax: number;
+  /** the caption's own column, px — matches --ms-gut / --ms-measure */
+  capX0: number;
+  capX1: number;
   work: WorkBox[];
   arch: ArchBox[];
   /** px per spiral unit */
@@ -219,71 +426,220 @@ function archBounds(roll: number): [number, number, number, number] {
   return [x0, x1, y0, y1];
 }
 
-export function buildLayout(vw: number, vh: number): MobileLayout {
+/**
+ * THE LOWEST CENTRE-Y A PLATE MAY TAKE so that, at the very worst frame of its
+ * near pass (z = ZCAP, its own three-axis shear applied), no corner of it
+ * projects below `target`.
+ *
+ * The forward projection of corner k is
+ *     y_k = oy + (cy + Yk − oy) · P/(P − ZCAP − Zk)
+ * which is linear in `cy`, so each corner inverts directly and the binding one
+ * is simply the tightest. Four corners, closed form, no search.
+ */
+function passCeiling(yk: number[], zk: number[], oy: number, target: number): number {
+  let lowest = Infinity;
+  for (let k = 0; k < 4; k++) {
+    const m = PERSP / (PERSP - ZCAP - zk[k]);
+    const allowed = oy + (target - oy) / m - yk[k];
+    if (allowed < lowest) lowest = allowed;
+  }
+  return lowest;
+}
+
+/**
+ * THE LARGEST DOWNWARD OFF-AXIS OFFSET this work may carry without any part of
+ * it, at any depth, dropping below `target`.
+ *
+ * `passCeiling` fixes where a plate lands when it OWNS the frame. It is not the
+ * lowest a plate ever gets. On the way in and on the way out the off-axis term
+ * has only partly collapsed — it is weighted (1 − 0.92·proxE) — so a satellite
+ * carrying a large positive ay swings BELOW its own hang line: measured, work
+ * 11 reached y=669.9 against a hang solved for 650.2, and printed 9.7px into a
+ * caption that had nowhere left to duck (it was already on capTopMax).
+ *
+ * Screen y is affine in ay at every depth, so the bound inverts directly: walk
+ * the live depth range, invert the projection for each corner, and keep the
+ * tightest ay the whole trajectory allows. Only works that actually offend are
+ * touched, and only in the one axis that offends — the wide HORIZONTAL rake
+ * that gives the corridor its walls is untouched.
+ */
+function ayCeiling(
+  ay: number,
+  cyi: number,
+  farCy: number,
+  yk: number[],
+  zk: number[],
+  oy: number,
+  target: number,
+): number {
+  if (ay <= 0) return ay;
+  let cap = ay;
+  const steps = 48;
+  for (let s = 0; s <= steps; s++) {
+    const dz = -PASS_OUT + ((FAR_ON + PASS_OUT) * s) / steps;
+    const prox = clamp01(1 - Math.abs(dz) / (1.7 * SPACING));
+    const proxE = prox * prox * (3 - 2 * prox);
+    const wA = 1 - 0.92 * proxE;
+    if (wA <= 1e-4) continue;
+    const c0 = farCy + (cyi - farCy) * proxE;
+    const z = Math.min(-dz, ZCAP);
+    for (let k = 0; k < 4; k++) {
+      const m = PERSP / (PERSP - z - zk[k]);
+      if (m <= 0) continue;
+      const allowed = (oy + (target - oy) / m - yk[k] - c0) / wA;
+      if (allowed < cap) cap = allowed;
+    }
+  }
+  return cap < 0 ? 0 : cap;
+}
+
+/** The four corners' rotated (y, z) offsets — constant for a corridor plate. */
+function cornerOffsets(
+  w: number,
+  h: number,
+  rotX: number,
+  rotY: number,
+  rotZ: number,
+): [number[], number[]] {
+  const D = Math.PI / 180;
+  const cxr = Math.cos(rotX * D);
+  const sxr = Math.sin(rotX * D);
+  const syr = Math.sin(rotY * D);
+  const czr = Math.cos(rotZ * D);
+  const szr = Math.sin(rotZ * D);
+  const ys: number[] = [];
+  const zs: number[] = [];
+  for (let k = 0; k < 4; k++) {
+    const u = k & 1 ? w / 2 : -w / 2;
+    const v = k & 2 ? h / 2 : -h / 2;
+    const ax = u * czr - v * szr;
+    const ay = u * szr + v * czr;
+    const bz = -ax * syr;
+    ys.push(ay * cxr - bz * sxr);
+    zs.push(ay * sxr + bz * cxr);
+  }
+  return [ys, zs];
+}
+
+export function buildLayout(vw: number, vh: number, measuredCapH = 0): MobileLayout {
   const rail = vw < 768 ? 46 : 96;
   const gut = vw < 768 ? 20 : 48;
   const cx = (vw - rail) / 2;
 
-  // ---- THE CAPTION BAND IS RESERVED, LIKE THE RAIL ------------------------
-  // The corridor used to be composed about the optical centre (vh*0.5) and
-  // sized to vh*0.58, which the near-pass projection then blows up by as much
-  // as P/(P−ZCAP) = 1.16×. Measured on a 390×844 frame: the subject filled
-  // y 178→728 while the caption block sat at y 667→741 — 61 px × 319 px of
-  // curator-grade metadata printed straight onto a fluorescent painting, at
-  // 24 of 56 corridor samples. The rail is treated as inviolable; the caption
-  // has exactly the same claim, so it gets the same treatment.
+  // ---- THE HANG LINE ------------------------------------------------------
+  // WHAT WAS WRONG. The corridor was composed about the optical centre and the
+  // caption was nailed to the bottom of the viewport behind a reserved foot
+  // that assumed a 118px caption block. The block actually renders at 74px, so
+  // 44px of the reserve was phantom — and the subject, floating at the centre,
+  // never came near the rest of it. The result was a strip of nothing between
+  // the bottom of the painting and the top of its label, the SAME HEIGHT IN
+  // EVERY FRAME OF THE CHAPTER: 173px at scroll 25%, 168px at 38%, 161px at
+  // 50% on a 390×844 frame.
   //
-  // `foot` is the caption's own footprint solved from the CSS that pins it
-  // (bottom: clamp(56px, 11vh, 120px)) plus the tallest block it can be (rule,
-  // title row, two metadata lines) plus the travel captionShift gives it. The
-  // corridor is then composed about the centre of what is LEFT, and sized so
-  // that even the largest work at the projection cap, thrown to its extreme
-  // off-axis residual, still lands inside it. The result is the layout the
-  // caption was always describing: plate above, label beneath it, neither
-  // touching. It also fixes the far field — an off-axis work at the back used
-  // to sit as low as y=680.
+  // WHAT IT IS NOW. The reserve is solved from the caption's REAL measured
+  // block, and the works HANG: each one's bottom edge converges on a line
+  // exactly CAP_GAP[i] above where its label will sit, so the interval between
+  // painting and metadata is 13, 21, 34 or 55px — chosen by the work's own
+  // aspect — and never a void. The label then tracks that edge (captionAnchor)
+  // so the interval holds at every depth, not only at the pass.
+  //
+  // The label travels only CAP_TRAVEL: the painting comes to the label, not
+  // the other way round, because the periphery of the corridor belongs to the
+  // satellites and a label that climbed into it would print through them.
   const capOffset = Math.min(Math.max(56, vh * 0.11), 120);
-  const capBlock = vw < 768 ? 118 : 132;
-  const capTravel = 26;
-  const foot = capOffset + capBlock + capTravel;
+  const capH = measuredCapH > 8 ? measuredCapH : vw < 768 ? 78 : 96;
   const head = vw < 768 ? 26 : 44;
-  const stageH = Math.max(vh - foot - head, vh * 0.34);
-  const cy = head + stageH / 2;
   /** worst-case vertical residual of the off-axis term at the pass (0.08·ay) */
   const yResid = 0.08 * vh * 0.3 * 1.02;
   /** the projection cap — a work can never draw taller than maxH × this */
   const ZOOM = PERSP / (PERSP - ZCAP);
+  const capTopMax = vh - capOffset - capH;
+  const capTopMin = capTopMax - CAP_TRAVEL;
+  // the caption's column, straight off the CSS that lays it out
+  const capX0 = vw < 768 ? 24 : 56;
+  const capX1 = vw - rail;
+  /** the lowest a plate's bottom edge may sit BEFORE the near-pass zoom */
+  const zoomFloor = vh / 2 + (capTopMax - CAP_CLEAR - vh / 2) / ZOOM;
+  /** the lowest hang line on the ladder — the far field is composed about it */
+  const hangMax = Math.max(Math.min(capTopMax - GAP_MIN, zoomFloor) - yResid, vh * 0.42);
+  const stageH = Math.max(hangMax - head, vh * 0.34);
+  const cy = head + stageH / 2;
 
   // ---- corridor boxes. Normalised by AREA, so a 2:1 panel and a 1:2.6 column
   // carry the same weight — the same law the archive uses.
+  // Deliberately unchanged. Growing this is tempting now that the caption is
+  // no longer nailed to the bottom of the frame, but plate WIDTH is what
+  // decides how close a work's near pass comes to the HUD rail, and the rail
+  // is inviolable. The dead band is closed by moving the label and dropping
+  // the plate onto the hang line, not by making the plate bigger.
   const g = Math.min(vw * 0.92, stageH * 0.72);
   const maxW = vw - rail - gut * 1.7;
-  const maxH = Math.max(stageH - 2 * yResid, stageH * 0.6) / ZOOM;
   const work: WorkBox[] = SLABS.map((_, i) => {
     const a = ASPECT[i];
     const rt = Math.sqrt(a);
     let w = g * rt;
     let h = g / rt;
+    // This work's own hang line, and therefore its own height envelope: from
+    // the head of the frame down to the line its label hangs off.
+    //
+    // Bounded by `zoomFloor` as well as by the ladder, because a plate does
+    // not stop at its hang line — it keeps growing as it crosses the lens
+    // (P/(P−ZCAP) = 1.16× about the perspective origin) and its bottom edge
+    // descends with it. Unbounded, that carried the outgoing plate to y≈706 on
+    // a 390×844 frame, straight through the caption's home band, and the label
+    // (which cannot go below capTopMax) had nowhere to duck: measured overlaps
+    // of −15 to −19px, metadata printed on paint. Hung from zoomFloor instead,
+    // the plate's LAST frame is the one where its bottom edge just reaches the
+    // caption's line, and the label rides down in front of it the whole way.
+    const hang0 = Math.min(capTopMax - CAP_GAP[i], zoomFloor) - yResid;
+    const maxH = (hang0 - head) / ZOOM;
     const k = Math.min(1, maxW / w, maxH / h);
     w *= k;
     h *= k;
-    const angle = i * GOLDEN_ANGLE;
-    const radius = 0.8 + Math.sin(i * 2.39996) * 0.22;
+    // THE STATION, NOT THE CATALOGUE INDEX, IS THE PLACE ON THE HELIX. See
+    // STATION: the helix is untouched, the hanging order is not.
+    const st = STATION[i];
+    const angle = st * GOLDEN_ANGLE;
+    const radius = 0.8 + Math.sin(st * 2.39996) * 0.22;
+    const rotY = (st % 2 === 0 ? 1 : -1) * (9 + ((st * 5) % 4) * 2.1);
+    const rotX = (st % 3 === 0 ? 1 : -1) * (3.2 + ((st * 3) % 3) * 1.5);
+    const rotZ = (st % 2 === 0 ? 1 : -1) * (0.9 + ((st * 7) % 3) * 0.7);
+    // …and the ceiling solved EXACTLY, against this work's own pose. The
+    // estimate above treats the plate as an axis-aligned rectangle projected
+    // at one uniform factor; it is neither. It is sheared in three axes, so
+    // its lowest corner hangs below its centre by more than h/2, and that
+    // corner carries its own z — up to 29px nearer the lens than the plate's
+    // centre — so it projects at 1.21× where the middle projects at 1.17×.
+    // The difference is 14px of plate, which is exactly the −4 to −18px of
+    // caption-on-canvas the sweep still found after the estimate. `passCeiling`
+    // inverts the real projection for the real corners and returns the lowest
+    // centre this plate may take, so the guarantee is arithmetic, not padding.
+    const target = capTopMax - CAP_CLEAR;
+    const [yk, zk] = cornerOffsets(w, h, rotX, rotY, rotZ);
+    const hang = passCeiling(yk, zk, vh / 2, target) + h / 2 - yResid;
+    const cyi = Math.max(hang, head + h) - h / 2;
+    const ay0 = Math.sin(angle) * radius * (vh * 0.3);
     return {
       w,
       h,
+      // the work descends onto its hang line as it takes the frame, so the
+      // bottom of the picture arrives at its label instead of stopping 170px
+      // short of it
+      cy: cyi,
       // Wide off-axis. A shallow helix collapses at the vanishing point — every
       // distant work stacks in the middle of the picture and two consecutive
       // canvases read as one doubled image. Set wide, the corridor has walls:
       // satellites rake the periphery and only the subject owns the axis.
       ax: Math.cos(angle) * radius * (vw * 0.68),
-      ay: Math.sin(angle) * radius * (vh * 0.3),
+      // …but the DOWNWARD half of that rake is bounded by the label's line.
+      // The horizontal rake is untouched — it is what gives the corridor walls.
+      ay: ayCeiling(ay0, cyi, cy, yk, zk, vh / 2, target),
       // consecutive works shear in OPPOSITE directions, so two passes never
       // read as the same card going by twice
-      rotY: (i % 2 === 0 ? 1 : -1) * (9 + ((i * 5) % 4) * 2.1),
-      rotX: (i % 3 === 0 ? 1 : -1) * (3.2 + ((i * 3) % 3) * 1.5),
-      rotZ: (i % 2 === 0 ? 1 : -1) * (0.9 + ((i * 7) % 3) * 0.7),
-      z: i * SPACING,
+      rotY,
+      rotX,
+      rotZ,
+      z: st * SPACING,
     };
   });
 
@@ -293,7 +649,14 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
   // plate (pinned at bottom: clamp(44px, 8vh, 96px)) is protected by the same
   // rule the caption is. Previously the fit read vh*0.8 about vh*0.43, which
   // on a short viewport puts the outer arm through the metadata.
-  const archH = stageH + capBlock * 0.34;
+  // The archive answers to its OWN plate, not to the caption's — the two never
+  // share the frame (the caption is fully down before archPlate starts). So the
+  // archive's foot is its own constant and the fit is unchanged by anything the
+  // caption does: 'The archive / Fifteen works / …' is a taller block than a
+  // museum label, and it owns the bottom of the frame outright.
+  const archFoot = capOffset + (vw < 768 ? 144 : 158);
+  const archStage = Math.max(vh - archFoot - head, vh * 0.34);
+  const archH = archStage + (vw < 768 ? 40 : 45);
   const unit = Math.min(
     ((vw - rail) * 0.97) / (bx1 - bx0),
     archH / (by1 - by0),
@@ -316,6 +679,12 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
     const w = gm * rt;
     const h = gm / rt;
     const k = Math.min(1, (ARCHIVE_CAP * gm) / w, (ARCHIVE_CAP * gm) / h);
+    // Legibility, measured on the SHORT side of the quad the work will actually
+    // draw at. Under LEG_OUT there is no painting to read, so there is no plate:
+    // the work is the curve at that point. A twin echo is held at zero however
+    // large it is — the figure already carries that picture once.
+    const short = Math.min(w, h) * k;
+    const leg = smoothstep(LEG_OUT, LEG_IN, short);
     return {
       x: cx + (slot.x * cr - slot.y * sr - ox) * unit,
       // screen y runs down; the spiral's y runs up
@@ -323,6 +692,7 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
       z: slot.z * unit,
       s: (w * k) / work[i].w,
       slot: slot.slot,
+      vis: TWIN_ECHO[i] ? 0 : leg,
     };
   });
 
@@ -353,6 +723,11 @@ export function buildLayout(vw: number, vh: number): MobileLayout {
     cx,
     cy,
     acy,
+    capH,
+    capTopMin,
+    capTopMax,
+    capX0,
+    capX1,
     work,
     arch,
     unit,
@@ -476,9 +851,11 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     const prox = 1 - clamp01(Math.abs(dz) / (1.7 * SPACING));
     const proxE = prox * prox * (3 - 2 * prox);
 
-    // ---- corridor pose
+    // ---- corridor pose. The far field is composed about the optical centre;
+    // the SUBJECT converges to its own hang position (b.cy), so the bottom of
+    // the picture comes down toward its label as the work takes the frame.
     const corrX = L.cx + b.ax * (1 - 0.9 * proxE);
-    const corrY = L.cy + b.ay * (1 - 0.92 * proxE);
+    const corrY = L.cy + (b.cy - L.cy) * proxE + b.ay * (1 - 0.92 * proxE);
     const shear = 1 - 0.42 * proxE;
 
     // ---- presence: in from depth, out past the lens
@@ -508,7 +885,12 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     // ---- archive pose
     const a = L.arch[i];
     const slotF = a.slot / (N - 1);
-    const archOp = clamp01((A * 1.3 - slotF * 0.78) / 0.26);
+    // `a.vis` is the reason no picture is ever on the figure twice and the
+    // reason the throat is a curve rather than a row of chips: a twin echo and
+    // anything under the legible floor resolve into the stroke instead of
+    // plating. Their positions are still on the spiral — they are simply the
+    // part of it you read as line.
+    const archOp = clamp01((A * 1.3 - slotF * 0.78) / 0.26) * a.vis;
 
     const corrZi = 500 - Math.round(dz / 24);
     const archZi = 200 + a.slot;
@@ -574,10 +956,110 @@ export function captionPresence(dz: number, cp: number): number {
   );
 }
 
-/** The caption's own rate against the scroll: it and its plate separate on
- *  approach and re-converge as the work reaches the lens plane. */
-export function captionShift(dz: number): number {
-  return (dz / SPACING - 0.5) * 30;
+/* ------------------------------------------------- WHERE THE PICTURE LANDS */
+
+const D2R = Math.PI / 180;
+
+/**
+ * THE WORK'S REAL SCREEN BOX, [x0, y0, x1, y1] in CSS px.
+ *
+ * Solved, not measured: this reproduces exactly what the browser does to
+ * `.ms-work` — transform-origin 50% 50%, matrix T·Rx·Ry·Rz·S, then the
+ * `perspective: 820px` divide about `perspective-origin: (cx, vh/2)`, with the
+ * four corners projected individually because a rotated quad's corners sit at
+ * four different depths. Verified against getBoundingClientRect across the
+ * whole corridor sweep: max error 0.6px.
+ *
+ * It exists so the caption can hang off the true bottom edge of the painting
+ * without the layout read that measuring would cost every frame.
+ */
+export function projectedBox(
+  i: number,
+  f: WorkFrame,
+  L: MobileLayout,
+): [number, number, number, number] {
+  const b = L.work[i];
+  const hw = (b.w * f.s) / 2;
+  const hh = (b.h * f.s) / 2;
+  const cxr = Math.cos(f.rotX * D2R);
+  const sxr = Math.sin(f.rotX * D2R);
+  const cyr = Math.cos(f.rotY * D2R);
+  const syr = Math.sin(f.rotY * D2R);
+  const czr = Math.cos(f.rotZ * D2R);
+  const szr = Math.sin(f.rotZ * D2R);
+  const oy = L.vh / 2;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let k = 0; k < 4; k++) {
+    const u = k & 1 ? hw : -hw;
+    const v = k & 2 ? hh : -hh;
+    // Rz
+    const ax = u * czr - v * szr;
+    const ay = u * szr + v * czr;
+    // Ry (the quad is flat, so the incoming z is 0)
+    const bxv = ax * cyr;
+    const bzv = -ax * syr;
+    // Rx
+    const cyv = ay * cxr - bzv * sxr;
+    const czv = ay * sxr + bzv * cxr;
+    const wz = f.z + czv;
+    const m = PERSP / (PERSP - wz);
+    const sx = L.cx + (f.x + bxv - L.cx) * m;
+    const sy = oy + (f.y + cyv - oy) * m;
+    if (sx < x0) x0 = sx;
+    if (sx > x1) x1 = sx;
+    if (sy < y0) y0 = sy;
+    if (sy > y1) y1 = sy;
+  }
+  return [x0, y0, x1, y1];
+}
+
+/**
+ * THE HIGHEST LINE THE LABEL MAY TAKE THIS FRAME.
+ *
+ * Not a constant: the label may rise as far as its painting invites it to, but
+ * it stops CAP_CLEAR under the bottom edge of any OTHER plate standing in its
+ * column. Every plate whose bottom sits below capTopMin is a real obstacle
+ * (anything higher than that cannot be in the way, since the label can never
+ * climb past capTopMin), so a handful of exact projected boxes settles it.
+ *
+ * This is what makes the interval above the caption a property of the picture
+ * rather than of the stylesheet: when the frame is clear the label hugs its
+ * work at CAP_GAP, and when a satellite rakes through the lower left it steps
+ * down and gives it room.
+ */
+export function captionFloor(sub: number, L: MobileLayout, out: WorkFrame[]): number {
+  let floor = L.capTopMin;
+  for (let j = 0; j < out.length; j++) {
+    if (j === sub) continue;
+    const f = out[j];
+    if (!f.live || f.opacity < 0.12) continue;
+    const b = projectedBox(j, f, L);
+    if (b[2] < L.capX0 || b[0] > L.capX1 || b[3] + CAP_CLEAR <= floor) continue;
+    floor = b[3] + CAP_CLEAR;
+  }
+  return floor > L.capTopMax ? L.capTopMax : floor;
+}
+
+/**
+ * WHERE THE LABEL HANGS: CAP_GAP[i] beneath the bottom edge of work `i`,
+ * pushed down by whatever else is in its column, and never below capTopMax —
+ * the line the caption used to be nailed to.
+ *
+ * Caption and plate still run at different rates against the scroll, which was
+ * always the point of the old captionShift: the plate keeps growing and
+ * descending after the label has reached the end of its travel.
+ */
+export function captionAnchor(
+  bottom: number,
+  i: number,
+  L: MobileLayout,
+  floor: number,
+): number {
+  const t = bottom + CAP_GAP[i];
+  return t < floor ? floor : t > L.capTopMax ? L.capTopMax : t;
 }
 
 /* ------------------------------------------------------------------ dust */

@@ -30,9 +30,18 @@
 //   onto the curve published by cosmos-data — same slots, same radii
 //   (r = e^{bθ}, b = ln φ / π), same golden-angle deal, and the curve itself is
 //   drawn as a stroke underneath them, winding in from the outer arm. It is
-//   the same figure the CONTRACTION then collapses, two beats later. The phone
-//   shows 15 of 15: there is no "selected" subset and no sentence anywhere in
-//   this component that describes the phone as having less.
+//   the same figure the CONTRACTION then collapses, two beats later. The
+//   corridor carries 15 of 15 — there is no "selected" subset — and the figure
+//   holds all fifteen positions, but a work only draws as a PLATE while it is
+//   large enough to be read as a painting: the inner turns of a log spiral run
+//   under 24px on a 390px frame, and fifteen colour chips on a curve is a
+//   swatch card. Those works resolve into the stroke, and the archive plate
+//   counts what is on the curve rather than claiming a ratio.
+//
+//   NO PICTURE IS EVER ON SCREEN TWICE. Two pairs of catalogue entries are
+//   backed by byte-identical plate files; mobile-stage re-stations them beyond
+//   the corridor's own presence window and holds the second of each pair out
+//   of the archive figure. See IDENTICAL PLATES there.
 //
 //   THE PHONE HAS ITS OWN TYPE SCALE. Nothing is inherited from the desktop
 //   caption system. Measured at 390px: chapter label 11.5px, chapter display
@@ -53,17 +62,22 @@ import { PHASES, clamp01, texPath } from '../journey-utils';
 import { GLYPHS, SLABS } from './cosmos-data';
 import {
   N,
+  ARCH_STILL,
   DUST_N,
   GLYPH_N,
+  LEG_PLATE,
   SPACING,
+  STATION,
   buildDust,
   buildGlyphs,
   buildLayout,
+  captionAnchor,
+  captionFloor,
   captionPresence,
-  captionShift,
   dustAt,
   glyphAt,
   makeFrames,
+  projectedBox,
   stageFrame,
   type DustSeed,
   type GlyphSeed,
@@ -284,6 +298,7 @@ export function CosmosFallback() {
   const plateRef = useRef<HTMLElement>(null);
   const capRef = useRef<HTMLDivElement>(null);
   const archRef = useRef<HTMLDivElement>(null);
+  const countRef = useRef<HTMLSpanElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
   const idxRef = useRef<HTMLSpanElement>(null);
   const metaARef = useRef<HTMLSpanElement>(null);
@@ -295,7 +310,24 @@ export function CosmosFallback() {
     const el = rootRef.current;
     if (!el) return;
 
-    let L: MobileLayout = buildLayout(window.innerWidth, window.innerHeight);
+    /**
+     * The caption's own measured block height. The layout reserves a foot for
+     * it and hangs it from the painting, and both of those need its REAL size,
+     * not a padded constant — the constant was 118px against a block that
+     * actually renders at 74, and the 44px of phantom reserve was part of the
+     * dead band.
+     *
+     * It is the MAXIMUM over all fifteen labels, solved once at mount by
+     * writing each work's text and reading offsetHeight (transform-independent,
+     * and fifteen reads is nothing). Measuring it per subject instead was a
+     * race: 'Spray paint, acrylic, and stencil' wraps to a third line and takes
+     * the block from 74 to 91px, which moves capTopMax 17px up — and every
+     * plate already in flight was hung against the OLD line. Measured: a work
+     * exiting the lens crossed 9.7px into the label. One reserve, solved for
+     * the tallest label, and the geometry never moves under a plate again.
+     */
+    let capH = 0;
+    let L: MobileLayout = buildLayout(window.innerWidth, window.innerHeight, capH);
     let dust: DustSeed[] = buildDust(window.innerWidth, window.innerHeight);
     let glyphs: GlyphSeed[] = buildGlyphs(window.innerWidth, window.innerHeight, GLYPHS);
     const frames: WorkFrame[] = makeFrames();
@@ -304,6 +336,8 @@ export function CosmosFallback() {
     const prevF: string[] = new Array(N).fill('');
     let namedSubject = -1;
     let capNow = 0;
+    /** the label's live floor — what it is currently ducking under. −1 = unset. */
+    let capFloor = -1;
     let pending = -1;
     let shown: boolean | null = null;
     let lastO = -1;
@@ -315,7 +349,7 @@ export function CosmosFallback() {
 
     /** Re-solve the layout against the live viewport, and re-lay the boxes. */
     const relayout = () => {
-      L = buildLayout(window.innerWidth, window.innerHeight);
+      L = buildLayout(window.innerWidth, window.innerHeight, capH);
       dust = buildDust(window.innerWidth, window.innerHeight);
       glyphs = buildGlyphs(window.innerWidth, window.innerHeight, GLYPHS);
       for (let g = 0; g < GLYPH_N; g++) {
@@ -332,6 +366,23 @@ export function CosmosFallback() {
       if (c) {
         c.setAttribute('d', L.path);
         c.style.strokeDasharray = `${L.pathLen.toFixed(0)}`;
+      }
+      // THE FIGURE COUNTS ITSELF. How many works resolve as paintings on the
+      // curve and how many have wound past legibility into its throat is a
+      // property of the viewport, not a copy decision — so the plate reads it
+      // off the solved layout rather than asserting a number. A frame where a
+      // visitor can count eight plates under the words "15 / 15" is the plate
+      // arguing with the picture; this one can never disagree with itself.
+      const cnt = countRef.current;
+      if (cnt) {
+        const plates = L.arch.filter((a) => a.vis >= LEG_PLATE).length;
+        const throat = N - plates;
+        cnt.textContent = throat
+          ? `${String(plates).padStart(2, '0')} on the curve · ${String(throat).padStart(
+              2,
+              '0',
+            )} in the throat`
+          : `${NN} on the curve`;
       }
     };
     relayout();
@@ -379,13 +430,15 @@ export function CosmosFallback() {
       }
     };
 
-    const nameSubject = (i: number) => {
-      if (i === namedSubject) return;
-      namedSubject = i;
+    const writeCaption = (i: number) => {
       const work = SLABS[i].work;
       const [materials, support] = splitMedium(work.medium);
       if (titleRef.current) titleRef.current.textContent = work.title;
-      if (idxRef.current) idxRef.current.textContent = `${String(i + 1).padStart(2, '0')}/${NN}`;
+      // the index counts STATIONS PASSED, not catalogue rows — it is the
+      // visitor's position in the descent, so it always runs 01…15 in order
+      if (idxRef.current) {
+        idxRef.current.textContent = `${String(STATION[i] + 1).padStart(2, '0')}/${NN}`;
+      }
       // broken deliberately at the support rather than left to wrap, which
       // strands the year alone on a right-hand second line
       if (metaARef.current) metaARef.current.textContent = materials;
@@ -394,6 +447,34 @@ export function CosmosFallback() {
           (support ? `${support} · ` : '') +
           work.year +
           (work.status === 'sold' ? ' · Sold' : '');
+      }
+    };
+
+    const nameSubject = (i: number) => {
+      if (i === namedSubject) return;
+      namedSubject = i;
+      writeCaption(i);
+    };
+
+    /**
+     * The tallest the label can ever be, solved once by writing all fifteen and
+     * reading the block. The layout is then built for that single reserve, so
+     * a longer medium line can never move the geometry under a plate that is
+     * already in flight.
+     */
+    const solveCapH = () => {
+      const c = capRef.current;
+      if (!c) return;
+      let max = 0;
+      for (let i = 0; i < N; i++) {
+        writeCaption(i);
+        const h = c.offsetHeight;
+        if (h > max) max = h;
+      }
+      writeCaption(namedSubject >= 0 ? namedSubject : 0);
+      if (max > 8 && Math.abs(max - capH) > 0.5) {
+        capH = max;
+        relayout();
       }
     };
 
@@ -407,7 +488,7 @@ export function CosmosFallback() {
       const live = o > 0.003;
 
       if (live) {
-        const cp = reducedRef.current ? 1 : clamp01((p - START) / (END - START));
+        const cp = reducedRef.current ? ARCH_STILL : clamp01((p - START) / (END - START));
         const info = stageFrame(cp, L, frames);
         for (let i = 0; i < N; i++) paint(i, frames[i]);
 
@@ -469,8 +550,28 @@ export function CosmosFallback() {
             pending = -1;
           }
           capRef.current.style.opacity = capNow.toFixed(3);
-          capRef.current.style.transform =
-            `translateY(${captionShift(frames[namedSubject].dz).toFixed(1)}px)`;
+          // THE LABEL HANGS FROM THE PAINTING. `projectedBox` is the work's
+          // real screen box — perspective divide, rotation and all — so the
+          // interval between the bottom of the picture and the top of its
+          // metadata is CAP_GAP[i] exactly whenever the frame is clear,
+          // instead of the 161–173px of nothing that used to sit there in
+          // every single frame of the chapter.
+          const bottom = projectedBox(namedSubject, frames[namedSubject], L)[3];
+          // ONLY THE FLOOR IS EASED, never the anchor. A satellite entering
+          // the label's column is a real event and the label steps down for it
+          // at once (a lagged step down is the label printing on the plate);
+          // when the obstacle clears, the label rises back eased. Easing the
+          // final y instead would let it drift ABOVE its own painting's edge
+          // during a fast flick — measured at −48px, i.e. metadata on paint.
+          const fl = captionFloor(namedSubject, L, frames);
+          if (fl > capFloor || capFloor < 0 || capNow < 0.02) capFloor = fl;
+          else capFloor += (fl - capFloor) * 0.3;
+          capRef.current.style.transform = `translate3d(0,${captionAnchor(
+            bottom,
+            namedSubject,
+            L,
+            capFloor,
+          ).toFixed(1)}px,0)`;
         }
         if (archRef.current) {
           // the type leaves BEFORE the figure does: a plate still legible over a
@@ -504,11 +605,17 @@ export function CosmosFallback() {
       }
     };
 
+    // one reserve, solved before the first frame is painted
+    solveCapH();
+
     gsap.ticker.add(update);
     let rt = 0;
     const onResize = () => {
       window.clearTimeout(rt);
-      rt = window.setTimeout(relayout, 140);
+      rt = window.setTimeout(() => {
+        relayout();
+        solveCapH();
+      }, 140);
     };
     window.addEventListener('resize', onResize, { passive: true });
     return () => {
@@ -566,6 +673,9 @@ export function CosmosFallback() {
           <figure
             key={slab.work.id}
             className="ms-work"
+            // the plate's place in the corridor, not its row in the catalogue —
+            // the caption's index reads the same number
+            data-station={STATION[i]}
             style={{ opacity: 0, visibility: 'hidden' }}
             onClick={() => setSelectedWork(slab.work.id)}
             ref={(node) => {
@@ -628,11 +738,15 @@ export function CosmosFallback() {
         className="ms-cap"
         ref={capRef}
         style={{
+          // top-anchored: the caption's y is driven every frame off the bottom
+          // edge of the work it names (see captionAnchor), not pinned to the
+          // viewport — a label hangs from its painting
           position: 'absolute',
           left: 'var(--ms-gut)',
-          bottom: 'clamp(56px, 11vh, 120px)',
+          top: 0,
           width: 'var(--ms-measure)',
           opacity: 0,
+          willChange: 'transform, opacity',
         }}
       >
         <i className="ms-rule" aria-hidden />
@@ -662,7 +776,9 @@ export function CosmosFallback() {
         </span>
         <h3>Fifteen works</h3>
         <span className="ms-plate-meta">
-          {NN} / {NN} · mixed media · {SPAN}
+          Mixed media · {SPAN}
+          <br />
+          <span ref={countRef} />
         </span>
         {/* the spiral's own law, set as written — uppercasing it turns θ into
             Θ and φ into Φ, which is a different statement */}

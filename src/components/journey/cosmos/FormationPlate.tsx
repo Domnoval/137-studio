@@ -81,9 +81,29 @@ const CSS = `
 .fp-divide { position:absolute; width:1px; top:0; left:0; opacity:0;
              background:rgba(232,228,220,.16); }
 .fp-ghost { position:absolute; top:0; left:0; white-space:nowrap; opacity:0;
-            font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
-            letter-spacing:.005em; color:#e8e4dc; }
+            color:#e8e4dc; }
+.fp-ghost-n { font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
+              letter-spacing:.005em; }
+.fp-ghost-t { margin-top:14px; font-family:${MONO}; font-weight:400; font-size:.5rem;
+              line-height:1; letter-spacing:.24em; text-transform:uppercase; }
 `;
+
+/**
+ * The panel number states the CROP, not the index. See Labels.tsx (GHOST_LEGEND):
+ * the caption two tiers below already prints the index, so a 7.4rem restatement
+ * of it was the loudest thing in the dark half saying nothing new. Both
+ * instances of the split screen now measure the same thing the same way.
+ */
+const GHOST_LEGEND = 'of plate in frame';
+
+function plateShare(x0: number, y0: number, x1: number, y1: number, W: number, H: number): number {
+  const fw = x1 - x0;
+  const fh = y1 - y0;
+  if (!(fw > 0) || !(fh > 0)) return 0;
+  const vw = Math.max(0, Math.min(x1, W) - Math.max(x0, 0));
+  const vh = Math.max(0, Math.min(y1, H) - Math.max(y0, 0));
+  return Math.min(1, (vw * vh) / (fw * fh));
+}
 
 const YEARS = SLABS.map((s) => s.work.year);
 const Y0 = Math.min(...YEARS);
@@ -108,6 +128,7 @@ interface Plate {
   dot: HTMLDivElement;
   divide: HTMLDivElement;
   ghost: HTMLDivElement;
+  ghostN: HTMLDivElement;
   w: number;
   h: number;
   opacity: number;
@@ -160,6 +181,12 @@ export function FormationPlate() {
       divide.className = 'fp-divide';
       const ghost = document.createElement('div');
       ghost.className = 'fp-ghost';
+      const ghostN = document.createElement('div');
+      ghostN.className = 'fp-ghost-n';
+      const ghostT = document.createElement('div');
+      ghostT.className = 'fp-ghost-t';
+      ghostT.textContent = GHOST_LEGEND;
+      ghost.append(ghostN, ghostT);
       layer.append(root, tick, dot, divide, ghost);
 
       const r = root.getBoundingClientRect();
@@ -169,6 +196,7 @@ export function FormationPlate() {
         dot,
         divide,
         ghost,
+        ghostN,
         w: r.width || 220,
         h: r.height || 46,
         opacity: 0,
@@ -270,16 +298,17 @@ export function FormationPlate() {
         plate.divideOn = divideOn;
         plate.divide.style.opacity = divideOn.toFixed(3);
       }
-      const num = `${String(heroIndex + 1).padStart(2, '0')}/${String(
-        SLABS.length,
-      ).padStart(2, '0')}`;
+      const num = `${Math.max(
+        1,
+        Math.round(plateShare(heroRect.x0, heroRect.y0, heroRect.x1, heroRect.y1, W, H) * 100),
+      )}%`;
       // …and re-measure whenever the box is missing, not only when the text
       // changes: the first macro frame measured 0 (the layer had not had a
       // layout pass yet) and the guard then never asked again, so the FIRST
       // instance of the module in the sweep printed a divide and no number.
       if (plate.ghostText !== num || plate.ghostW <= 0) {
         plate.ghostText = num;
-        plate.ghost.textContent = num;
+        plate.ghostN.textContent = num;
         const gr = plate.ghost.getBoundingClientRect();
         plate.ghostW = gr.width;
         plate.ghostH = gr.height;

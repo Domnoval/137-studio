@@ -78,6 +78,142 @@ export function getGlowTexture(): THREE.CanvasTexture {
   return glowTexture;
 }
 
+/* ============================================================== THE MOUNT
+ *
+ * ONE FRAMING SYSTEM, APPLIED IN THE RENDERER.
+ *
+ * MEASURED across the fifteen source photographs (mean ring luminance at 0.5%,
+ * 1%, 2%, 3%, 5%, 8% and 12% inset from the edge, against each image's own
+ * central median): six of them carry a studio paper / mount border past the
+ * painted edge, and the borders are all different sizes —
+ *
+ *   broken-signal   rgb≈191 flat out to 12% of the short side  (a 15% mat)
+ *   pink-skull      rgb≈223 out to 5%                          (a 6–10% mat)
+ *   undertow        rgb≈217 out to 5%                          (a 5–7% mat)
+ *   teal-skull      rgb≈240 out to 3%                          (a 4% mat)
+ *   the-delegate    rgb≈166 out to 5%                          (a 9% mat)
+ *   math-chaos      rgb≈255 at the very edge                   (a 2% mat)
+ *   the other nine  no border at all
+ *
+ * At archive scale that is the loudest thing in the frame and it reads as a
+ * design decision nobody made. The artwork is never touched: the files in
+ * public/art are the artist's and stay byte-identical. What happens here is
+ * PRESENTATION — the incidental border is measured and excluded from the UV
+ * window, so every work presents as the plate itself, and Slabs then mounts all
+ * fifteen identically (one inner shadow, one screen-constant dark keyline).
+ *
+ * The test for "border" is deliberately strict, because a painted ground is not
+ * a mount: a scanline counts only if it is BOTH much brighter than the image's
+ * own central median (+42) AND flat across its whole length (70% of samples
+ * within ±22 of the line mean), at least 60% of the lines inside the accepted
+ * depth qualify, and no side may lose more than 13%. MEASURED against that
+ * rule: the six above are cropped, and the nine that have no mat — including
+ * Totem, whose wide painted tan surround is bright but mottled — are left at
+ * 0,0,0,0. That is the correct answer for all fifteen.
+ */
+
+export interface MatCrop {
+  /** fractions of the image to exclude on each side */
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+const NO_MAT: MatCrop = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/** No side may lose more than this fraction — a guard against eating artwork. */
+const MAT_CAP = 0.13;
+/** How much brighter than the central median a line must be to be a mount. */
+const MAT_BRIGHT = 42;
+/** Half-width of the flatness window, and the share of samples inside it. */
+const MAT_FLAT = 22;
+const MAT_FLAT_FRAC = 0.7;
+/** Share of lines inside the accepted depth that must themselves qualify. */
+const MAT_DENSITY = 0.6;
+/** Extra bite past the last qualifying line, to swallow the scan's soft edge. */
+const MAT_BITE = 0.008;
+/** Longest side of the analysis raster. */
+const MAT_RASTER = 200;
+
+const matCache = new Map<string, MatCrop>();
+
+/**
+ * Measure the incidental mount border of one artwork photograph.
+ * Memoized by `key`; returns NO_MAT if the image cannot be read.
+ */
+export function matCropFor(key: string, image: unknown): MatCrop {
+  const hit = matCache.get(key);
+  if (hit) return hit;
+  const img = image as { width?: number; height?: number } | null;
+  if (!img || !img.width || !img.height || typeof document === 'undefined') return NO_MAT;
+  let out = NO_MAT;
+  try {
+    const scale = MAT_RASTER / Math.max(img.width, img.height);
+    const W = Math.max(8, Math.round(img.width * scale));
+    const H = Math.max(8, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return NO_MAT;
+    ctx.drawImage(image as CanvasImageSource, 0, 0, W, H);
+    const d = ctx.getImageData(0, 0, W, H).data;
+    const L = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      L[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+    }
+    // the image's own centre, as the reference the border has to stand against
+    const cen: number[] = [];
+    for (let y = Math.floor(H * 0.3); y < H * 0.7; y++) {
+      for (let x = Math.floor(W * 0.3); x < W * 0.7; x++) cen.push(L[y * W + x]);
+    }
+    cen.sort((a, b) => a - b);
+    const ref = cen[cen.length >> 1] ?? 0;
+
+    const qualifies = (get: (k: number) => number, n: number): boolean => {
+      let sum = 0;
+      const v = new Float32Array(n);
+      for (let k = 0; k < n; k++) {
+        v[k] = get(k);
+        sum += v[k];
+      }
+      const m = sum / n;
+      if (m <= ref + MAT_BRIGHT) return false;
+      let flat = 0;
+      for (let k = 0; k < n; k++) if (Math.abs(v[k] - m) < MAT_FLAT) flat++;
+      return flat / n > MAT_FLAT_FRAC;
+    };
+
+    const scan = (dim: number, other: number, get: (i: number, k: number) => number): number => {
+      const capI = Math.max(1, Math.round(MAT_CAP * dim));
+      const flags: boolean[] = [];
+      let last = -1;
+      for (let i = 0; i < capI; i++) {
+        const ok = qualifies((k) => get(i, k), other);
+        flags.push(ok);
+        if (ok) last = i;
+      }
+      if (last < 0) return 0;
+      let cnt = 0;
+      for (let i = 0; i <= last; i++) if (flags[i]) cnt++;
+      if (cnt / (last + 1) < MAT_DENSITY) return 0;
+      return Math.min(capI, last + 1 + Math.round(MAT_BITE * dim)) / dim;
+    };
+
+    out = {
+      top: scan(H, W, (i, k) => L[i * W + k]),
+      bottom: scan(H, W, (i, k) => L[(H - 1 - i) * W + k]),
+      left: scan(W, H, (i, k) => L[k * W + i]),
+      right: scan(W, H, (i, k) => L[k * W + (W - 1 - i)]),
+    };
+  } catch {
+    out = NO_MAT;
+  }
+  matCache.set(key, out);
+  return out;
+}
+
 let dustSprite: THREE.CanvasTexture | null = null;
 
 /** Tiny radial-falloff dot for the dust points. */
