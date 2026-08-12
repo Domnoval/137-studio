@@ -40,7 +40,9 @@ import {
   HERO_PULL_Y,
   ARCHIVE,
   ARCHIVE_UNIT,
+  ARCHIVE_STEP,
   ARCHIVE_THETA_MAX,
+  archiveSpiralPoint,
   PHI_SPIRAL_B,
   PHI_SPIRAL_PHASE,
   VANTAGE_IN,
@@ -51,7 +53,7 @@ import {
   type ShotMix,
   type SlabPlacement,
 } from './cosmos-data';
-import { getGlowTexture, matCropFor } from './textures';
+import { claimPlate, getDustSprite, getGlowTexture, matCropFor } from './textures';
 import { NearPass } from './NearPass';
 import { FormationPlate } from './FormationPlate';
 
@@ -130,6 +132,30 @@ const ARCH_SIZE = 0.42;
 /** Aspect assumed for a work whose texture has not landed yet. */
 const ARCH_ASPECT_FALLBACK = 0.75;
 /**
+ * NO NODE MAY BREAK THE RAMP.
+ *
+ * √(w·h) governance makes the AREA of every node fall off with radius, but the
+ * eye does not read area — it reads the longest dimension, and under √(w·h)
+ * alone that dimension rides free on the texture aspect. The catalogue's
+ * aspects run 0.380 (THE DELEGATE, a 1:2.6 column) to 1.993 (BLUE TEETH, a 2:1
+ * panel), so BLUE TEETH came out √a = 1.41 times wider than its own governed
+ * size — MEASURED at 54%, 235px wide against the outer arm's 160px, from a
+ * SMALLER slot. The largest object in the figure was a node that the scale law
+ * said was already receding, and it was wide enough to sever the connector
+ * thread across a whole arc.
+ *
+ * So the longest dimension of every node is capped to the spiral's own ramp:
+ *
+ *     max(w, h)  ≤  ARCH_EXT_CAP · ARCH_SIZE · r^ARCH_FALLOFF
+ *
+ * The cap binds only on |log aspect| > log(1.16²) — 13 of the 15 works are
+ * untouched and keep their exact governed size and their true proportions.
+ * The two that are not (BLUE TEETH ×0.821, THE DELEGATE ×0.715) are scaled
+ * ISOTROPICALLY: nothing is stretched, cropped or re-framed; the plate is
+ * simply hung smaller, which is what the curve was saying about it all along.
+ */
+const ARCH_EXT_CAP = 1.16;
+/**
  * Extra leftward shift of the composed figure, in spiral units.
  *
  * Optical centre is not the centre of the CAP bounding box: the boxes are an
@@ -166,8 +192,12 @@ interface FigSlot {
   /** WORLD HEIGHT in the same units. The GOVERNED quantity is √(w·h); this is
    *  that size already split by the plate's own aspect (see ARCH_SIZE). */
   h: number;
-  /** 0-1 normalised radius: 1 = outer arm, ~0.18 = the throat */
+  /** 0-1 normalised radius: 1 = outer arm, ~0.26 = the throat */
   r: number;
+  /** true when this work's picture is already hung by an earlier work */
+  drop: boolean;
+  /** position along the RE-DEALT curve: 0 = outer arm */
+  k: number;
 }
 
 /**
@@ -182,39 +212,86 @@ interface FigSlot {
  * archive is on screen at ~50% scroll.
  */
 const figAspects = new Array<number>(ARCHIVE.length).fill(ARCH_ASPECT_FALLBACK);
+/**
+ * TWO NAMES, ONE PICTURE — see claimPlate() in textures.ts.
+ *
+ * A work whose decoded texture fingerprints identical to one an earlier work
+ * already claimed is DROPPED FROM THE FIGURE: it takes no slot, contributes
+ * nothing to the bounding box, and never resolves as a plate. The remaining
+ * works then close up — slots are re-dealt CONTIGUOUSLY along the same curve
+ * (same b, same phase, same one-third-golden-angle step), so the spiral has no
+ * hole in it and the armature still runs through every member.
+ */
+const figDropped = new Array<boolean>(ARCHIVE.length).fill(false);
 
 const FIGURE: { slots: FigSlot[]; cx: number; cy: number; k: number } = {
   cx: 0,
   cy: 0,
   k: 1,
-  slots: ARCHIVE.map((s) => ({ x: s.x, y: s.y, z: 0, h: ARCH_SIZE, r: s.r })),
+  slots: ARCHIVE.map((s) => ({ x: s.x, y: s.y, z: 0, h: ARCH_SIZE, r: s.r, drop: false, k: s.slot })),
 };
 
+/** Scratch for archHalf(); mutated, never allocated. */
+const halfOut = { hw: 0, hh: 0 };
+
 /**
- * Half-HEIGHT of the slot at normalised radius `r` for a plate of aspect `a`,
- * such that √(w·h) = ARCH_SIZE·r^ARCH_FALLOFF exactly — the one split that is
- * strictly monotone in r no matter what the catalogue's aspects are.
+ * Half-extents of the slot at normalised radius `r` for a plate of aspect `a`.
+ *
+ * √(w·h) = ARCH_SIZE·r^ARCH_FALLOFF exactly — the one split that is strictly
+ * monotone in r no matter what the catalogue's aspects are — and then the
+ * longest dimension is capped to the same ramp (see ARCH_EXT_CAP), isotropically.
  */
-function archHalfHeight(r: number, a: number): number {
-  return (ARCH_SIZE * Math.pow(r, ARCH_FALLOFF)) / (2 * Math.sqrt(a));
+function archHalf(r: number, a: number, out: { hw: number; hh: number }): void {
+  const size = ARCH_SIZE * Math.pow(r, ARCH_FALLOFF);
+  let hh = size / (2 * Math.sqrt(a));
+  let hw = hh * a;
+  const cap = (size * ARCH_EXT_CAP) / 2;
+  const m = Math.max(hw, hh);
+  if (m > cap) {
+    const f = cap / m;
+    hh *= f;
+    hw *= f;
+  }
+  out.hw = hw;
+  out.hh = hh;
 }
 
+/** Radii of the contiguous slots, outer arm first. Rebuilt on every solve. */
+const dealPt = { x: 0, y: 0, z: 0 };
+
 function solveFigure(): void {
+  // survivors in curve order, then re-dealt onto CONTIGUOUS slots so a dropped
+  // duplicate leaves no gap in the spiral
+  const order: number[] = [];
+  for (let i = 0; i < ARCHIVE.length; i++) if (!figDropped[i]) order.push(i);
+  order.sort((a, b) => ARCHIVE[a].slot - ARCHIVE[b].slot);
+
   let x0 = Infinity;
   let x1 = -Infinity;
   let y0 = Infinity;
   let y1 = -Infinity;
-  for (let i = 0; i < ARCHIVE.length; i++) {
-    const s = ARCHIVE[i];
-    // √(w·h) is the governed quantity; the aspect only decides how that size is
-    // SPLIT between the two axes, so the plate keeps its true proportions.
-    const hh = archHalfHeight(s.r, figAspects[i]);
-    const hw = hh * figAspects[i];
-    x0 = Math.min(x0, s.x - hw);
-    x1 = Math.max(x1, s.x + hw);
-    y0 = Math.min(y0, s.y - hh);
-    y1 = Math.max(y1, s.y + hh);
+  for (let k = 0; k < order.length; k++) {
+    const i = order[k];
+    const theta = ARCHIVE_THETA_MAX - k * ARCHIVE_STEP;
+    const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
+    archiveSpiralPoint(theta, dealPt);
+    archHalf(r, figAspects[i], halfOut);
+    const slot = FIGURE.slots[i];
+    // stash the raw curve solution; the composition transform lands below
+    slot.x = dealPt.x;
+    slot.y = dealPt.y;
+    slot.z = dealPt.z;
+    slot.r = r;
+    slot.h = 2 * halfOut.hh;
+    slot.drop = false;
+    slot.k = k;
+    x0 = Math.min(x0, dealPt.x - halfOut.hw);
+    x1 = Math.max(x1, dealPt.x + halfOut.hw);
+    y0 = Math.min(y0, dealPt.y - halfOut.hh);
+    y1 = Math.max(y1, dealPt.y + halfOut.hh);
   }
+  if (!order.length) return;
+
   const cx = (x0 + x1) / 2 + ARCH_SHIFT_X;
   const cy = (y0 + y1) / 2;
   // half extents ABOUT THE COMPOSED CENTRE — this is what the frame has to hold
@@ -232,13 +309,15 @@ function solveFigure(): void {
   FIGURE.cy = cy;
   FIGURE.k = k;
   for (let i = 0; i < ARCHIVE.length; i++) {
-    const s = ARCHIVE[i];
     const slot = FIGURE.slots[i];
-    slot.x = (s.x - cx) * k;
-    slot.y = (s.y - cy) * k;
-    slot.z = -ARCH_DEPTH * (1 - Math.min(1, s.r)) * k;
-    slot.h = 2 * archHalfHeight(s.r, figAspects[i]) * k;
-    slot.r = s.r;
+    if (figDropped[i]) {
+      slot.drop = true;
+      continue;
+    }
+    slot.x = (slot.x - cx) * k;
+    slot.y = (slot.y - cy) * k;
+    slot.z = -ARCH_DEPTH * (1 - Math.min(1, slot.r)) * k;
+    slot.h *= k;
   }
 }
 
@@ -246,6 +325,13 @@ function solveFigure(): void {
 function registerAspect(i: number, aspect: number): void {
   if (!(aspect > 0) || Math.abs(figAspects[i] - aspect) < 1e-4) return;
   figAspects[i] = aspect;
+  solveFigure();
+}
+
+/** …and reports that its picture is already hung, exactly once. */
+function registerDrop(i: number): void {
+  if (figDropped[i]) return;
+  figDropped[i] = true;
   solveFigure();
 }
 
@@ -331,6 +417,52 @@ const HERO_FILL_NEAR = 0.64;
 const HERO_SAFE = 0.94;
 /** Halo padding around the art quad, in world units at scale 1. */
 const GLOW_PAD = 0.46;
+
+/* ------------------------------------------------- THE WORK IS AN OBJECT
+ *
+ * TWO LAWS, AND EVERY OTHER PRESENCE TERM IN THIS FILE OBEYS THEM.
+ *
+ * 1. OPAQUE. A painting is a physical plate. It is never see-through: nothing
+ *    behind a work may be visible through its surface, and two works never
+ *    blend into each other. MEASURED before: the staged MATH CHAOS canvas at
+ *    scroll 23% rendered at alpha 0.408 with the starfield reading straight
+ *    through it and a near-pass canvas showing through its lower third; the
+ *    full-bleed MACRO canvases at 31% and 46% rendered at 0.694 and 0.873.
+ *    Distance, depth and atmosphere are now carried ENTIRELY by LUMINANCE — a
+ *    fog toward the void, exactly the term that used to live in alpha, so the
+ *    composite against the near-black ground is unchanged where it was already
+ *    right — and alpha is reserved for the four things that are genuinely
+ *    TRANSITIONS between frames rather than states of a painting: the texture's
+ *    first moments, the cut between two MACRO canvases, the cross-cut into the
+ *    archive, and the contraction.
+ *
+ * 2. LEGIBLE OR NOT AT ALL. Below LEG_MIN of projected size a work stops being
+ *    a work. MEASURED before: at 15% the corridor held twelve paintings between
+ *    17 and 62px wide, and at 38% the left 45% of the frame carried nothing but
+ *    three chips of 22-56px. An unreadable chip of someone's painting is worse
+ *    than nothing, so under the threshold the plate is gone and a MOTE stands
+ *    in its place — a dim chalk point, the same object the dust field is made
+ *    of. The work resolves into atmosphere instead of into confetti.
+ */
+
+/** Projected √(w·h), in CSS px, under which a work does not render as artwork. */
+const LEG_MIN = 80;
+/** …and over which it is a plate at full opacity. The band between is crossed
+ *  in a fraction of a second of scroll; it is the only place a legible work is
+ *  ever partly transparent. */
+const LEG_FULL = 88;
+/** Diameter of the mote that stands in for a sub-legible work, in CSS px. */
+const MOTE_PX = 7;
+/** …and its peak opacity. Dust, not a marker. */
+const MOTE_A = 0.9;
+/**
+ * Dominance at which a MACRO canvas is fully opaque. The staging guarantees at
+ * most one slab exceeds 0.4 at any camera position, so this is also the
+ * guarantee that two canvases are never both solid: the cut between them is a
+ * dissolve inside 0.14–0.40 and a straight cut everywhere else.
+ */
+const MACRO_SOLID = 0.4;
+const MACRO_DISSOLVE = 0.3;
 
 /* ------------------------------------------------------------------ macro */
 /** Minimum overshoot past the top and bottom frame edges in a MACRO shot. */
@@ -455,9 +587,12 @@ function SlabArt({ placement }: SlabProps) {
   const glowRef = useRef<THREE.Mesh>(null);
   const artRef = useRef<THREE.Mesh>(null);
   const frameRef = useRef<THREE.Mesh>(null);
+  const moteRef = useRef<THREE.Mesh>(null);
   const baseQuat = useRef(new THREE.Quaternion());
   const anim = useRef({
     fade: 0,
+    /** clock stamp of this slab's first frame; -1 until it has had one */
+    born: -1,
     tilt: 0.02,
     glow: 0,
     dom: 0,
@@ -496,17 +631,17 @@ function SlabArt({ placement }: SlabProps) {
   const h = placement.height;
   const w = h * aspect;
   const slot = FIGURE.slots[index];
-  /**
-   * ATMOSPHERE, NOT CHIPS. A work at the throat is a tenth the area of one on
-   * the outer arm; no exponent fixes that without breaking the chambers, so
-   * the small ones stop pretending to be readable and become depth instead —
-   * dimmed and de-lit on the same radius that shrinks them. 1 at the arm,
-   * 0 from r ≈ 0.20 in.
-   */
-  const archiveAir = smoothstep(0.2, 0.58, slot.r);
 
   const art = useMemo(() => {
-    const m = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0 });
+    // depthWrite stays ON (three's default): at alpha 1 this plate is a solid
+    // occluder, and the depth buffer is what makes it one — the starfield and
+    // any work behind it are discarded rather than blended through.
+    const m = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: true,
+      opacity: 0,
+    });
     return { material: m, mount: applyMount(m) };
   }, [texture]);
   const artMaterial = art.material;
@@ -519,6 +654,11 @@ function SlabArt({ placement }: SlabProps) {
   // …and the composition of the archive is re-solved against the real aspect
   // the moment this work's texture has landed (see solveFigure).
   useLayoutEffect(() => registerAspect(index, aspect), [index, aspect]);
+  // TWO NAMES, ONE PICTURE. The decoded texture is fingerprinted; if an earlier
+  // work already hung this exact picture, this one takes no slot in the archive.
+  useLayoutEffect(() => {
+    if (claimPlate(work.file, index, shared.image) !== index) registerDrop(index);
+  }, [index, work.file, shared]);
   const frameMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -536,6 +676,18 @@ function SlabArt({ placement }: SlabProps) {
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    [],
+  );
+  /** The mote a sub-legible work resolves into. Chalk, round, unlit. */
+  const moteMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: getDustSprite(),
+        color: new THREE.Color('#e8e4dc'),
+        transparent: true,
+        opacity: 0,
         depthWrite: false,
       }),
     [],
@@ -584,8 +736,14 @@ function SlabArt({ placement }: SlabProps) {
       shotDebug.pull = pbW;
     }
 
-    // texture fade-in (no pop)
-    a.fade = THREE.MathUtils.damp(a.fade, 1, 2.2, dt);
+    // Texture fade-in (no pop) — on the SHARED CLOCK, not on an accumulated
+    // damp. A damp is asymptotic: it never reaches 1, and because `dt` is
+    // capped at 1/20 it advances with the FRAME COUNT, so on a slow device the
+    // work you are looking at is still at 0.55 opacity seconds after it landed
+    // (MEASURED at 23%: three slabs pinned at alpha 0.548). Reaching exactly
+    // 1.0, in bounded real time, is what makes the opacity law a law.
+    if (a.born < 0) a.born = t;
+    a.fade = smoothstep(0, 0.5, t - a.born);
 
     // distance ahead of the camera (positive = further down the corridor)
     const d = state.camera.position.z - placement.z;
@@ -842,35 +1000,81 @@ function SlabArt({ placement }: SlabProps) {
       }
     }
 
-    // ---- depth hierarchy: far slabs are atmosphere, not thumbnails ----
+    /* ---- DEPTH IS LIGHT, NOT TRANSPARENCY ----
+     * `fog` is exactly the term that used to sit in alpha, moved into the
+     * material colour: a far slab composites against the void as it did before,
+     * but it is DARK rather than SEE-THROUGH. Same for `satClear` — a satellite
+     * that cannot be separated from the staged subject goes out like a light
+     * instead of turning into a window. */
     const depth = smoothstep(58, 13, d); // 1 near, 0 deep in the corridor
-    let lum = THREE.MathUtils.lerp(0.3 + 0.34 * depth, 1, stage);
-    let bodyAlpha =
-      a.fade * contractFade * exit * satClear * THREE.MathUtils.lerp(0.22 + 0.72 * depth, 1, stage);
+    const fog = THREE.MathUtils.lerp(0.22 + 0.72 * depth, 1, stage) * satClear;
+    let lum = THREE.MathUtils.lerp(0.3 + 0.34 * depth, 1, stage) * fog;
+    /**
+     * ATMOSPHERE, NOT CHIPS. A work at the throat of the spiral is a fraction
+     * of the area of one on the outer arm; no exponent fixes that without
+     * breaking the chambers, so the small ones stop pretending to be readable
+     * and become depth instead. 1 at the arm, 0 from r ≈ 0.20 in. Read LIVE
+     * from the slot, because solveFigure re-deals the curve when a duplicate
+     * picture is dropped.
+     */
+    const archiveAir = smoothstep(0.2, 0.58, slot.r);
+    // PASSING THE LENS IS A LIGHTING EVENT, NOT A DISSOLVE. A work sweeping out
+    // of the corridor used to fade over 1.6 world units, which is how a 423px
+    // painting came to be rendered at alpha 0.835 (MEASURED at 23%). It now
+    // goes DARK on the same window instead — opaque the whole way — and is
+    // culled outright once there is nothing left of it to light.
+    lum *= smoothstep(EXIT_DONE - 0.1, EXIT_DONE + 0.9, d);
+    let bodyAlpha = a.fade * contractFade;
 
     // MACRO: the beat's own slab is solid; everything else leaves the frame
     // entirely — no thumbnails floating over brushwork. `stage` is a partition
-    // of unity across the corridor, so two consecutive canvases hand the frame
-    // over as a straight dissolve and nothing else is on screen at all.
+    // of unity across the corridor and never exceeds 0.4 on two slabs at once,
+    // so at MACRO_SOLID the canvas that owns the beat is the ONLY thing on
+    // screen and it is fully opaque; the handover between two of them is the
+    // only moment either is not.
     if (macroW > 0.001) {
       const macroAlpha =
-        a.fade * contractFade * THREE.MathUtils.clamp(stage * 1.18, 0, 1);
-      bodyAlpha = THREE.MathUtils.lerp(bodyAlpha, macroAlpha, macroW);
+        a.fade * contractFade * smoothstep(MACRO_DISSOLVE, MACRO_SOLID, stage);
+      // The SHOT changes faster than the GEOMETRY does. Blending presence on
+      // macroW itself mixed "corridor slab, fully present" with "not the
+      // subject of this macro, absent" and landed on the average — MEASURED at
+      // scroll 32.7%, a canvas covering 66% of the frame at alpha 0.327. The
+      // semantics switch over the first quarter of the cut instead, so a plane
+      // is either a corridor work or a macro canvas, never half of each.
+      const macroSem = smoothstep(0.03, 0.28, macroW);
+      bodyAlpha = THREE.MathUtils.lerp(bodyAlpha, macroAlpha, macroSem);
       lum = THREE.MathUtils.lerp(lum, 1, macroW);
     }
 
     // PULL-BACK: cross-cut. The corridor dissolves out, the formation resolves
     // in — the works are never seen sweeping through the camera between them.
     if (pbW > 0.001) {
-      const outW = 1 - smoothstep(0.0, 0.32, pbW);
+      // sharper than the fade-in: the corridor is CUT away, not dissolved, so
+      // the chapter never lingers on a half-transparent full-bleed canvas
+      const outW = 1 - smoothstep(0.0, 0.2, pbW);
       const inW = smoothstep(0.42, 0.82, pbW);
       // …and the figure is GRADED: the outer arm is the body of work at full
-      // presence, the throat is atmosphere. Without this the fifteen sat at one
-      // brightness and the composed frame flattened into a carousel.
+      // presence, the throat is atmosphere. That grade used to be spent on
+      // ALPHA, which made two thirds of the archive see-through; it is spent on
+      // LIGHT now, so the composite is the same and the plates are solid.
       const air = 0.30 + 0.70 * archiveAir;
-      bodyAlpha = bodyAlpha * outW + a.fade * contractFade * 0.96 * air * inW;
-      lum = THREE.MathUtils.lerp(lum, 0.52 + 0.44 * archiveAir, inW);
+      bodyAlpha = bodyAlpha * outW + a.fade * contractFade * (slot.drop ? 0 : 1) * inW;
+      lum = THREE.MathUtils.lerp(lum, (0.52 + 0.44 * archiveAir) * air, inW);
     }
+
+    /* ---- LEGIBLE OR NOT AT ALL ----
+     * Projected geometric-mean size of the art quad, solved against the frustum
+     * at the plate's ACTUAL distance (which is the formation's distance in the
+     * pull-back, not the corridor's). Exact for a front-facing quad and an
+     * upper bound under the pose shear, so nothing sneaks under the floor. */
+    const viewD = Math.max(1.2, cam.position.z - pz);
+    const frameHView = 2 * viewD * Math.tan((cam.fov * Math.PI) / 360);
+    const projG = (Math.sqrt(w * h) * ps * state.size.height) / frameHView;
+    const legible = smoothstep(LEG_MIN, LEG_FULL, projG);
+    // what the work resolves into below the floor: one dim chalk point, on the
+    // curve, in the dust — never an unreadable chip of someone's painting
+    const moteAlpha = MOTE_A * (1 - legible) * bodyAlpha * (0.3 + 0.7 * lum);
+    bodyAlpha *= legible;
 
     // red edge glow rides the same dominance curve as the staging AND the same
     // dissolve as the body, so the glowing slab is always the subject of the
@@ -878,20 +1082,53 @@ function SlabArt({ placement }: SlabProps) {
     // WIDE-shot device: a halo round a full-bleed macro canvas is meaningless,
     // and 15 haloes in the pull-back would be a christmas tree.
     a.glow =
-      a.dom * exit * 0.46 * (1 - smoothstep(0.05, 0.2, cp)) * (1 - macroW) * (1 - pbW);
+      a.dom * exit * 0.46 * (1 - smoothstep(0.05, 0.2, cp)) * (1 - macroW) * (1 - pbW) * legible;
     if (glowRef.current) {
       (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
         a.glow * a.fade * contractFade;
     }
+    // A PLATE AT ZERO ALPHA IS NOT A PLATE — IT MUST NOT WRITE DEPTH.
+    //
+    // The group stays visible while EITHER the body or the mote has presence
+    // (below), which is right: a sub-legible work still draws its mote. But the
+    // art and frame quads carry depthWrite:true, and three writes depth for a
+    // transparent material at opacity 0 just as it does at opacity 1 — so a
+    // work that had resolved into a mote was still stamping a full-size,
+    // completely invisible occluder into the depth buffer at its archive pose.
+    //
+    // The armature is depth-tested against exactly that buffer (see
+    // STROKE_BEHIND), so the five inner works that drop below the legibility
+    // floor were each punching a hole in the thread. MEASURED by rendering the
+    // stroke twice at one scroll, once with depthTest off, and diffing: at 54%
+    // 6,879px of armature vanished against VOID ground in 121 separate gaps up
+    // to 42px long; at 62%, 10,144px in 174 gaps up to 67px. On screen that is
+    // a dashed line, and the one thing the thread exists to say — that all
+    // fifteen positions came off ONE curve — is the thing a dashed line cannot
+    // say. The same invisible occluders were also cutting holes in the
+    // starfield behind them.
+    const solid = bodyAlpha > 0.004;
     if (artRef.current) {
       const m = artRef.current.material as THREE.MeshBasicMaterial;
       m.color.setScalar(lum);
       m.opacity = bodyAlpha;
+      artRef.current.visible = solid;
     }
     if (frameRef.current) {
       const m = frameRef.current.material as THREE.MeshBasicMaterial;
       m.opacity = bodyAlpha;
       m.color.copy(FRAME_COLOR).multiplyScalar(0.4 + 0.6 * lum);
+      frameRef.current.visible = solid;
+    }
+    if (moteRef.current) {
+      const mm = moteRef.current.material as THREE.MeshBasicMaterial;
+      mm.opacity = moteAlpha;
+      moteRef.current.visible = moteAlpha > 0.004;
+      if (moteRef.current.visible) {
+        // constant on SCREEN: the mote is a point of dust, and dust does not
+        // have a size in the world
+        const k = ((MOTE_PX / state.size.height) * frameHView) / Math.max(1e-4, s);
+        moteRef.current.scale.set(k, k, 1);
+      }
     }
 
     // cull anything behind us or lost in the fog — keeps draw calls honest.
@@ -899,23 +1136,27 @@ function SlabArt({ placement }: SlabProps) {
     // so the corridor-distance test does not apply.
     const inFormation = posW > 0.02;
     const visible =
-      bodyAlpha > 0.004 && (inFormation || (d > EXIT_DONE - 0.2 && d < 78));
+      Math.max(bodyAlpha, moteAlpha) > 0.004 &&
+      lum > 0.004 &&
+      !(inFormation && slot.drop) &&
+      (inFormation || (d > EXIT_DONE - 0.2 && d < 78));
     g.visible = visible;
 
     // ---- project the art quad to a screen rect for the label system ----
     rect.alpha = bodyAlpha;
-    if (!visible || recEase > 0.02 || inFormation) {
-      // no captions and no chips over the composed triangle: nothing to test
+    if (!visible || recEase > 0.02 || inFormation || bodyAlpha < 0.02) {
+      // no captions and no chips over the composed triangle: nothing to test.
+      // A mote is not an obstacle to type either — it is dust.
       rect.live = false;
       // …but the formation still has to be MEASURED, because the plate that
       // names it places itself against these bounds. Publish the union of the
       // projected quads so the caption can never land on paint.
-      if (inFormation && visible && recEase < 0.02) {
+      if (inFormation && visible && recEase < 0.02 && bodyAlpha > 0.02) {
         g.updateWorldMatrix(true, false);
         if (projectQuad(g.matrixWorld, w / 2, h / 2, cam, state.size.width, state.size.height)) {
           addFormBounds(t, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
           if (process.env.NODE_ENV !== 'production') {
-            publishFormRect(index, ARCHIVE[index].slot, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
+            publishFormRect(index, slot.k, ndc.px0, ndc.py0, ndc.px1, ndc.py1);
           }
         }
       }
@@ -984,6 +1225,16 @@ function SlabArt({ placement }: SlabProps) {
         onClick={onClick}
         onPointerOver={onOver}
         onPointerOut={onOut}
+      />
+      {/* what this work resolves into below the legibility floor: a dim mote,
+          the same object the dust field is made of. Never a chip of a painting. */}
+      <mesh
+        ref={moteRef}
+        position={[0, 0, 0.01]}
+        geometry={unitPlane}
+        material={moteMaterial}
+        visible={false}
+        raycast={() => null}
       />
     </group>
   );
@@ -1080,10 +1331,19 @@ function buildStrokeGeometry(hwScale: number): THREE.BufferGeometry {
     // width tapers with the local radius: a drawn line, thinning into the eye
     const r = Math.exp(PHI_SPIRAL_B * (theta - ARCHIVE_THETA_MAX));
     const hw = STROKE_HW * hwScale * (0.42 + 0.58 * Math.pow(Math.min(1, r), 0.45));
-    // the arm carries the line; the throat goes dark. The outer tip fades in
-    // from nothing over the first 5% — a stroke that starts at full weight in
-    // mid-air is a line with an end, and this curve is not supposed to have one.
-    const v = 0.96 * smoothstep(0, 0.055, t) * (1 - smoothstep(0.5, 1, t) * 0.9);
+    // The arm carries the line and the throat softens — but it does NOT go out.
+    // The thread is the armature: it is the only thing on screen saying that
+    // the fifteen positions, radii and scales all came off one curve, so it has
+    // to be readable across the WHOLE figure, including the stretch where the
+    // works have resolved into motes and the thread is all that is left of them.
+    // MEASURED on the void ground: the old 0.9 throat fade took the core to
+    // rgb(21) on rgb(14) — 1.13:1, i.e. gone — over the inner third. At 0.55 the
+    // inner turns hold ≈2.1:1 while the eye of the spiral is still the darkest
+    // point in the frame, which is where the sigil then strikes.
+    // The outer tip fades in from nothing over the first 5%: a stroke that
+    // starts at full weight in mid-air is a line with an end, and this curve is
+    // not supposed to have one.
+    const v = 0.96 * smoothstep(0, 0.055, t) * (1 - smoothstep(0.5, 1, t) * 0.55);
     for (let s = 0; s < 2; s++) {
       const o = (i * 2 + s) * 3;
       const sgn = s === 0 ? -1 : 1;

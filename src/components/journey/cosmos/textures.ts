@@ -214,6 +214,103 @@ export function matCropFor(key: string, image: unknown): MatCrop {
   return out;
 }
 
+/* ================================================== TWO NAMES, ONE PICTURE
+ *
+ * THE RENDERER IS DEFENSIVE ABOUT THE CATALOGUE.
+ *
+ * Four catalogue entries are backed by two photographs: public/art/totem.jpg
+ * and composite-head.jpg are byte-identical, and so are chaos-garden.jpg and
+ * menagerie.jpg (verified with sha256 over the source files AND over the
+ * 1200px /art/tex derivatives). Those files are the artist's and are not
+ * touched here, and the metadata says they are four different works — so the
+ * data cannot be corrected from this side.
+ *
+ * What CAN be guaranteed is that the same picture is never hung twice in one
+ * frame. Every artwork texture is fingerprinted as it decodes — a 12x12
+ * luminance raster, quantised to 32 levels — and the FIRST work to present a
+ * given fingerprint owns it. Any later work presenting the same fingerprint is
+ * refused a plate in any formation that shows the whole body of work at once
+ * (the archive); in the corridor, where exactly one work owns a beat, it is
+ * shown normally because it can never share the frame with its twin.
+ *
+ * The fingerprint is content-based rather than a hard-coded pair list on
+ * purpose: if the artist replaces one of the four files tomorrow, the collision
+ * disappears on its own and all four plate again.
+ */
+
+/** Side of the fingerprint raster. */
+const SIG_N = 12;
+/** Luminance quantisation — coarse enough to survive JPEG re-encoding. */
+const SIG_LEVELS = 32;
+
+const sigCache = new Map<string, string>();
+const sigOwner = new Map<string, { key: string; index: number }>();
+const collisionLog: string[] = [];
+
+/** Content fingerprint of a decoded artwork image. Memoized by `key`. */
+function plateSignature(key: string, image: unknown): string | null {
+  const hit = sigCache.get(key);
+  if (hit !== undefined) return hit || null;
+  const img = image as { width?: number; height?: number } | null;
+  if (!img || !img.width || !img.height || typeof document === 'undefined') return null;
+  let sig = '';
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = SIG_N;
+    canvas.height = SIG_N;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(image as CanvasImageSource, 0, 0, SIG_N, SIG_N);
+    const d = ctx.getImageData(0, 0, SIG_N, SIG_N).data;
+    const out = new Array<string>(SIG_N * SIG_N);
+    for (let i = 0; i < SIG_N * SIG_N; i++) {
+      const l = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+      out[i] = Math.min(SIG_LEVELS - 1, Math.floor((l / 256) * SIG_LEVELS)).toString(32);
+    }
+    // aspect is part of identity: two crops of one photograph are two pictures
+    sig = `${(img.width / img.height).toFixed(3)}:${out.join('')}`;
+  } catch {
+    return null;
+  }
+  sigCache.set(key, sig);
+  return sig;
+}
+
+/**
+ * Claim the right to present `key` as a plate. Returns the index of the work
+ * that OWNS this picture — its own `index` when the picture is unique, and the
+ * earlier work's index when it is a duplicate.
+ */
+export function claimPlate(key: string, index: number, image: unknown): number {
+  const sig = plateSignature(key, image);
+  if (!sig) return index;
+  const owner = sigOwner.get(sig);
+  if (!owner) {
+    sigOwner.set(sig, { key, index });
+    return index;
+  }
+  if (owner.key === key) return owner.index;
+  const line = `${key} -> ${owner.key}`;
+  if (!collisionLog.includes(line)) {
+    collisionLog.push(line);
+    if (process.env.NODE_ENV !== 'production') {
+      // Not an error — the catalogue is the artist's. It is a note that the
+      // renderer refused to hang the same picture twice, and which pair did it.
+      console.info(`[cosmos] duplicate artwork source refused a second plate: ${line}`);
+    }
+  }
+  return owner.index;
+}
+
+/** Dev/QA readout: which artwork files were found to be the same picture. */
+export function plateCollisions(): string[] {
+  return collisionLog;
+}
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as { __plateCollisions?: string[] }).__plateCollisions = collisionLog;
+}
+
 let dustSprite: THREE.CanvasTexture | null = null;
 
 /** Tiny radial-falloff dot for the dust points. */

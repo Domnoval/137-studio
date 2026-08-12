@@ -170,6 +170,33 @@ const PASS_OUT = 0.34 * PERSP;
 const ZCAP = 0.14 * PERSP;
 
 /**
+ * HOW FAR A WORK SWINGS OUT OF FRAME AS IT PASSES THE LENS, in px, and over
+ * what fraction of the exit window it does it. 300px carries the widest near
+ * pass measured on the stage (369px, half-width 185) so its trailing edge is
+ * at 195+300−185 = 310 of 390 by the time the swing completes — clear of the
+ * arriving subject, which composes about the optical centre. The window is
+ * short on purpose: the swing must finish while the plate is still ESSENTIALLY
+ * OPAQUE (α = outNear² = 0.49 at exitK 0.30), because an opaque plate covering
+ * the work behind it is an occluder, which is honest, and a translucent one is
+ * a ghost, which is not.
+ */
+const EXIT_SWING = 300;
+const EXIT_SWING_T = 0.3;
+
+/**
+ * WHERE A WORK STOPS BEING TRANSPARENT AND STARTS BEING DIM.
+ *
+ * Presence below this is carried by alpha (so a work at the very edge of
+ * arriving does not stamp an unlit rectangle over the starfield); presence
+ * above it is carried by brightness, so the work is a solid object. 0.34 puts
+ * every plate of the converging archive over the line — the worst measured
+ * stack sat at 0.549 — while leaving the first sixth of any arrival genuinely
+ * see-through. alpha·light === presence either side of the knee, so nothing
+ * composited against the void changes at any scroll position.
+ */
+const PRESENCE_KNEE = 0.34;
+
+/**
  * MINIMUM STATION SEPARATION BETWEEN TWO PLATES CARRYING THE SAME PICTURE.
  *
  * A work is lit for dz ∈ (−PASS_OUT, FAR_ON) — a window (FAR_ON + PASS_OUT)
@@ -275,16 +302,30 @@ const GAP_MIN = GAP_LADDER[0];
 /**
  * HOW FAR THE LABEL IS ALLOWED TO TRAVEL UP THE FRAME, px.
  *
- * Generous, because the label's real limit is not a number — it is whatever
- * else is in the room. Satellites rake the periphery by design and reach as
- * low as y≈556 on a 390×844 frame; a label that climbed blindly would print
- * straight through them. So the ceiling is soft (this) and the floor is LIVE:
- * captionFloor re-solves every frame against the actual projected boxes of
- * every other plate on screen. The label rises to its painting and stops at
- * the first thing in the way, which is why the interval it leaves varies with
- * the composition instead of being a constant.
+ * The floor is LIVE — captionFloor re-solves every frame against the actual
+ * projected boxes of every other plate on screen, so the label rises to its
+ * painting and stops at the first thing in the way, and the interval it leaves
+ * varies with the composition instead of being a constant.
+ *
+ * WHY THIS IS NOW 62 AND NOT 190. The label hangs off the bottom edge of its
+ * painting, and a plate's bottom edge is governed by the perspective divide
+ * about the frame's own centre: at the pass a subject projects at 1.16× and
+ * its foot reaches y≈708, but halfway between two stations it projects at
+ * 0.73× and its foot is at y≈595 — so a label with 190px of travel followed it
+ * all the way up there and took the bottom 30% of the phone with it. Measured
+ * on a 390×844 frame across the corridor: lowest non-background pixel at
+ * y=675–677 for scroll 0.42→0.54, i.e. a fifth of every frame below the work
+ * was ground colour, in the one place on a phone that costs the most.
+ *
+ * 62 is one rung above the widest interval on the golden ladder (55), so the
+ * label can still hug a tall column tight and still step back for a wide
+ * panel — the interval is still the picture's own — but it can no longer
+ * abandon the foot of the frame to follow a receding plate. What varies is the
+ * air ABOVE the label (13px at the pass, up to ~60px between stations, which
+ * reads as the corridor breathing); what no longer varies is that the label is
+ * the bottom of the composition.
  */
-const CAP_TRAVEL = 190;
+const CAP_TRAVEL = 62;
 /** Clear air the label keeps under any other work it has to duck below. */
 const CAP_CLEAR = 10;
 
@@ -299,8 +340,15 @@ const CAP_CLEAR = 10;
  * nothing but its position, so it gives up being a plate and resolves into the
  * curve it sits on; above LEG_IN it is a painting. In between it is weather.
  */
-const LEG_OUT = 28;
-const LEG_IN = 48;
+// The band between them is deliberately NARROW (was 28→48). A wide band means
+// works resolve at intermediate `vis`, and `vis` is the archive's alpha — so
+// the resting figure carried a plate at 0.72 opacity for the whole beat, i.e. a
+// painting you can see the background through. A picture is either on the curve
+// as an object or it is part of the line; 34→42 leaves the smoothstep in place
+// (nothing snaps as the viewport is resized) while making the in-between a
+// sliver rather than a state the figure rests in.
+const LEG_OUT = 34;
+const LEG_IN = 42;
 /** Above this a slot reads as a painting; the plate counts them out loud. */
 export const LEG_PLATE = 0.5;
 
@@ -546,7 +594,26 @@ export function buildLayout(vw: number, vh: number, measuredCapH = 0): MobileLay
   // The label travels only CAP_TRAVEL: the painting comes to the label, not
   // the other way round, because the periphery of the corridor belongs to the
   // satellites and a label that climbed into it would print through them.
-  const capOffset = Math.min(Math.max(56, vh * 0.11), 120);
+  // THE FOOT — how much frame is reserved BELOW the caption, and therefore how
+  // much of the phone is spent on nothing.
+  //
+  // It used to be 11vh (92.8px on a 390×844 frame) and it was the single
+  // largest term in the chapter's dead band: the caption hangs off the bottom
+  // of its painting, the painting's own hang line is solved backwards from
+  // capTopMax, so a foot that is 40px too generous lifts the ENTIRE
+  // composition — plate, label and all — 40px up the frame, and the phone's
+  // most expensive real estate goes to the ground colour. Measured across the
+  // corridor at 390×844: the lowest non-background pixel sat at y=675–677 for
+  // scroll 0.42→0.54 and at y=562–586 through the title beat, i.e. 20–33% of
+  // every frame below the work was void.
+  //
+  // 6.2vh (52.3px) is a MARGIN — the same order as the 44px the archive plate
+  // keeps — not a reserve. Everything downstream reads it: capTopMax, the
+  // zoom floor, each work's hang line and therefore each work's height
+  // envelope, so tightening it does not merely move the label down, it drops
+  // the whole corridor onto the lower two thirds of the frame and lets the
+  // plates grow into the room that frees up.
+  const capOffset = Math.min(Math.max(34, vh * 0.062), 76);
   const capH = measuredCapH > 8 ? measuredCapH : vw < 768 ? 78 : 96;
   const head = vw < 768 ? 26 : 44;
   /** worst-case vertical residual of the off-axis term at the pass (0.08·ay) */
@@ -563,7 +630,13 @@ export function buildLayout(vw: number, vh: number, measuredCapH = 0): MobileLay
   /** the lowest hang line on the ladder — the far field is composed about it */
   const hangMax = Math.max(Math.min(capTopMax - GAP_MIN, zoomFloor) - yResid, vh * 0.42);
   const stageH = Math.max(hangMax - head, vh * 0.34);
-  const cy = head + stageH / 2;
+  // The far field is composed BELOW the optical centre of its own stage (0.58,
+  // not 0.5). The chapter is a descent: the corridor should read as something
+  // you are falling into, which means its body sits under the eye rather than
+  // level with it. It also buys the lower frame ~35px of standing content in
+  // every mid-corridor frame, where the perspective divide is otherwise busy
+  // collapsing everything toward the middle of the picture.
+  const cy = head + stageH * 0.58;
 
   // ---- corridor boxes. Normalised by AREA, so a 2:1 panel and a 1:2.6 column
   // carry the same weight — the same law the archive uses.
@@ -654,7 +727,16 @@ export function buildLayout(vw: number, vh: number, measuredCapH = 0): MobileLay
   // archive's foot is its own constant and the fit is unchanged by anything the
   // caption does: 'The archive / Fifteen works / …' is a taller block than a
   // museum label, and it owns the bottom of the frame outright.
-  const archFoot = capOffset + (vw < 768 ? 144 : 158);
+  // …and it is NOT derived from the caption's foot any more. It used to be
+  // `capOffset + 144`, which silently coupled the archive's fit to a number
+  // that exists to serve the museum label — so tightening the label's margin
+  // drove the outer arm of the spiral 50px down into the archive plate
+  // (measured: plate top rests at y=637.7, figure bottom would have reached
+  // 687.8). The archive answers to its OWN plate: 'The archive / Fifteen works
+  // / …' measures 138.8px over a 67.5px bottom inset on a 390×844 frame, so
+  // 237 leaves the figure ~11px of clear air above the type and nothing else
+  // in the chapter can move it.
+  const archFoot = vw < 768 ? 237 : 257;
   const archStage = Math.max(vh - archFoot - head, vh * 0.34);
   const archH = archStage + (vw < 768 ? 40 : 45);
   const unit = Math.min(
@@ -764,8 +846,27 @@ export interface StageInfo {
   subject: number;
   /** archive assembly 0-1 */
   arch: number;
-  /** chapter plate 0-1 */
+  /** chapter plate 0-1 — the title card at the head of the frame */
   plate: number;
+  /**
+   * The chapter card's FOOT block, 0-1 — the spec lines, set at the bottom of
+   * the frame on the same line the archive plate later uses.
+   *
+   * It exists because the title beat was the emptiest frame in the mobile
+   * chapter: the card stood at the head, the corridor was still a long way off
+   * so its plates drew small and collapsed toward the middle of the picture by
+   * the perspective divide, and the bottom 33% of a phone carried nothing at
+   * all (measured at scroll 0.17/0.20/0.23 on a 390×844 frame: lowest
+   * non-background pixel at y=562/575/586, and 0.4–0.7% of the bottom third
+   * lit). Splitting the card head-and-foot is what an editorial chapter page
+   * does anyway — title at the head, the data at the foot — and it puts the
+   * chapter's own claim (fifteen works, 137.508°) in the most expensive place
+   * on the screen instead of tucking it under the display line.
+   *
+   * It leaves before the first museum label arrives, so the bottom-left is
+   * never two blocks of metadata at once.
+   */
+  plateFoot: number;
   /** the collapse: 0-1 wind-down of the whole figure into the throat */
   collapse: number;
   /** archive plate 0-1 */
@@ -854,14 +955,57 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     // ---- corridor pose. The far field is composed about the optical centre;
     // the SUBJECT converges to its own hang position (b.cy), so the bottom of
     // the picture comes down toward its label as the work takes the frame.
-    const corrX = L.cx + b.ax * (1 - 0.9 * proxE);
-    const corrY = L.cy + (b.cy - L.cy) * proxE + b.ay * (1 - 0.92 * proxE);
-    const shear = 1 - 0.42 * proxE;
-
     // ---- presence: in from depth, out past the lens
     const inFar = smoothstep(FAR_ON, FAR_FULL, dz);
     const outNear = smoothstep(-PASS_OUT, 0, dz);
-    const corrOp = inFar * outNear;
+
+    // PASSING THE LENS IS A MOVE, NOT A VEIL.
+    //
+    // The approach converges the subject onto the optical axis, which is right:
+    // the work you are arriving at takes the middle of the frame. But the same
+    // curve is symmetric in |dz|, so past the lens the work crawled back off
+    // axis by at most 68px (ax·(1−0.9·proxE) over the whole exit window) while
+    // ZCAP holds its projected scale at 1.16× — i.e. it stayed centred, nearly
+    // frame-filling, on top, and dissolved in place ON TOP OF THE WORK BEHIND
+    // IT. MEASURED across 0.14→0.62 at 0.01: at every one of the fifteen
+    // handovers a translucent painting was composited over a fully opaque one —
+    // 341×523 at α 0.388 over #11 at scroll 0.40, 358×460 at α 0.701 over #13
+    // at 0.47, 369×483 at α 0.440 at 0.38, 327×557 at α 0.447 at 0.42. That is
+    // the ghost-painting reading the panel named, and it is the one thing the
+    // desktop corridor was fixed for and this stage was not.
+    //
+    // A real dolly does not have this problem, because off-axis excursion
+    // DIVERGES as an object reaches the lens: it swings out of frame. That is
+    // what happens now — the exit is the work leaving along the line it was
+    // already leaning on, blurring (corrBlur already rides this same curve) and
+    // darkening as it goes. Horizontal only: the caption's clear band at the
+    // foot of the frame is a vertical guarantee and the swing must not touch it.
+    // …and it is a CORRIDOR move only. Every work the rig has already passed
+    // has exitK = 1, so without this gate the swing was still worth 0.3·300px
+    // through the archive transit (the pose lerps corridor→spiral on A) and it
+    // threw the assembling figure off both edges of the phone — measured at
+    // scroll 0.53: four plates clipped by the frame, two of them half outside.
+    // It is fully spent by A = 0.15, which is before any plate has travelled a
+    // tenth of the way to its slot.
+    const exitK = 1 - outNear;
+    const swing =
+      EXIT_SWING *
+      smoothstep(0, EXIT_SWING_T, exitK) *
+      (1 - smoothstep(0, 0.15, A)) *
+      (b.ax < 0 ? -1 : 1);
+
+    // ---- corridor pose. The far field is composed about the optical centre;
+    // the SUBJECT converges to its own hang position (b.cy), so the bottom of
+    // the picture comes down toward its label as the work takes the frame.
+    const corrX = L.cx + b.ax * (1 - 0.9 * proxE) + swing;
+    const corrY = L.cy + (b.cy - L.cy) * proxE + b.ay * (1 - 0.92 * proxE);
+    const shear = 1 - 0.42 * proxE;
+
+    // …and what is left of it while it clears is faint rather than half-there:
+    // squaring the exit ramp halves the alpha at the midpoint of the window, so
+    // the remnant that does still cross the subject reads as the blur of
+    // something going past rather than as a second picture.
+    const corrOp = inFar * outNear * outNear;
 
     // atmospheric perspective — luminance and colour both fall off with depth.
     // The subject at the lens plane is lit at 1.0; the far end of the corridor
@@ -902,9 +1046,53 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     f.rotY = b.rotY * shear * (1 - A);
     f.rotZ = b.rotZ * shear * (1 - A);
     f.s = 1 + (a.s - 1) * As;
-    f.opacity = corrOp + (archOp - corrOp) * A;
+    // A WORK THAT WILL NOT PLATE ON THE CURVE LEAVES AS IT SHRINKS, NOT AFTER.
+    //
+    // Size leads travel (see As), so between the two blends a sub-legible work
+    // was already at its archive size while its opacity was still governed by
+    // the slower positional blend — measured on a 390×844 frame at scroll
+    // 0.539/0.546/0.553: plates drawing 19.5, 19.6 and 19.7px on the short side
+    // at 0.32/0.23/0.14 alpha. A 19px translucent square of painting is a chip,
+    // which is exactly what `a.vis` exists to prevent on the resolved figure —
+    // it just was not enforced in transit. Blending its presence on `As`
+    // instead means it fades out on the same curve it shrinks on and is gone by
+    // the time it would be too small to read. Works that DO plate are
+    // untouched (vis = 1 → the blend is exactly A, as before).
+    //
+    // …AND THE SAME ARGUMENT RUNS THE OTHER WAY. A work that WILL plate was
+    // fading IN on the positional blend too, so the resolved archive did not
+    // reach full alpha until cp 0.909 — measured on a 390×844 frame: eight
+    // plates at 0.38 alpha at scroll 0.52, at 0.69 at 0.54, at 0.93 at 0.56.
+    // Translucent paintings stacked on each other is precisely the reading the
+    // panel objected to; a painting is an opaque object. `Ao` finishes with the
+    // SIZE blend (ARCH_IN + 0.13), so a work that has arrived at its archive
+    // scale has also arrived at full opacity, and the figure resolves out of
+    // solid plates converging. It starts LATE (ARCH_IN + 0.05) on purpose: the
+    // last clean corridor frame (scroll 0.50) must not gain a set of ghosts,
+    // and below that point `A` is still the larger of the two so nothing there
+    // changes at all.
+    const Ao = smoothstep(ARCH_IN + 0.05, ARCH_IN + 0.13, cp);
+    const opBlend =
+      archOp >= corrOp ? Math.max(A, Ao) : A + (As - A) * (1 - a.vis);
+    // PRESENCE, not alpha. What the stage actually wants to say is how present
+    // a work is; spending ALL of that on alpha is what makes a converging
+    // archive read as coloured glass. Re-measured after the Ao fix, the soup
+    // was still there — at scroll 0.52 EIGHT plates sat at α 0.549 at once, and
+    // at 0.51 seven at 0.083–0.79, overlapping by up to 96% of a plate's own
+    // area. Presence is split instead: alpha carries it up to a knee and LIGHT
+    // carries the rest, with alpha·light ≡ presence by construction. Against
+    // the void the composite is therefore bit-identical to before at every
+    // scroll; the only thing that changes is what happens where two plates
+    // cross, which is exactly where the defect was. Above the knee a plate is a
+    // fully opaque object that happens to be dim — it occludes what is behind
+    // it, which is what a painting does. The knee stays low so that a plate at
+    // the very start of its arrival is still mostly transparent and never
+    // punches an unlit rectangle through the starfield.
+    const presence = corrOp + (archOp - corrOp) * opBlend;
+    const lightSplit = Math.max(presence, PRESENCE_KNEE);
+    f.opacity = Math.min(1, presence / PRESENCE_KNEE);
     f.blur = corrBlur * (1 - A);
-    f.bright = corrBright + (0.98 - corrBright) * A;
+    f.bright = (corrBright + (0.98 - corrBright) * A) * lightSplit;
     f.sat = corrSat + (0.94 - corrSat) * A;
     f.zi = Math.round(corrZi + (archZi - corrZi) * A);
     if (f.z > ZCAP) f.z = ZCAP;
@@ -914,7 +1102,7 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
       f.s *= shrink;
       f.z -= 760 * col;
     }
-    f.live = f.opacity > 0.004;
+    f.live = presence > 0.004;
   }
 
   return {
@@ -922,12 +1110,37 @@ export function stageFrame(cp: number, L: MobileLayout, out: WorkFrame[]): Stage
     subject,
     arch: A,
     plate: 1 - smoothstep(HOLD * 0.62, HOLD + 0.03, cp),
+    // out ahead of the head, and ahead of the caption's own arrival
+    // (captionPresence gates on HOLD*0.8 → HOLD+0.02, and its work is out of
+    // range until cp ≈ 0.10 anyway), so the foot of the frame hands over from
+    // the chapter's spec to the first work's label rather than stacking them.
+    // …and it holds LONGER than the head, because the head hands over to
+    // nothing (the top of the frame is the corridor's own) while the foot hands
+    // over to the first museum label — and the label cannot arrive until its
+    // work is within 1.35 stations of the lens, which is measurably later than
+    // the title card leaves. Timed off the head's ramp, the foot left at scroll
+    // 0.230 and the caption did not reach half at 0.243: the sweep found the
+    // frame at 0.23 with nothing substantial below y=508, i.e. 40% of the phone
+    // empty, in the gap between two chapters' worth of type. The two now cross
+    // at ~0.4/0.4 over 0.005 of the track, with the foot sliding down and out
+    // as it goes.
+    plateFoot: 1 - smoothstep(HOLD * 0.96, HOLD * 1.155, cp),
     collapse: col,
     // The two plates share the bottom-left corner, so they are strictly
     // sequential: the caption is fully down (ARCH_IN + 0.12) before the
     // archive's plate begins. Two blocks of metadata cross-fading through each
     // other in the same place is a double exposure, not a transition.
-    archPlate: smoothstep(ARCH_IN + 0.16, ARCH_FULL - 0.02, cp),
+    //
+    // BUT SEQUENTIAL IS NOT THE SAME AS LATE. The old window (ARCH_IN + 0.16 →
+    // ARCH_FULL − 0.02, i.e. cp 0.84 → 0.88) left a stretch where the figure
+    // was 79% assembled in the upper half of the frame and the block that is
+    // supposed to own the lower half had not started: measured at scroll 0.54
+    // on a 390×844 frame, 1.4% of the bottom third carried any ink at all and
+    // the lowest non-background pixel sat at y=486. The plate now comes up the
+    // instant the caption is down (caption reaches 0 at ARCH_IN + 0.12; this
+    // starts at + 0.11, where the caption reads 0.028) and is rested by
+    // + 0.17 — still strictly a hand-off, but with no orphaned frame in it.
+    archPlate: smoothstep(ARCH_IN + 0.11, ARCH_IN + 0.17, cp),
   };
 }
 
@@ -1066,7 +1279,17 @@ export function captionAnchor(
 // Depth you cannot read off any single element: the corridor is threaded with
 // a starfield that travels with the rig. Transform + opacity only.
 
-export const DUST_N = 26;
+/**
+ * 54, not 26. The design contract asks for 2–3k points in the desktop corridor;
+ * 26 on a phone is not a starfield, it is a handful of specks, and it left the
+ * head and foot of the frame — the bands the paintings themselves can never
+ * reach, because the perspective divide collapses everything toward the middle
+ * of the picture — carrying literally nothing. Doubling it is free (transform +
+ * opacity on 54 1–2px spans, no layout, no filter) and it is what makes the top
+ * and bottom of the frame read as depth you are falling through rather than as
+ * margin.
+ */
+export const DUST_N = 54;
 const DUST_RANGE = 4200;
 
 export interface DustSeed {

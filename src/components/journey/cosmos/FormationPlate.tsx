@@ -11,20 +11,18 @@
 //
 // ONE MODULE, TWO LEVELS OF INTENT. The site cuts to the same split screen
 // twice: canvas bled off three edges, a matted crop terminating on one
-// vertical, a dark panel to its right. MEASURED at 1440×900 — the second
-// instance (46%) carries a divide hairline, a 7.4rem plate number at 0.34 ink
-// and a caption on the baseline; the first (31%) carried two lines of 10px mono
-// pinned at the top of the panel and then 780px of nothing. Same module, one
-// instance finished and one not.
-//
-// So the first instance gets the same furniture on the MIRRORED axis: its
-// caption lives at the top of the column, so its divide runs the same seam and
-// its plate number sits LOW. Same grammar, same ink, same grid — the pair now
-// reads as one device stated twice rather than as a module and a draft of it.
+// vertical, a dark panel to its right. The panel's content is THE DETAIL PLATE,
+// built by Labels.tsx and imported here — process, support and state, straight
+// off @/lib/works — so the two instances cannot drift into a module and a draft
+// of it: they are the same object placed on MIRRORED axes. MACRO I puts the
+// caption at the head of the column and the card on the foot; MACRO II inverts
+// both. Each pair shares one vertical edge and one 21px module, counted from
+// the same anchor, so the column reads as a spread with a mark at each margin
+// rather than as a block with 400px of unsolved band under it.
 //
 // AND IT COVERS EVERY INSTANCE, NOT THE TWO A 14-STEP SWEEP LANDS ON. Stepped
 // at 1% through both macro windows, the second instance turns out to drop its
-// own number for three consecutive frames (42%, 43%, 44%: divide up, caption
+// own panel for three consecutive frames (42%, 43%, 44%: divide up, caption
 // up, panel empty) because Labels' fit test refuses rather than clamps while
 // the crop is still settling. So this plate also stands in for the second
 // instance whenever that one is not drawing — read off the live element, so it
@@ -54,6 +52,15 @@ import { phaseProgress } from '../journey-utils';
 import { cosmosShared, smoothstep } from './shared';
 import { stage } from './stage-state';
 import { SLABS, shotMix, type ShotMix } from './cosmos-data';
+import {
+  buildDetail,
+  setDetail,
+  placeDetail,
+  hideDetail,
+  snapToGrid,
+  DETAIL_GRID,
+  type DetailPlate,
+} from './Labels';
 
 const MONO = "'JetBrains Mono', monospace";
 /** Same clearance law the museum caption obeys. */
@@ -62,8 +69,6 @@ const CLEAR = 32;
 const CHAPTER_END = 0.618;
 /** Cosmos-phase boundary between the two macro windows (matches Labels.tsx). */
 const SECOND_MACRO = 0.45;
-/** Ink of the plate number. Identical to Labels' GHOST_INK — same mark. */
-const GHOST_INK = 0.34;
 
 const CSS = `
 .fp-cap { position:absolute; left:0; top:0; white-space:nowrap; text-align:left;
@@ -80,30 +85,7 @@ const CSS = `
 /* ---- the FIRST split screen: the same furniture, mirrored axis ---- */
 .fp-divide { position:absolute; width:1px; top:0; left:0; opacity:0;
              background:rgba(232,228,220,.16); }
-.fp-ghost { position:absolute; top:0; left:0; white-space:nowrap; opacity:0;
-            color:#e8e4dc; }
-.fp-ghost-n { font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
-              letter-spacing:.005em; }
-.fp-ghost-t { margin-top:14px; font-family:${MONO}; font-weight:400; font-size:.5rem;
-              line-height:1; letter-spacing:.24em; text-transform:uppercase; }
 `;
-
-/**
- * The panel number states the CROP, not the index. See Labels.tsx (GHOST_LEGEND):
- * the caption two tiers below already prints the index, so a 7.4rem restatement
- * of it was the loudest thing in the dark half saying nothing new. Both
- * instances of the split screen now measure the same thing the same way.
- */
-const GHOST_LEGEND = 'of plate in frame';
-
-function plateShare(x0: number, y0: number, x1: number, y1: number, W: number, H: number): number {
-  const fw = x1 - x0;
-  const fh = y1 - y0;
-  if (!(fw > 0) || !(fh > 0)) return 0;
-  const vw = Math.max(0, Math.min(x1, W) - Math.max(x0, 0));
-  const vh = Math.max(0, Math.min(y1, H) - Math.max(y0, 0));
-  return Math.min(1, (vw * vh) / (fw * fh));
-}
 
 const YEARS = SLABS.map((s) => s.work.year);
 const Y0 = Math.min(...YEARS);
@@ -127,20 +109,17 @@ interface Plate {
   tick: HTMLDivElement;
   dot: HTMLDivElement;
   divide: HTMLDivElement;
-  ghost: HTMLDivElement;
-  ghostN: HTMLDivElement;
+  /** the detail card for the FIRST macro — the same object Labels drives for
+   *  the second, built from the same code so the pair can never drift */
+  detail: DetailPlate;
   w: number;
   h: number;
   opacity: number;
   tickOn: number;
-  /** what the plate number currently prints, and its measured box */
-  ghostText: string;
-  ghostW: number;
-  ghostH: number;
-  ghostOn: number;
+  detailOn: number;
   divideOn: number;
   /** Labels' own furniture, so this plate can never double up with it */
-  cxGhost: HTMLElement | null;
+  cxDetail: HTMLElement | null;
   cxDivide: HTMLElement | null;
 }
 
@@ -179,15 +158,10 @@ export function FormationPlate() {
       dot.className = 'fp-dot';
       const divide = document.createElement('div');
       divide.className = 'fp-divide';
-      const ghost = document.createElement('div');
-      ghost.className = 'fp-ghost';
-      const ghostN = document.createElement('div');
-      ghostN.className = 'fp-ghost-n';
-      const ghostT = document.createElement('div');
-      ghostT.className = 'fp-ghost-t';
-      ghostT.textContent = GHOST_LEGEND;
-      ghost.append(ghostN, ghostT);
-      layer.append(root, tick, dot, divide, ghost);
+      layer.append(root, tick, dot, divide);
+      // MACRO I's caption sits at the HEAD of the column, flush left, so its
+      // detail card takes the FOOT on the same left edge. Mirror of MACRO II.
+      const detail = buildDetail(layer, 'cxd-b');
 
       const r = root.getBoundingClientRect();
       plateRef.current = {
@@ -195,18 +169,14 @@ export function FormationPlate() {
         tick,
         dot,
         divide,
-        ghost,
-        ghostN,
+        detail,
         w: r.width || 220,
         h: r.height || 46,
         opacity: 0,
         tickOn: 0,
-        ghostText: '',
-        ghostW: 0,
-        ghostH: 0,
-        ghostOn: -1,
+        detailOn: -1,
         divideOn: -1,
-        cxGhost: null,
+        cxDetail: null,
         cxDivide: null,
       };
 
@@ -216,7 +186,7 @@ export function FormationPlate() {
         tick.remove();
         dot.remove();
         divide.remove();
-        ghost.remove();
+        detail.root.remove();
         plateRef.current = null;
       };
     };
@@ -264,32 +234,38 @@ export function FormationPlate() {
     const second = cosP >= SECOND_MACRO;
     // Labels owns the second instance's furniture. Read its inline opacity (no
     // layout, no reflow) and stand down the instant it is drawing.
-    if (!plate.cxGhost) plate.cxGhost = document.querySelector('.cx-ghost');
+    if (!plate.cxDetail) plate.cxDetail = document.querySelector('.cxd-a');
     if (!plate.cxDivide) plate.cxDivide = document.querySelector('.cx-divide');
-    const labelsOn = second && parseFloat(plate.cxGhost?.style.opacity || '0') > 0.02;
+    const labelsOn = second && parseFloat(plate.cxDetail?.style.opacity || '0') > 0.02;
     // the seam hairline is one line, whoever draws it: two coincident 0.16
     // strokes composite to 0.29 and the divide stops matching its own spec
     const labelsRule = second && parseFloat(plate.cxDivide?.style.opacity || '0') > 0.02;
+    // THE PANEL BELONGS TO THE SHOT, THE HAIRLINE BELONGS TO THE CROP.
+    // Gating the card on `terminating` made it blink out for whole frames while
+    // the crop was still settling into its bleed — which is how the first macro
+    // came to have a divide and an empty panel in the first place. The card is
+    // up for the whole MACRO window; only the seam hairline waits for the seam.
     const macroGate =
-      !labelsOn && terminating && heroRect
+      !labelsOn && heroRect?.live
         ? smoothstep(0.5, 0.86, mix.macro) *
           (1 - smoothstep(0, 0.12, conP)) *
           (p < CHAPTER_END + 0.005 ? 1 : 0)
         : 0;
     if (macroGate < 0.01) {
-      if (plate.ghostOn !== 0) {
-        plate.ghostOn = 0;
+      if (plate.detailOn !== 0) {
+        plate.detailOn = 0;
         plate.divideOn = 0;
-        plate.ghost.style.opacity = '0';
+        hideDetail(plate.detail);
         plate.divide.style.opacity = '0';
       }
     } else if (heroRect) {
+      const sx0 = 56;
       const sx1 = W - 104;
       const sy0 = 56;
       const sy1 = H - 70;
       const dx = Math.round(heroRect.x1 + heroRect.pad + 26);
       let divideOn = 0;
-      if (!labelsRule && dx > 56 && dx < sx1 - 60) {
+      if (terminating && !labelsRule && dx > 56 && dx < sx1 - 60) {
         plate.divide.style.transform = `translate(${dx}px, ${sy0}px)`;
         plate.divide.style.height = `${Math.round(sy1 - sy0)}px`;
         divideOn = macroGate;
@@ -298,38 +274,39 @@ export function FormationPlate() {
         plate.divideOn = divideOn;
         plate.divide.style.opacity = divideOn.toFixed(3);
       }
-      const num = `${Math.max(
-        1,
-        Math.round(plateShare(heroRect.x0, heroRect.y0, heroRect.x1, heroRect.y1, W, H) * 100),
-      )}%`;
-      // …and re-measure whenever the box is missing, not only when the text
-      // changes: the first macro frame measured 0 (the layer had not had a
-      // layout pass yet) and the guard then never asked again, so the FIRST
-      // instance of the module in the sweep printed a divide and no number.
-      if (plate.ghostText !== num || plate.ghostW <= 0) {
-        plate.ghostText = num;
-        plate.ghostN.textContent = num;
-        const gr = plate.ghost.getBoundingClientRect();
-        plate.ghostW = gr.width;
-        plate.ghostH = gr.height;
-      }
-      // MIRRORED AXIS. Labels puts MACRO II's caption on the baseline and its
-      // number high (0.30 H); this instance's caption is at the top of the
-      // column, so its number sits low — the pair reads as one device seen from
-      // both ends instead of the same layout twice. Standing in for the second
-      // instance, it takes THAT instance's axis rather than its own.
-      // left edge flush with the caption's own column: one grid, two tiers
-      const col = heroRect.x1 + heroRect.pad + CLEAR + 12;
-      const gx = Math.round(Math.min(Math.max(col, dx + 12), W - 104 - plate.ghostW));
-      const gy = Math.round(H * (second ? 0.3 : 0.54));
+      const work = SLABS[heroIndex]?.work;
+      // MIRRORED AXIS. Labels puts MACRO II's caption on the foot margin and
+      // its detail card at the head; this instance's caption is at the HEAD of
+      // the column, so its card sits on the FOOT — the pair reads as one device
+      // seen from both ends instead of the same layout twice. Standing in for
+      // the second instance, it takes THAT instance's axis rather than its own.
+      // Left edge flush with the caption's own column: one grid, two tiers, and
+      // the head of that column (sy0 + 30, where MACRO I's caption sits) is the
+      // anchor both frames count their 21px module from.
+      if (work) setDetail(plate.detail, work);
+      const col = Math.round(heroRect.x1 + heroRect.pad + CLEAR + 12);
+      const head = sy0 + 30;
+      // clamped, not refused: a crop still travelling toward its bleed must not
+      // take the card off the safe frame with it
+      const gx = Math.min(
+        Math.max(col, dx + 12),
+        Math.max(sx0, sx1 - plate.detail.w),
+      );
+      const gy = second
+        ? snapToGrid(head, head, head, sy1 - plate.detail.h)
+        : snapToGrid(sy1 - plate.detail.h, head, head, sy1 - plate.detail.h);
+      // …and it may never crowd the caption that shares its column. `plate.h`
+      // is a caption box in exactly that grammar, so it is the right measure.
       const fits =
-        plate.ghostW > 0 && gx + plate.ghostW < sx1 + 12 && gy + plate.ghostH < sy1;
-      const ghostOn = fits ? macroGate * GHOST_INK : 0;
-      if (fits) plate.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
-      if (Math.abs(ghostOn - plate.ghostOn) > 0.003) {
-        plate.ghostOn = ghostOn;
-        plate.ghost.style.opacity = ghostOn.toFixed(3);
-      }
+        !!work &&
+        plate.detail.w > 0 &&
+        gx + plate.detail.w < sx1 + 12 &&
+        (second
+          ? gy + plate.detail.h < sy1 - plate.h - DETAIL_GRID * 2
+          : gy > head + plate.h + DETAIL_GRID * 2 && gy + plate.detail.h < sy1 + 2);
+      if (fits) placeDetail(plate.detail, gx, gy, macroGate);
+      else hideDetail(plate.detail);
+      plate.detailOn = fits ? macroGate : 0;
     }
 
     const setOpacity = (v: number, tickOn: number) => {

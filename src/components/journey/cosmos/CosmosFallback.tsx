@@ -222,6 +222,9 @@ const CSS = `
   color: ${FADED};
 }
 .ms-rule { display: block; width: 28px; height: 1px; background: ${RED}; }
+/* the chapter card's foot: red tick, then the spec — the same grammar as a
+   museum label, so the foot of the frame is set the same way all chapter long */
+.ms-plate-foot .ms-plate-meta { margin-top: 11px; }
 .ms-cap-head {
   margin-top: 11px;
   display: flex;
@@ -296,6 +299,7 @@ export function CosmosFallback() {
   const curveRef = useRef<SVGPathElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const plateRef = useRef<HTMLElement>(null);
+  const plateFootRef = useRef<HTMLDivElement>(null);
   const capRef = useRef<HTMLDivElement>(null);
   const archRef = useRef<HTMLDivElement>(null);
   const countRef = useRef<HTMLSpanElement>(null);
@@ -527,6 +531,15 @@ export function CosmosFallback() {
           plateRef.current.style.opacity = info.plate.toFixed(3);
           plateRef.current.style.transform = `translateY(${(-14 * (1 - info.plate)).toFixed(1)}px)`;
         }
+        if (plateFootRef.current) {
+          // the foot rises as the head drops — the card is one object seen from
+          // two ends of the frame, not two elements that happen to fade together
+          plateFootRef.current.style.opacity = info.plateFoot.toFixed(3);
+          plateFootRef.current.style.transform = `translateY(${(
+            14 *
+            (1 - info.plateFoot)
+          ).toFixed(1)}px)`;
+        }
         if (capRef.current) {
           if (namedSubject < 0) nameSubject(info.subject);
           const named = frames[namedSubject];
@@ -726,12 +739,30 @@ export function CosmosFallback() {
           03 / The Cosmos
         </span>
         <h2>The work</h2>
+      </header>
+
+      {/* …and its FOOT. The spec used to hang under the display line, which
+          left the bottom third of the title beat empty on a phone. It now
+          stands on the same line the archive plate later uses, so the chapter
+          opens and closes against the same baseline. */}
+      <div
+        className="ms-plate-foot"
+        ref={plateFootRef}
+        style={{
+          position: 'absolute',
+          left: 'var(--ms-gut)',
+          bottom: 'clamp(44px, 8vh, 96px)',
+          width: 'var(--ms-measure)',
+          opacity: 0,
+        }}
+      >
+        <i className="ms-rule" aria-hidden />
         <span className="ms-plate-meta">
           {NN} works · one descent
           <br />
           Golden-angle helix · 137.508°
         </span>
-      </header>
+      </div>
 
       {/* the museum caption — same grammar as the desktop label layer */}
       <div

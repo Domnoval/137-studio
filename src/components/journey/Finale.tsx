@@ -67,7 +67,7 @@
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useJourney } from './JourneyContext';
-import { PHASES, clamp01 } from './journey-utils';
+import { PHASES, clamp01, CHAPTER_INDEX, CHAPTER_TITLE } from './journey-utils';
 
 const CHALK = '#e8e4dc';
 const FADED = '#a09890';
@@ -241,22 +241,35 @@ const CSS = `
   color: var(--fin-ink);
   opacity: var(--fin-folio-o, 1);
 }
-/* 2.74:1 against the bone ground at 0.42 — a real counterweight, not a rumour */
-.fin-folio-num {
-  font-family: ${SERIF};
-  font-weight: 300;
-  font-size: clamp(2.6rem, 5.4vw, 5.4rem);
-  line-height: 0.78;
-  letter-spacing: -0.012em;
-  opacity: 0.42;
-}
-.fin-folio-of {
+/* ---- ONE SCREEN MAY NOT CARRY TWO NUMBERING SYSTEMS ---------------------
+   The band used to open with a 5.4vw serif "02" over "/ 04" while the depth
+   rail, in the same frame, printed "05 / RETURN". Two index-slash-total
+   readouts, different values, no stated relationship — and MEASURED, the
+   numeral was the second largest object in the frame at 2.81:1 on the bone
+   ground, so the one element that could have explained itself was also the
+   one that read as unfinished.
+
+   Both faults have the same cure: the band stops being a counter. It now
+   OPENS WITH THE RAIL'S OWN READING — the chapter index and the chapter name,
+   resolved through CHAPTER_INDEX / CHAPTER_TITLE, the same table the rail
+   resolves them through, with the index in the same crimson the rail sets it
+   in — and then names itself. A reader sees "05 / RETURN — THE MANIFESTO"
+   next to a rail reading "05 / RETURN" and the relationship is legible at a
+   glance: this is a movement INSIDE that chapter, not a rival count of it.
+
+   The manifesto's own position is then told by a device that cannot be
+   mistaken for a chapter number at all: four marks, one lit. Distinct in kind,
+   built out of the rule the site already owns, and it adds no colour and no
+   digit. Set in full ink, it measures 15.4:1 on the bone. */
+.fin-folio-ch {
   font-family: ${MONO};
-  font-weight: 300;
-  font-size: 0.62rem;
-  letter-spacing: 0.28em;
-  color: var(--fin-mute);
+  font-weight: 200;
+  font-size: clamp(0.92rem, 1.28vw, 1.15rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
+.fin-folio-ch i { font-style: normal; color: ${RED}; }
 .fin-folio-rule {
   flex: 1 1 auto;
   min-width: 34px;
@@ -271,7 +284,15 @@ const CSS = `
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--fin-mute);
+  white-space: nowrap;
 }
+/* the position of this line in the movement: four marks, one lit. Not a
+   number, so it cannot be read against the rail's number. */
+.fin-folio-marks { display: flex; align-items: center; gap: 13px; flex: 0 0 auto; }
+.fin-folio-marks i { display: block; width: 34px; height: 2px; background: currentColor; }
+.fin-folio-marks i.is-past { opacity: 0.34; }
+.fin-folio-marks i.is-next { opacity: 0.12; }
+.fin-folio-marks i.is-now { background: ${RED}; opacity: 1; }
 /* the caption system's terminal glyph, closing the measure on the right.
    Empty elements take their baseline from the bottom margin edge, so both
    pieces land exactly on the folio's own baseline — no magic numbers. */
@@ -406,8 +427,17 @@ const CSS = `
   color: ${CHALK};
   padding-bottom: 4px;
 }
+/* THE LINE THAT NAMES THE THESIS IS NOT A FOOTNOTE.
+   "the fine-structure constant" is the caption on the one claim the whole site
+   is built out of, and it was set in ${FADED} at 300 weight / 11.2px: MEASURED
+   on the rendered frame at 100%, the glyph cores reached only 5.53:1 against
+   the void — under the 7:1 the site's own labels hold, and visibly the faintest
+   thing on the closing plate. It is the same chalk as the value it glosses, at
+   0.72 of its ink and a step down in size, which measures ~8:1 while staying
+   clearly subordinate to the 15.3:1 line above it. */
 .fin-fact--dim {
-  color: ${FADED};
+  color: rgba(232, 228, 220, 0.72);
+  font-weight: 400;
   font-size: 0.7rem;
 }
 /* The running foot: anchored to the foot of the page, so the plate reads as a
@@ -470,8 +500,10 @@ const CSS = `
      sentence on the other, and the gap between them stays a stated void */
   .fin-frame--say { padding-top: 12vh; padding-bottom: 12vh; }
   .fin-folio { gap: 13px; }
-  .fin-folio-num { font-size: 3.1rem; }
+  .fin-folio-ch { font-size: 0.72rem; letter-spacing: 0.22em; }
   .fin-folio-tag { display: none; }
+  .fin-folio-marks { gap: 8px; }
+  .fin-folio-marks i { width: 17px; }
   .fin-name { font-size: 10vw; margin-bottom: 26px; }
   .fin-cols { grid-template-columns: 1fr; gap: 26px; }
   .fin-col--end { align-items: flex-start; text-align: left; }
@@ -700,10 +732,19 @@ export function Finale() {
           >
             {/* the counterweight: folio, full-measure hairline, crimson terminal */}
             <p className="fin-folio" aria-hidden>
-              <span className="fin-folio-num">{String(i + 1).padStart(2, '0')}</span>
-              <span className="fin-folio-of">/ 04</span>
-              <i className="fin-folio-rule" />
+              <span className="fin-folio-ch">
+                <i>{CHAPTER_INDEX.return}</i> / {CHAPTER_TITLE.return}
+              </span>
               <span className="fin-folio-tag">The manifesto</span>
+              <i className="fin-folio-rule" />
+              <span className="fin-folio-marks">
+                {LINES.map((_, j) => (
+                  <i
+                    key={j}
+                    className={j === i ? 'is-now' : j < i ? 'is-past' : 'is-next'}
+                  />
+                ))}
+              </span>
               <i className="fin-folio-tick" />
               <b className="fin-folio-dot" />
             </p>

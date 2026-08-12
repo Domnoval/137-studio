@@ -30,7 +30,12 @@
 // The taxonomy split, restated as a hierarchy rather than as two unrelated
 // widgets:
 //   ART  — the museum caption: red rule, tracked mono title, medium/year/index
-//          metadata, red tick terminal. The primary voice.
+//          metadata, red tick terminal. The primary voice. In a MACRO shot it
+//          is joined by THE DETAIL PLATE (see below) at the opposite margin of
+//          the same column: process, support and state, read off @/lib/works —
+//          the fields the caption has no room for. The two are one spread on
+//          one 21px grid, and they replace the decorative "43% OF PLATE IN
+//          FRAME" numeral that used to be the largest, faintest thing on screen.
 //   APPS — the same device, subordinate: half-length red rule, smaller tracked
 //          mono name with an external tick, description in the metadata
 //          weight. No panel and no brackets around the TYPE — a debug readout
@@ -46,6 +51,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import type { Artwork } from '@/lib/works';
 import { useJourney } from '../JourneyContext';
 import { phaseProgress } from '../journey-utils';
 import { cosmosShared, rectsOverlap, smoothstep, type ScreenRect } from './shared';
@@ -68,47 +74,180 @@ const MONO = "'JetBrains Mono', monospace";
 /** Minimum clearance between any type and any artwork silhouette, in px. */
 const CLEAR = 32;
 
-/**
- * THE GHOST NUMERAL'S INK.
+/* ========================================================= THE DETAIL PLATE ==
  *
- * It was set at 0.085. MEASURED on a 1440×900 frame at 46%: the strokes came
- * out at rgb(36,30,30) against a ground of rgb(18,11,12) — a contrast ratio of
- * 1.17:1. That is not subtle typography, it is noise: on a calibrated monitor
- * the counterweight the dark half was composed around simply does not exist.
+ * WHAT THE DARK HALF OF THE SPLIT SCREEN SAYS.
  *
- * 0.34 puts the strokes at ~rgb(91,85,83) on the same ground — 2.6:1, which is
- * present enough to hold the panel and still an order of magnitude below the
- * caption (#e8e4dc at 15:1) it must never compete with. It is the same chalk,
- * at the same weight, on the same grid; only the ink changed.
+ * It said "43%" and then, fifteen percent of the journey later, "32%", each at
+ * 7.4rem over the legend "OF PLATE IN FRAME". Two objections, both fatal:
+ *
+ *   1. IT WAS NOT INFORMATION. The share of a work's projected box that happens
+ *      to fall inside the viewport is a fact about the CAMERA, not about the
+ *      painting — it changes if you resize the window and it tells a reader
+ *      nothing they could carry away. MEASURED at 1440×900, the numeral was the
+ *      largest object in its frame at 2.76:1 on the ground and the legend under
+ *      it at 2.11:1: the loudest thing on screen, illegible, and saying nothing.
+ *   2. IT REPEATED. Stated twice in the same grammar with a different number,
+ *      it reads as filler occupying a panel that had not been solved.
+ *
+ * So the panel now prints what a museum detail card prints and what the caption
+ * cannot fit: HOW THE WORK WAS MADE. Up to three of its own techniques, the
+ * full medium (the caption only has room for the first half of it), and its
+ * state in the collection — every field read straight off @/lib/works, so it is
+ * different for every plate because the WORK is different, not because a
+ * measurement drifted.
+ *
+ * The ink is chosen, not inherited: the process lines are chalk at 0.66 alpha,
+ * which measures ~7:1 on the void — the same tier the site's own labels sit at,
+ * an order below the caption title (15.5:1) they are subordinate to, and a long
+ * way clear of the 4.5:1 floor. Nothing here is set below that floor.
+ *
+ * The plate is exported because BOTH instances of the split screen use it —
+ * Labels drives the second (46%), FormationPlate the first (31%) — and one
+ * device stated twice must be one piece of code, or it drifts into a module and
+ * a draft of it again.
  */
-const GHOST_INK = 0.34;
+
+/** Ink of the process lines: chalk at this alpha measures ~7:1 on the void. */
+const DETAIL_INK = 0.66;
+/** The plate's baseline module. Every gap in it is a multiple of this. */
+export const DETAIL_GRID = 21;
+
+const STATE_WORD: Record<Artwork['status'], string> = {
+  available: 'In the studio · available',
+  sold: 'Sold',
+  nfs: 'Not for sale',
+};
+
+export const DETAIL_CSS = `
+.cxd { position:absolute; left:0; top:0; opacity:0; transition:opacity .26s linear;
+       display:inline-block; text-align:left; }
+.cxd--end { text-align:right; }
+.cxd-legend { font-family:${MONO}; font-weight:400; font-size:.5rem;
+              line-height:${DETAIL_GRID}px; letter-spacing:.24em;
+              text-transform:uppercase; color:#a09890; white-space:nowrap; }
+.cxd-lines { margin-top:${DETAIL_GRID}px; }
+.cxd-line { font-family:${MONO}; font-weight:200; font-size:1.32rem;
+            line-height:${DETAIL_GRID * 2}px; letter-spacing:.1em;
+            text-transform:uppercase; color:rgba(232,228,220,${DETAIL_INK});
+            white-space:nowrap; }
+.cxd-rule { margin-top:${DETAIL_GRID}px; height:1px;
+            background:rgba(232,228,220,.16); }
+.cxd-meta { margin-top:${DETAIL_GRID - 4}px; font-family:${MONO}; font-weight:400;
+            font-size:.55rem; line-height:17px; letter-spacing:.15em;
+            text-transform:uppercase; color:#a09890; white-space:nowrap; }
+.cxd-state { margin-top:4px; font-family:${MONO}; font-weight:400; font-size:.55rem;
+             line-height:17px; letter-spacing:.15em; text-transform:uppercase;
+             color:rgba(232,228,220,.62); white-space:nowrap; }
+`;
+
+export interface DetailPlate {
+  root: HTMLDivElement;
+  lines: HTMLDivElement[];
+  meta: HTMLDivElement;
+  state: HTMLDivElement;
+  w: number;
+  h: number;
+  key: string;
+  o: number;
+}
+
+/** Three process terms that fit the column — over-long ones dropped, order kept. */
+function pickProcess(work: Artwork): string[] {
+  const short = work.techniques.filter((t) => t.length <= 26);
+  return (short.length >= 3 ? short : work.techniques).slice(0, 3);
+}
 
 /**
- * WHAT THE PANEL SAYS.
+ * THE SUPPORT, NOT THE MEDIUM.
  *
- * It used to print the plate index — "06/15" — at 7.4rem. MEASURED at 31% and
- * 46%: the caption two tiers below it already reads "… · 2024 · 06/15", so the
- * loudest object in the dark half of the split screen was a restatement of six
- * characters of the label, and the module's whole justification (a panel that
- * measures the crop against the plate) went unstated.
- *
- * The numeral now carries the one fact the caption cannot: HOW MUCH OF THE
- * PLATE THIS FRAME IS SHOWING. It is measured, not asserted — the share of the
- * work's own projected box that falls inside the viewport, read off the same
- * live projection the caption avoids overlapping — so it changes between the
- * two macro instances and it says what a museum detail card says. Same ink,
- * same weight, same grid; only the information changed.
+ * The caption already prints `medium` up to the ' on ' — "UV-reactive acrylic
+ * and fluorescent paint" — so printing the whole string here made the panel
+ * restate the caption in a smaller size, which is the exact failure the panel
+ * was rebuilt to stop making. It prints the half the caption drops instead:
+ * what the work is ON. ("Acrylic on canvas with combed texture" → "On canvas
+ * with combed texture".)
  */
-const GHOST_LEGEND = 'of plate in frame';
+function support(work: Artwork): string {
+  const i = work.medium.indexOf(' on ');
+  return i < 0 ? work.medium : `On ${work.medium.slice(i + 4)}`;
+}
 
-/** Share of a work's projected box that is inside the viewport, 0–1. */
-function plateShare(r: ScreenRect, W: number, H: number): number {
-  const fw = r.x1 - r.x0;
-  const fh = r.y1 - r.y0;
-  if (!(fw > 0) || !(fh > 0)) return 0;
-  const vw = Math.max(0, Math.min(r.x1, W) - Math.max(r.x0, 0));
-  const vh = Math.max(0, Math.min(r.y1, H) - Math.max(r.y0, 0));
-  return Math.min(1, (vw * vh) / (fw * fh));
+export function buildDetail(layer: HTMLElement, variant: string): DetailPlate {
+  const root = document.createElement('div');
+  root.className = `cxd ${variant}`;
+  root.setAttribute('aria-hidden', 'true');
+  const legend = document.createElement('div');
+  legend.className = 'cxd-legend';
+  legend.textContent = 'Process';
+  const box = document.createElement('div');
+  box.className = 'cxd-lines';
+  const lines: HTMLDivElement[] = [];
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'cxd-line';
+    box.appendChild(d);
+    lines.push(d);
+  }
+  const rule = document.createElement('div');
+  rule.className = 'cxd-rule';
+  const meta = document.createElement('div');
+  meta.className = 'cxd-meta';
+  const state = document.createElement('div');
+  state.className = 'cxd-state';
+  root.append(legend, box, rule, meta, state);
+  layer.appendChild(root);
+  return { root, lines, meta, state, w: 0, h: 0, key: '', o: 0 };
+}
+
+/** Fill the plate for a work. Re-measures only when the content changed. */
+export function setDetail(plate: DetailPlate, work: Artwork): void {
+  if (plate.key !== work.id) {
+    plate.key = work.id;
+    const proc = pickProcess(work);
+    for (let i = 0; i < plate.lines.length; i++) {
+      plate.lines[i].textContent = proc[i] ?? '';
+      plate.lines[i].style.display = proc[i] ? '' : 'none';
+    }
+    plate.meta.textContent = support(work);
+    plate.state.textContent = STATE_WORD[work.status] ?? work.status;
+    plate.w = 0;
+  }
+  if (plate.w <= 0) {
+    const r = plate.root.getBoundingClientRect();
+    plate.w = r.width;
+    plate.h = r.height;
+  }
+}
+
+export function placeDetail(plate: DetailPlate, x: number, y: number, o: number): void {
+  plate.root.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  if (Math.abs(o - plate.o) > 0.003) {
+    plate.o = o;
+    plate.root.style.opacity = o.toFixed(3);
+  }
+}
+
+export function hideDetail(plate: DetailPlate): void {
+  if (plate.o !== 0) {
+    plate.o = 0;
+    plate.root.style.opacity = '0';
+  }
+}
+
+/**
+ * Snap a plate's top edge onto the 21px module counted FROM THE CAPTION'S OWN
+ * top edge, so the two objects in the column are an exact whole number of
+ * modules apart. The caption, the plate's leading and the column's baseline
+ * then sit on one grid instead of on two ideas of vertical.
+ */
+export function snapToGrid(y: number, anchor: number, lo = -1e6, hi = 1e6): number {
+  let out = anchor + DETAIL_GRID * Math.round((y - anchor) / DETAIL_GRID);
+  // …and stay inside the safe frame while staying ON the module: step whole
+  // modules, never a stray remainder, or the grid claim is only half true.
+  while (out > hi) out -= DETAIL_GRID;
+  while (out < lo) out += DETAIL_GRID;
+  return out;
 }
 
 /**
@@ -129,8 +268,17 @@ function plateShare(r: ScreenRect, W: number, H: number): number {
  * at the frame edges, rgb(16,11,12) across the middle third) — it is a matte
  * sampled from the ground, not a decorative gradient.
  */
-const EDGE_MATTE_FRAC = 0.053; // × viewport width — 76px at 1440
-const EDGE_MATTE_MIN = 56;
+const EDGE_MATTE_FRAC = 0.115; // × viewport width — 166px at 1440
+const EDGE_MATTE_MIN = 120;
+/** Fraction of the matte spent ramping in from zero. The rest is opaque. */
+const EDGE_RAMP_FRAC = 0.72;
+/** Smootherstep — zero FIRST and SECOND derivative at both ends, so neither the
+ *  value nor the slope of the matte ever steps. */
+const smoother = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
+const EDGE_RAMP = `linear-gradient(to right, ${Array.from({ length: 17 }, (_, i) => {
+  const u = i / 16;
+  return `rgba(0,0,0,${smoother(u).toFixed(4)}) ${(u * EDGE_RAMP_FRAC * 100).toFixed(2)}%`;
+}).join(', ')}, rgba(0,0,0,1) 100%)`;
 /** A chip may never come within this many px, vertically, of the caption. */
 const CHIP_KEEPOUT_Y = 120;
 /**
@@ -215,23 +363,25 @@ const CSS = `
 
 /* ---- the SECOND split screen: the same device, inverted ---- */
 /* A hairline on the divide turns the dark half from leftover panel into a
-   measured margin; the plate number fills it at a whisper so the negative
-   space is composed rather than empty. Neither adds a colour. */
+   measured margin; the detail plate fills it with what the caption could not
+   fit. Neither adds a colour. */
 .cx-divide { position:absolute; width:1px; top:0; left:0;
              background:rgba(232,228,220,.16); }
-.cx-ghost { position:absolute; top:0; left:0; white-space:nowrap; color:#e8e4dc; }
-.cx-ghost-n { font-family:${MONO}; font-weight:200; font-size:7.4rem; line-height:.86;
-              letter-spacing:.005em; }
-.cx-ghost-t { margin-top:14px; font-family:${MONO}; font-weight:400; font-size:.5rem;
-              line-height:1; letter-spacing:.24em; text-transform:uppercase; }
 
-/* the plate edge: an opaque matte of the ground laid over the last of the
-   canvas, so the photograph's own paper border can never be part of the frame */
+/* THE PLATE EDGE DISSOLVES — IT DOES NOT CUT.
+   The matte exists to keep the photograph's own paper border out of the frame
+   (see EDGE_MATTE_FRAC), but an opaque strip has TWO edges and the inner one
+   was a hard vertical laid straight across the painting: the crop stopped
+   being a crop and became a rectangle sitting on the work. The strip now
+   carries a horizontal alpha ramp — smootherstep, so it arrives at zero with
+   zero slope and there is no edge to find at any scale — and only its last
+   third is opaque, which is the part that has to cover the border. */
 .cx-edge { position:absolute; top:0; left:0; height:100%; will-change:transform;
            background:linear-gradient(180deg,
              rgb(10,7,8) 0%, rgb(16,11,12) 18%,
-             rgb(16,11,12) 74%, rgb(10,7,8) 100%); }
-`;
+             rgb(16,11,12) 74%, rgb(10,7,8) 100%);
+           -webkit-mask-image:${EDGE_RAMP}; mask-image:${EDGE_RAMP}; }
+${DETAIL_CSS}`;
 
 interface Label {
   root: HTMLDivElement;
@@ -248,11 +398,7 @@ interface ArtLabel extends Label {
   title: HTMLDivElement;
   meta: HTMLDivElement;
   divide: HTMLDivElement;
-  ghost: HTMLDivElement;
-  ghostN: HTMLDivElement;
-  ghostText: string;
-  ghostW: number;
-  ghostH: number;
+  detail: DetailPlate;
   shownIndex: number;
 }
 
@@ -378,16 +524,10 @@ export function Labels() {
         const divide = document.createElement('div');
         divide.className = 'cx-divide';
         divide.style.opacity = '0';
-        const ghost = document.createElement('div');
-        ghost.className = 'cx-ghost';
-        ghost.style.opacity = '0';
-        const ghostN = document.createElement('div');
-        ghostN.className = 'cx-ghost-n';
-        const ghostT = document.createElement('div');
-        ghostT.className = 'cx-ghost-t';
-        ghostT.textContent = GHOST_LEGEND;
-        ghost.append(ghostN, ghostT);
-        root.append(divide, ghost, body, tick, dot);
+        root.append(divide, body, tick, dot);
+        // MACRO II's caption runs flush to the safe right edge, so its detail
+        // plate does too: one vertical grid per frame, never two.
+        const detail = buildDetail(root, 'cxd--end cxd-a');
         artRef.current = {
           root,
           body,
@@ -396,11 +536,7 @@ export function Labels() {
           title,
           meta,
           divide,
-          ghost,
-          ghostN,
-          ghostText: '',
-          ghostW: 0,
-          ghostH: 0,
+          detail,
           w: 0,
           h: 0,
           opacity: 0,
@@ -527,7 +663,7 @@ function harvestForeign(layer: HTMLDivElement | null): void {
   if (foreign.length === 0 || !foreign[0].el.isConnected) {
     foreign.length = 0;
     layer
-      .querySelectorAll<HTMLElement>('.fp-cap')
+      .querySelectorAll<HTMLElement>('.fp-cap, .cxd-b')
       .forEach((el) => foreign.push({ el, w: 0, h: 0 }));
   }
   for (let i = 0; i < foreign.length; i++) {
@@ -797,7 +933,7 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
             art.dot.style.opacity = '0';
           }
 
-          // ---- MACRO II furniture: the divide hairline + the plate number ----
+          // ---- MACRO II furniture: the divide hairline + the detail plate ----
           if (isMacro && secondMacro) {
             const dx = Math.round(heroRect.x1 + heroRect.pad + 26);
             if (dx > sx0 && dx < sx1 - 60) {
@@ -807,31 +943,34 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
             } else {
               art.divide.style.opacity = '0';
             }
-            const num = `${Math.max(1, Math.round(plateShare(heroRect, W, H) * 100))}%`;
-            if (art.ghostText !== num) {
-              art.ghostText = num;
-              art.ghostN.textContent = num;
-              const gr = art.ghost.getBoundingClientRect();
-              art.ghostW = gr.width;
-              art.ghostH = gr.height;
-            }
-            const gx = Math.round(Math.max(dx + 34, x));
-            const gy = Math.round(H * 0.3);
+            // THE COLUMN IS A SPREAD, NOT A BLOCK WITH AIR OVER IT.
+            // The caption takes the foot margin; the detail plate takes the
+            // head. Both are flush to the same right edge and both sit on the
+            // 21px module counted from the head of the safe frame — so the
+            // 400px between them is a stated void with a mark at each end
+            // rather than a band nobody solved.
+            setDetail(art.detail, heroWork);
+            const px = Math.round(x + art.w - art.detail.w);
+            const py = snapToGrid(sy0 + 30, y, sy0, y - art.detail.h - DETAIL_GRID * 2);
             if (
-              art.ghostW > 0 &&
-              gx + art.ghostW < sx1 + 12 &&
-              gy + art.ghostH < y - 28
+              art.detail.w > 0 &&
+              px > dx + 20 &&
+              py + art.detail.h < y - DETAIL_GRID * 2
             ) {
-              art.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
-              art.ghost.style.opacity = `${GHOST_INK}`;
-              placed.push({ x0: gx, y0: gy, x1: gx + art.ghostW, y1: gy + art.ghostH });
-              pushExclusion(gx, gy, gx + art.ghostW, gy + art.ghostH);
+              placeDetail(art.detail, px, py, 1);
+              placed.push({
+                x0: px,
+                y0: py,
+                x1: px + art.detail.w,
+                y1: py + art.detail.h,
+              });
+              pushExclusion(px, py, px + art.detail.w, py + art.detail.h);
             } else {
-              art.ghost.style.opacity = '0';
+              hideDetail(art.detail);
             }
           } else {
             art.divide.style.opacity = '0';
-            art.ghost.style.opacity = '0';
+            hideDetail(art.detail);
           }
 
           art.root.style.opacity = target.toFixed(3);
@@ -849,7 +988,13 @@ function LabelDriver({ artRef, appsRef, edgeRef }: DriverProps) {
         }
       }
     }
-    if (!artDone) hide(art);
+    if (!artDone) {
+      hide(art);
+      // The plate's own inline opacity is what FormationPlate reads to decide
+      // whether to stand in for this instance, so a plate hidden only by its
+      // parent's opacity would read as "Labels is drawing" and blank the panel.
+      hideDetail(art.detail);
+    }
 
     /* ---------------------------------------------- 2. the app waypoints */
     // A chip is a WIDE-shot element. It has no business over a macro canvas or

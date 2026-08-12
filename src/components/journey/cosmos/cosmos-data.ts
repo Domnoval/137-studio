@@ -507,7 +507,20 @@ export interface NearPlate {
   roll: number;
   /** extra roll per world unit of approach: the plate turns as it goes by */
   spin: number;
-  /** peak opacity — these are periphery, never the subject */
+  /**
+   * PEAK OPACITY — 1. A near pass is a real canvas going by the lens, and a
+   * canvas is not a window.
+   *
+   * These used to peak at 0.30–0.42, which is how the frame at scroll 23% came
+   * to show the staged MATH CHAOS canvas blended THROUGH a full-height floral
+   * work raking the bottom-left corner: two paintings occupying the same pixels,
+   * neither of them solid. MEASURED at that frame, the pass rendered at alpha
+   * 0.350 over a 1091×2263px footprint.
+   *
+   * The pass is kept peripheral by the things that should keep it peripheral —
+   * the edge gate, the coverage gate, the rush gate, and a luminance well under
+   * the subject's (see NearPass) — not by making the artwork see-through.
+   */
   alpha: number;
 }
 
@@ -573,8 +586,12 @@ export const NEAR_PLATES: NearPlate[] = (() => {
       pitch: (y >= 0 ? 1 : -1) * (0.1 + rnd() * 0.12),
       roll: (k % 2 === 0 ? 1 : -1) * (0.05 + rnd() * 0.08),
       spin: (k % 2 === 0 ? -1 : 1) * (0.009 + rnd() * 0.009),
-      alpha: 0.3 + rnd() * 0.12,
+      alpha: 1,
     });
+    // The draw the old per-plate alpha used to consume is still taken, so the
+    // rest of the sequence — and therefore every later plate's placement — is
+    // bit-identical to the layout this chapter was composed against.
+    rnd();
   }
   return out;
 })();

@@ -116,11 +116,36 @@ const ARRIVAL_END = 0.052;
 /** Where the arrival's second beat takes over (fraction of the band). */
 const BEAT_TWO = 0.36;
 
-/** Dissolves the artwork's rectangle into the void — it has to read as a ghost
- *  in the dark, never as a framed picture with four hard edges. Sized so the
- *  alpha reaches zero at (or just inside) the contained image's own bounds. */
-const ART_MASK =
-  'radial-gradient(ellipse 62% 55% at 50% 50%, black 24%, transparent 76%)';
+/**
+ * Dissolves the artwork's rectangle into the void — it has to read as a ghost
+ * in the dark, never as a framed picture with four hard edges. Sized so the
+ * alpha reaches zero at (or just inside) the contained image's own bounds.
+ *
+ * IT IS NOT A TWO-STOP RAMP ANY MORE, BECAUSE A TWO-STOP RAMP HAS TWO EDGES.
+ * `black 24%, transparent 76%` interpolates linearly, so the alpha has a
+ * CORNER at both ends: the slope steps from 0 to −1.92/radius at 24% and back
+ * to 0 at 76%. A corner in the alpha of a dense equation field is exactly what
+ * the eye finds as a box seam — two concentric rectangles of "something
+ * changes here" laid across the picture, which on a 390px phone land as
+ * horizontal seams a couple of hundred pixels above and below the masthead.
+ *
+ * The ramp is now smootherstep (6t⁵−15t⁴+10t³) sampled at 16 stops and run
+ * 10%→80% of the radii instead of 24%→76%: FIRST and SECOND derivative are zero
+ * at both ends, so there is no ring, no corner and no bound anywhere in the
+ * falloff — only the picture getting quieter, over a third more distance.
+ * MEASURED off the rendered mask painted on a flat 1200px plate, the worst
+ * slope BREAK in the profile — the thing an eye reads as a ring — falls from
+ * 0.00245 to 0.00098 alpha/px², the 90%→0 fall lengthens from 349px to 377px,
+ * and the alpha at the plate's own bound stays exactly 0.00000.
+ */
+const smoother01 = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
+const ART_MASK = `radial-gradient(ellipse 62% 55% at 50% 50%, ${Array.from(
+  { length: 17 },
+  (_, i) => {
+    const u = i / 16;
+    return `rgba(0,0,0,${(1 - smoother01(u)).toFixed(4)}) ${(10 + u * 70).toFixed(2)}%`;
+  },
+).join(', ')})`;
 
 /**
  * THE GHOST HAS NO BOUNDS OF ITS OWN.
@@ -154,21 +179,33 @@ const SEAM_MASK = 'linear-gradient(to bottom, transparent, black 22%, black 78%,
  * inside 28px. It read exactly as the juror called it: a mis-scaled asset with
  * a full-height vertical border, not a designed crop.
  *
- * The overlap is now 30%→70% and each half's alpha follows (1−u⁸)², which
+ * The overlap is now 12%→88% and each half's alpha follows (1−u⁸)², which
  * arrives at zero with zero slope — the toe is 0.02 alpha over the last 4px, so
  * there is no edge to find at any scale. It is still seamless closed: at the
  * centre both halves carry 0.992, and source-over gives 1 − (1−0.992)² =
- * 0.99994, i.e. no stripe down the middle of the artwork at rest.
+ * 0.99994, i.e. no stripe down the middle of the artwork at rest — the closure
+ * identity holds for ANY symmetric window, which is why the window is free to
+ * be as wide as the composition wants.
+ *
+ * AND IT WANTS TO BE WIDE. At 30%→70% the ramp is 40% of the element: measured
+ * at 15.4% scroll on a 1440×900 frame, with the frame scaled 2.27× and the left
+ * half driven to xPercent −88, that put the whole falloff inside 105px and the
+ * dense half of it inside 50px — the painting went from 0.81 alpha to 0.11 in
+ * the width of a thumbnail and read as a slab with a vertical border at x≈215.
+ * 12%→88% is 76% of the element. Sampled off the rendered mask on a flat plate,
+ * the 90%→0 fall goes from 150px to 279px per 1200px of element and the
+ * steepest step in it drops by a third — on the dive frame that is the visible
+ * edge moving out past x≈340 and arriving there with no slope left.
  */
-const TEAR_CLIP_L = 'inset(0 30% 0 0)';
-const TEAR_CLIP_R = 'inset(0 0 0 30%)';
-/** (1−u⁸)² sampled across the overlap, u = (t − .30) / .40. */
+const TEAR_CLIP_L = 'inset(0 12% 0 0)';
+const TEAR_CLIP_R = 'inset(0 0 0 12%)';
+/** (1−u⁸)² sampled across the overlap, u = (t − .12) / .76. */
 const TEAR_STOPS = (() => {
   const out: string[] = [];
   for (let i = 0; i <= 16; i++) {
     const u = i / 16;
     const a = Math.pow(1 - Math.pow(u, 8), 2);
-    out.push([30 + u * 40, a] as [number, number] as unknown as string);
+    out.push([12 + u * 76, a] as [number, number] as unknown as string);
   }
   return out as unknown as [number, number][];
 })();
