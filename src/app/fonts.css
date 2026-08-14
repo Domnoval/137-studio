@@ -1,0 +1,24 @@
+/* 137 Studio — the house typeface. Chalk keeps the drawn texture;
+ * Solid is the consolidated stroke for small sizes and long labels.
+ * Coverage is A-Z a-z 0-9 and space only — no punctuation. Anything
+ * needing a period, slash or symbol must fall back to the mono face. */
+@font-face {
+  font-family: '137 Studio';
+  src: url('/fonts/137Studio-Chalk.woff2') format('woff2'),
+       url('/fonts/137Studio-Chalk.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: '137 Studio Solid';
+  src: url('/fonts/137Studio-Solid.woff2') format('woff2'),
+       url('/fonts/137Studio-Solid.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --font-display: '137 Studio', 'Cinzel', Georgia, serif;
+  --font-display-solid: '137 Studio Solid', 'Cinzel', Georgia, serif;
+}
