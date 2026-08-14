@@ -7,24 +7,21 @@
 // track; inside it a fixed full-viewport stage crossfades five composed
 // frames, each of which owns the whole viewport:
 //
-//   01  Matter holds together …      ┐  four philosophy moments, Cormorant
-//   02  No theory derives it. …      │  Garamond 300 at 7.6vw / 13.5vw mobile,
-//   03  Shift it a little …          │  set on a fixed editorial grid with a
-//   04  Which is why we look. …      ┘  mono index and a red rule above.
+//   01  Perception is choice.        ┐  four philosophy moments, Cormorant
+//   02  Choices change experience.   │  Garamond 300 at 7.6vw / 13.5vw mobile,
+//   03  Experience is the point.     │  set on a fixed editorial grid with a
+//   04  Love is the answer.          ┘  mono index and a red rule above.
 //   ——  the closer: name, contact, the colophon plate, the 137 whisper.
 //
-// THE COPY. These four lines used to be the four aphorisms from AGENT-BRIEF —
-// "Perception is choice / Choices change experience / Experience is the point /
-// Love is the answer." True to the source, but at 7.6vw on the climax of the
-// descent they read as fortune-cookie: any site could have said them. Mean-
-// while the site's actual idea — α ≈ 1/137.035999, the thing that gave it its
-// name, its 000→137 counter and its colophon — was buried at 10pt in a footer
-// column. So the constant IS the manifesto now, and the footer's "α ≈
-// 1/137.035999 / the fine-structure constant" stops being the place the idea
-// hides and becomes the caption that names what you just read. The voice of
-// the source is kept — perception, measurement, the choice to look — but it
-// is spent on the one claim only this site can make: the number that makes
-// matter possible is the number nobody can derive.
+// THE COPY IS THE ARTIST'S AND IS NOT TO BE REWRITTEN. These four lines are
+// Michael's, verbatim, in his order. A previous pass replaced them with copy
+// about the fine-structure constant on the reasoning that at 7.6vw they read
+// as "fortune-cookie" — which was a judgement that was never anyone's to make
+// here. They are the thing the site exists to say; the α ≈ 1/137.035999
+// colophon is the caption, not the manifesto.
+//
+// If a future pass believes this copy needs to change, that is a conversation
+// to have with him, not an edit to make.
 //
 // THE INVERSION. This chapter is the one place the ground turns over: the void
 // gives way to a bone (#e8e4dc) plane and the type is set in void black on it,
@@ -78,16 +75,17 @@ const MONO = "'JetBrains Mono', monospace";
 const SERIF = "'Cormorant Garamond', Georgia, serif";
 const CINZEL = "'Cinzel', Georgia, serif";
 
-/** The manifesto. Four sentences, one argument, told in the order a person
- *  actually arrives at it: what the number does, that nothing explains it,
- *  what it costs to move it, and what that leaves us with. See THE COPY above
- *  — this is the AGENT-BRIEF philosophy made specific, not replaced. Each line
- *  is set to break to at most two visual lines at 7.6vw / 13.5vw. */
+/** The artist's words, verbatim and in his order. Do not reword, re-punctuate,
+ *  re-order, or "make specific". See THE COPY above.
+ *
+ *  Each is short enough to set on ONE visual line at 7.6vw desktop and to break
+ *  to at most two at 13.5vw mobile — comfortably inside what the previous,
+ *  much longer sentences demanded, so the schedule below needs no change. */
 const LINES = [
-  'Matter holds together at one number: 1/137.035999.',
-  'No theory derives it. It can only be measured.',
-  'Shift it a little and nothing survives to notice.',
-  'Which is why we look. Perception is the instrument.',
+  'Perception is choice.',
+  'Choices change experience.',
+  'Experience is the point.',
+  'Love is the answer.',
 ];
 
 /** [fade-in start, fade-in end, fade-out start, fade-out end] in return-phase time.

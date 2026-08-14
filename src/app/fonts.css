@@ -22,3 +22,28 @@
   --font-display: '137 Studio', 'Cinzel', Georgia, serif;
   --font-display-solid: '137 Studio Solid', 'Cinzel', Georgia, serif;
 }
+
+/* THE PUNCTUATION RULE — decided, not a limitation to work around.
+ *
+ * The house face has no punctuation and is not getting any. So the face
+ * decides what it is allowed to set: words and numbers, nothing else.
+ * Titles, object labels, chapter names, the sign. Text that needs a period,
+ * a slash, an ampersand or a symbol is not display text — it is body or data,
+ * and it belongs to the serif or the mono.
+ *
+ * In practice this keeps the drawn face on short, declarative, all-caps-ish
+ * strings, which is exactly where a chalk face is strongest. The constraint
+ * does the art direction for us.
+ *
+ * A browser silently substitutes a fallback glyph for anything missing, so a
+ * stray comma in a display string does not break — it quietly sets that one
+ * mark in Cinzel and looks wrong in a way nobody can name. Hence the rule
+ * lives here rather than in anyone's memory. */
+.display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+.display-solid {
+  font-family: var(--font-display-solid);
+  letter-spacing: 0.02em;
+}
