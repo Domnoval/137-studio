@@ -1,0 +1,187 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#0a0908;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{"imports":{"three":"./vendor/build/three.module.js","three/addons/":"./vendor/jsm/"}}
+</script></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader }        from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader }       from 'three/addons/loaders/DRACOLoader.js';
+import { RoomEnvironment }   from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer }    from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }        from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }   from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }        from 'three/addons/postprocessing/OutputPass.js';
+
+// Render at 2x and let the capture downsample — cheaper and cleaner than an
+// AA pass, which the bloom composer would eat anyway.
+const SS = 2, OUT = 760, W = OUT * SS, H = OUT * SS;
+const params = new URLSearchParams(location.search);
+const MODEL  = params.get('model') || 'radio.glb';
+// The image-to-3D bake consistently lifts dark materials toward pale and
+// smooth. TINT multiplies base colour down; ROUGH raises the roughness floor.
+// Per-prop correction, applied at load — cheap and fully reversible.
+const TINT  = parseFloat(params.get('tint')  || '1');
+const ROUGH = parseFloat(params.get('rough') || '0');
+// Emissive boost is opt-in. These bakes give the whole prop a single material,
+// so boosting anything with an emissive map torches props whose only bright
+// pixels are a white canvas or a pale label — not an actual light source.
+const EMIS  = parseFloat(params.get('emis')  || '1');
+
+const renderer = new THREE.WebGLRenderer({ antialias:false });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 200);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+
+// ---- lighting rigs -------------------------------------------------------
+// STUDIO: neutral three-point. Judges form, materials, and topology honestly.
+// ROOM:   the 137 palette as practicals. Judges whether the prop belongs in
+//         the studio we're actually building.
+const rigs = { studio:new THREE.Group(), room:new THREE.Group() };
+
+const key = new THREE.DirectionalLight(0xfff4e6, 2.0);
+key.position.set(-4, 5.5, 4);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 20;
+key.shadow.camera.left = -2; key.shadow.camera.right = 2;
+key.shadow.camera.top = 2; key.shadow.camera.bottom = -2;
+key.shadow.bias = -0.0012; key.shadow.normalBias = 0.02;
+rigs.studio.add(key);
+const dl = (hex, int, x, y, z) => {
+  const l = new THREE.DirectionalLight(hex, int);
+  l.position.set(x, y, z);
+  return l;
+};
+rigs.studio.add(dl(0xdfe8ff, 0.55, 5, 1.5, 2));   // fill
+rigs.studio.add(dl(0xffffff, 0.75, 1, 2, -5));    // rim
+rigs.studio.add(new THREE.HemisphereLight(0x9fb3d0, 0x2a2622, 0.35));
+
+const rKey = new THREE.DirectionalLight(0xc41230, 1.9);
+rKey.position.set(-3.5, 4, 3.5);
+rKey.castShadow = true;
+rKey.shadow.mapSize.set(2048, 2048);
+rKey.shadow.camera.near = 0.5; rKey.shadow.camera.far = 20;
+rKey.shadow.camera.left = -2; rKey.shadow.camera.right = 2;
+rKey.shadow.camera.top = 2; rKey.shadow.camera.bottom = -2;
+rKey.shadow.bias = -0.0012; rKey.shadow.normalBias = 0.02;
+rigs.room.add(rKey);
+rigs.room.add(dl(0x2e9fd4, 1.3, 4.5, 1, -3.5));   // cold rim
+rigs.room.add(dl(0xd4a030, 0.55, 2, -1.5, 4));    // amber bounce
+rigs.room.add(new THREE.HemisphereLight(0x3d2a3a, 0x0e0c0a, 0.4));
+scene.add(rigs.studio, rigs.room);
+
+// ---- ground --------------------------------------------------------------
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.ShadowMaterial({ opacity:0.55 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---- post ----------------------------------------------------------------
+const composer = new EffectComposer(renderer);
+composer.setSize(W, H);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.42, 0.75, 0.72);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ---- model ---------------------------------------------------------------
+let pivot = null, wire = null, radius = 2.4;
+const solids = [], emissives = [];
+
+const draco = new DRACOLoader().setDecoderPath('./vendor/jsm/libs/draco/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+gltfLoader.load(`./${MODEL}`, gltf => {
+  const root = gltf.scene;
+  const box  = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const ctr  = box.getCenter(new THREE.Vector3());
+  const s    = 1 / Math.max(size.x, size.y, size.z);
+
+  root.scale.setScalar(s);
+  // sit the model ON the ground, centred in X/Z
+  root.position.set(-ctr.x * s, -box.min.y * s, -ctr.z * s);
+
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    solids.push(o);
+    const m = o.material;
+    if (!m) return;
+    if (TINT !== 1 && m.color) m.color.multiplyScalar(TINT);
+    if (ROUGH > 0) m.roughness = Math.max(m.roughness ?? 1, ROUGH);
+    if (m.emissiveMap || (m.emissive && m.emissive.getHex() !== 0x000000)) {
+      m.emissiveIntensity = Math.max(m.emissiveIntensity ?? 1, 1);
+      emissives.push(m);
+    }
+  });
+
+  pivot = new THREE.Group();
+  pivot.add(root);
+  scene.add(pivot);
+
+  // wireframe twin — geometry review, no materials to hide behind
+  wire = new THREE.Group();
+  root.updateWorldMatrix(true, true);
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const m = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({
+      color:0xe8e4dc, wireframe:true, transparent:true, opacity:0.30, depthWrite:false,
+    }));
+    m.applyMatrix4(o.matrixWorld);
+    wire.add(m);
+  });
+  wire.visible = false;
+  pivot.add(wire);
+
+  // frame the object: half-height of the unit box, pulled back for the FOV
+  radius = 1.0 / Math.tan((camera.fov * Math.PI/180) / 2) * 0.95;
+  window.__ready = true;
+});
+
+// ---- capture API ---------------------------------------------------------
+window.__setView = (deg, elev, mode) => {
+  const a = deg * Math.PI/180, e = (elev||0) * Math.PI/180;
+  const cy = 0.5; // look at the middle of the unit-height object
+  camera.position.set(
+    Math.sin(a) * radius * Math.cos(e),
+    cy + Math.sin(e) * radius,
+    Math.cos(a) * radius * Math.cos(e),
+  );
+  camera.lookAt(0, cy, 0);
+
+  const isWire = mode === 'wire';
+  const isRoom = mode === 'room';
+
+  rigs.studio.visible = !isRoom;
+  rigs.room.visible   = isRoom;
+  scene.environment   = isWire ? null : envRT.texture;
+  scene.background    = new THREE.Color(isRoom ? 0x0e0c0a : (isWire ? 0x0a0908 : 0x141210));
+  ground.visible      = !isWire;
+  renderer.toneMappingExposure = isRoom ? 0.85 : 1.0;
+
+  // in-room, let the glowing parts actually carry light into the bloom
+  emissives.forEach(m => { m.emissiveIntensity = isRoom ? EMIS : Math.min(EMIS, 1.0); });
+  // threshold high enough that only genuinely emissive pixels bloom —
+  // otherwise bright metal blows out and everything reads as glass
+  bloom.strength  = isRoom ? 0.50 : 0.20;
+  bloom.threshold = isRoom ? 0.82 : 0.90;
+
+  if (wire) wire.visible = isWire;
+  solids.forEach(o => { o.visible = !isWire; });
+
+  composer.render();
+};
+</script></body></html>
