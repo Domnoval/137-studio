@@ -23,7 +23,7 @@ const GRADES = {
   monitors:   { tint: 0.70, rough: 0.50, emis: 1.8 },
   neon:       { tint: 1.00, rough: 0.30, emis: 3.0 },
   candelabra: { tint: 0.75, rough: 0.60, emis: 2.4 },
-  desk:       { tint: 0.75, rough: 0.55 },
+  desk:       { tint: 0.58, rough: 0.62 },
   easel:      { tint: 0.70, rough: 0.60 },
   grimoire:   { tint: 0.75, rough: 0.65 },
   orrery:     { tint: 0.80, rough: 0.40 },
