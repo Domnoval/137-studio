@@ -16,7 +16,9 @@ if (!outRoot || !models.length) {
 // dark surfaces toward pale and smooth. Anything not listed renders ungraded.
 // emis > 1 only for props whose glow is the point — screens, tubes, flames.
 const GRADES = {
-  radio:      { tint: 0.90, rough: 0.30, emis: 2.2 },
+  // The two-view bake gave the radio a much hotter emissive map than the
+  // single-view one; 2.2 blew the whole dial face to white.
+  radio:      { tint: 0.90, rough: 0.30, emis: 1.2 },
   console:    { tint: 0.55, rough: 0.55, emis: 2.2 },
   monitors:   { tint: 0.70, rough: 0.50, emis: 1.8 },
   neon:       { tint: 1.00, rough: 0.30, emis: 3.0 },
