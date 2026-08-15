@@ -16,7 +16,7 @@
 import { Suspense, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { AdaptiveDpr, Preload } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, ChromaticAberration, SSAO } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
 import { Room } from './Room';
@@ -35,7 +35,12 @@ function Practicals({ reduced }: { reduced: boolean }) {
           distance={p.distance}
           decay={2}
           position={p.position as unknown as [number, number, number]}
-          castShadow={!reduced && i === 3}
+          // The candelabra (3) and the console screen (1) both cast. Two is
+          // the affordable number — each shadow-casting point light is a cube
+          // render per frame. The candelabra throws the room's long shadows;
+          // the console grounds everything standing on the bench, which is
+          // where the eye actually rests.
+          castShadow={!reduced && (i === 3 || i === 1)}
           shadow-mapSize={[1024, 1024]}
           shadow-bias={-0.0015}
           shadow-normalBias={0.02}
@@ -78,7 +83,25 @@ export function Studio() {
           <Preload all />
         </Suspense>
         <AdaptiveDpr pixelated />
-        <EffectComposer>
+        <EffectComposer enableNormalPass>
+          {/* AMBIENT OCCLUSION. The thing that stops every object looking
+              pasted onto the frame. Without it nothing darkens where it meets
+              the bench, the wall corners stay as bright as their middles, and
+              the whole room reads as flat planes with pictures on them — which
+              is exactly how it read before this pass existed.
+              Costs a normal pass; worth every millisecond. */}
+          <SSAO
+            blendFunction={BlendFunction.MULTIPLY}
+            samples={20}
+            rings={4}
+            radius={0.22}
+            intensity={26}
+            luminanceInfluence={0.55}
+            worldDistanceThreshold={2.4}
+            worldDistanceFalloff={0.6}
+            worldProximityThreshold={0.4}
+            worldProximityFalloff={0.1}
+          />
           {/* only genuinely emissive pixels bloom — a low threshold turns
               every lit brass edge into a glass smear */}
           <Bloom intensity={0.62} luminanceThreshold={0.78} luminanceSmoothing={0.28} mipmapBlur />

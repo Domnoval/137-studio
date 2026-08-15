@@ -241,6 +241,75 @@ function chalkCanvas(w = 3072, h = 1536) {
   return c;
 }
 
+/** Derive a tangent-space normal map from a colour canvas by Sobel-ing its
+ *  luminance as if it were a height field.
+ *
+ *  This is the single biggest thing separating "a room" from "flat planes with
+ *  pictures on them". A plane with only a colour map takes light uniformly
+ *  across its whole surface, so stone reads as painted cardboard no matter how
+ *  good the texture is — there is nothing for a grazing light to catch. The
+ *  neon and the candelabra both rake across these walls at a shallow angle,
+ *  which is exactly the condition under which a missing normal map is most
+ *  obvious.
+ *
+ *  Luminance-as-height is an approximation — a dark stain reads as a dent when
+ *  it is really just a stain — but at this scale, in this much shadow, it
+ *  buys almost all of the benefit of a real sculpted map for none of the cost. */
+function normalFromCanvas(src: HTMLCanvasElement, strength = 2.6, size = 512): HTMLCanvasElement {
+  // Generated at 512 regardless of the colour map's size, and deliberately so.
+  // A normal map does not need to match its colour map's resolution — it
+  // carries low-frequency relief, and the GPU filters it the same either way.
+  // The first version ran the Sobel at the colour map's full 1536², which is
+  // 2.4M pixels x 9 luminance lookups in JavaScript before the first frame
+  // could draw. The room rendered black because it was still busy. At 512 it
+  // is ~9x less work, and the luminance is unpacked into a Float32Array once
+  // instead of being recomputed per tap.
+  const w = size, h = size;
+
+  const down = document.createElement('canvas');
+  down.width = w; down.height = h;
+  const dctx = down.getContext('2d')!;
+  dctx.imageSmoothingEnabled = true;
+  dctx.drawImage(src, 0, 0, w, h);
+  const s = dctx.getImageData(0, 0, w, h).data;
+
+  const lum = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < lum.length; i++, p += 4) {
+    lum[i] = (s[p] * 0.299 + s[p + 1] * 0.587 + s[p + 2] * 0.114) / 255;
+  }
+
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d')!;
+  const dst = octx.createImageData(w, h);
+  const d = dst.data;
+
+  // wrap at the edges so the map tiles exactly like the colour map does
+  const at = (x: number, y: number) => lum[(y & (h - 1)) * w + (x & (w - 1))];
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const tl = at(x - 1, y - 1), t = at(x, y - 1), tr = at(x + 1, y - 1);
+      const l = at(x - 1, y), r = at(x + 1, y);
+      const bl = at(x - 1, y + 1), b = at(x, y + 1), br = at(x + 1, y + 1);
+      const dx = (tr + 2 * r + br) - (tl + 2 * l + bl);
+      const dy = (bl + 2 * b + br) - (tl + 2 * t + tr);
+
+      let nx = -dx * strength, ny = -dy * strength;
+      const len = Math.sqrt(nx * nx + ny * ny + 1) || 1;
+      nx /= len; ny /= len;
+
+      const i = (y * w + x) * 4;
+      d[i] = (nx * 0.5 + 0.5) * 255;
+      d[i + 1] = (ny * 0.5 + 0.5) * 255;
+      d[i + 2] = (1 / len) * 0.5 * 255 + 127.5;
+      d[i + 3] = 255;
+    }
+  }
+  octx.putImageData(dst, 0, 0);
+  return out;
+}
+
 function useTex(make: () => HTMLCanvasElement, repeat: [number, number], srgb: boolean) {
   return useMemo(() => {
     const t = new THREE.CanvasTexture(make());
@@ -256,13 +325,32 @@ function useTex(make: () => HTMLCanvasElement, repeat: [number, number], srgb: b
 export function Room() {
   const { width: W, depth: D, height: H } = ROOM;
 
-  const stone = useTex(() => stoneCanvas(), [3, 1.6], true);
-  const floorMap = useTex(() => floorCanvas(), [4, 4], true);
-  const floorRough = useTex(() => floorRoughCanvas(), [4, 4], false);
+  // The colour canvases are generated once and shared with their normal maps,
+  // so the bumps line up with the blotches and cracks that produced them.
+  const stoneSrc = useMemo(() => stoneCanvas(1024), []);
+  const floorSrc = useMemo(() => floorCanvas(1024), []);
+
+  // Tighter tiling than before: at 3 x 1.6 across a 7.4 m wall the texel
+  // density was low enough that the grain smeared. Repeat more, and let the
+  // normal map carry the detail the colour map can no longer resolve.
+  const stone = useTex(() => stoneSrc, [5, 2.6], true);
+  const stoneN = useTex(() => normalFromCanvas(stoneSrc, 2.8), [5, 2.6], false);
+  const floorMap = useTex(() => floorSrc, [6, 6], true);
+  const floorN = useTex(() => normalFromCanvas(floorSrc, 1.5), [6, 6], false);
+  const floorRough = useTex(() => floorRoughCanvas(), [6, 6], false);
   const chalk = useTex(() => chalkCanvas(), [1, 1], true);
 
+  // normalScale is deliberately strong on the walls: the neon and candelabra
+  // both rake across them at a shallow angle, which is where relief reads.
   const wall = (
-    <meshStandardMaterial map={stone} roughness={0.94} metalness={0} color="#9a6f6a" />
+    <meshStandardMaterial
+      map={stone}
+      normalMap={stoneN}
+      normalScale={new THREE.Vector2(1.35, 1.35)}
+      roughness={0.94}
+      metalness={0}
+      color="#9a6f6a"
+    />
   );
 
   return (
@@ -272,6 +360,8 @@ export function Room() {
         <planeGeometry args={[W, D]} />
         <meshStandardMaterial
           map={floorMap}
+          normalMap={floorN}
+          normalScale={new THREE.Vector2(0.7, 0.7)}
           roughnessMap={floorRough}
           roughness={1}
           metalness={0.22}
@@ -282,7 +372,7 @@ export function Room() {
       {/* ceiling — unlit and far enough up to stay a suggestion */}
       <mesh position={[0, H, 0]} rotation-x={Math.PI / 2}>
         <planeGeometry args={[W, D]} />
-        <meshStandardMaterial map={stone} roughness={1} color="#3a3632" />
+        <meshStandardMaterial map={stone} normalMap={stoneN} roughness={1} color="#3a3632" />
       </mesh>
 
       {/* back wall, the one you face */}

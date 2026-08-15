@@ -97,7 +97,24 @@ function Prop({
     root.scale.setScalar(s);
     // centre in X/Z, sit the base exactly on the given y
     root.position.set(-ctr.x * s, -box.min.y * s, -ctr.z * s);
-    return root;
+
+    if (!spec.grid) return root;
+
+    // Tile it. Spacing comes from the mesh's own scaled footprint, so a grid
+    // stays gapless whatever aspect the reconstruction happened to produce.
+    const { cols, rows, gap } = spec.grid;
+    const stepX = size.x * s + gap;
+    const stepY = size.y * s + gap;
+    const wrap = new THREE.Group();
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        const cell = c === 0 && r === 0 ? root : root.clone(true);
+        cell.position.x += (c - (cols - 1) / 2) * stepX;
+        cell.position.y += r * stepY;
+        wrap.add(cell);
+      }
+    }
+    return wrap;
   }, [scene, spec]);
 
   // A door lifts a few millimetres and brightens when you look at it. Small

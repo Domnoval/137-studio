@@ -10,7 +10,7 @@
 // house — which is the single most common way a first-person scene feels fake.
 
 export type PropId =
-  | 'desk' | 'consoleMV' | 'radio' | 'monitors' | 'easel'
+  | 'desk' | 'consoleMV' | 'radio' | 'monitors' | 'monitorsR' | 'easel'
   | 'neon' | 'orrery' | 'grimoire' | 'telephone' | 'apothecary'
   | 'candelabra' | 'plant';
 
@@ -45,6 +45,12 @@ export interface PropSpec {
    *  that face. It also has to be separate anyway, because the painting on the
    *  easel needs to change. */
   canvas?: { art: string; x: number; y: number; z: number; w: number; h: number };
+  /** Tile this prop into a grid, laid out from its own measured size so the
+   *  spacing holds whatever the mesh's aspect turns out to be. Used to build
+   *  the monitor walls out of one 3x3 bank rather than generating a bigger
+   *  mesh: reusing the asset is free, and a wall of mismatched salvaged
+   *  screens is more the point than one enormous tidy one. */
+  grid?: { cols: number; rows: number; gap: number };
 }
 
 /** Room envelope. Wider than deep so the seated view has something to look
@@ -93,11 +99,11 @@ export const PROPS: PropSpec[] = [
   // ——— on the bench ————————————————————————————————————————————————
   {
     id: 'consoleMV', file: 'consoleMV.glb',
-    // The centrepiece. At 0.52 m this read as a desktop toy; the reference is
-    // a machine the size of a church organ console, and it has to dominate the
-    // seated view. Its top now sits at 1.65 m — above eye level at 1.26 m —
-    // which is why the monitor bank had to move off the wall behind it.
-    height: 0.85, position: [-0.05, WORKTOP, -0.46], rotation: 4,
+    // The centrepiece. 0.52 m read as a desktop toy, 0.85 m was still shy of
+    // the reference. At 1.05 m its top sits at 1.85 m — well above the 1.26 m
+    // eye line — so you are looking UP at it from the chair, which is the
+    // whole feeling of the organ-console reference.
+    height: 1.05, position: [-0.05, WORKTOP, -0.5], rotation: 4,
     // Re-graded for the NEW bake, which is a different mesh entirely: at
     // emis 1.4 its screen blew to a flat white blob and the mandala vanished.
     // Grades belong to the bake, not the prop.
@@ -126,16 +132,28 @@ export const PROPS: PropSpec[] = [
     door: null,
   },
   // ——— the walls ———————————————————————————————————————————————————
+  // Two banks of screens, each roughly a third of the back wall, flanking the
+  // machine. One 3x3 bank at 1.05 m read as a picture frame on a big wall.
   {
     id: 'monitors', file: 'monitors.glb',
-    // hard against the stone — 12 cm proud read as floating
-    height: 1.05, position: [-2.62, 1.72, -D + 0.04], rotation: 12,
+    height: 1.02, position: [-2.42, 0.95, -D + 0.04], rotation: 9,
+    grid: { cols: 2, rows: 2, gap: 0.04 },
     tint: 0.7, rough: 0.5, emis: 1.8,
     door: 'THE BUILDS',    // loops back to the same place as the machine
   },
   {
+    id: 'monitorsR', file: 'monitors.glb',
+    height: 1.02, position: [2.42, 0.95, -D + 0.04], rotation: -9,
+    grid: { cols: 2, rows: 2, gap: 0.04 },
+    tint: 0.7, rough: 0.5, emis: 1.8,
+    door: 'THE BUILDS',
+  },
+  {
     id: 'neon', file: 'neon.glb',
-    height: 0.62, position: [2.35, 2.15, -D + 0.1], rotation: -6,
+    // Centre-high above the machine now that both thirds of the wall are
+    // screens. It is the room's sign; it belongs over the altar, not off in
+    // a corner competing with a monitor bank for the same square metre.
+    height: 0.7, position: [0, 2.62, -D + 0.1], rotation: 0,
     tint: 1.0, rough: 0.3, emis: 3.0,
     door: null,
   },
@@ -186,12 +204,13 @@ export const PROPS: PropSpec[] = [
 // timber read as timber.
 export const PRACTICALS = [
   // the neon sign, throwing red across the back wall
-  { color: '#c41230', intensity: 4.4, distance: 5.4, position: [2.35, 2.15, -D + 0.35] },
+  { color: '#c41230', intensity: 4.4, distance: 5.4, position: [0, 2.62, -D + 0.35] },
   // the console screen. Amber now, not magenta: the new machine's mandala is
   // warm, and the old magenta was fighting the neon for the whole room.
-  { color: '#d4a030', intensity: 1.5, distance: 2.1, position: [-0.05, WORKTOP + 0.5, -0.18] },
+  { color: '#d4a030', intensity: 1.5, distance: 2.1, position: [-0.05, WORKTOP + 0.62, -0.2] },
   // the monitor bank, faint green wash on the stone behind it
-  { color: '#4a8f6f', intensity: 1.6, distance: 2.6, position: [-2.62, 1.72, -D + 0.45] },
+  { color: '#4a8f6f', intensity: 1.5, distance: 3.0, position: [-2.42, 1.5, -D + 0.5] },
+  { color: '#4a8f6f', intensity: 1.5, distance: 3.0, position: [2.42, 1.5, -D + 0.5] },
   // the candelabra: the warm anchor, and the only thing casting real shadow
   { color: '#ffb46b', intensity: 6.5, distance: 6.0, position: [-2.15, 1.5, -0.5] },
   // the radio dial, a small amber pool on the bench
