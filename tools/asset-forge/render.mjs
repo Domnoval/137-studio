@@ -19,6 +19,7 @@ const GRADES = {
   // The two-view bake gave the radio a much hotter emissive map than the
   // single-view one; 2.2 blew the whole dial face to white.
   radio:      { tint: 0.90, rough: 0.30, emis: 1.2 },
+  consoleMV:  { tint: 0.42, rough: 0.62, emis: 0.55 },
   console:    { tint: 0.55, rough: 0.55, emis: 2.2 },
   monitors:   { tint: 0.70, rough: 0.50, emis: 1.8 },
   neon:       { tint: 1.00, rough: 0.30, emis: 3.0 },

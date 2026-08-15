@@ -98,9 +98,10 @@ export const PROPS: PropSpec[] = [
     // seated view. Its top now sits at 1.65 m — above eye level at 1.26 m —
     // which is why the monitor bank had to move off the wall behind it.
     height: 0.85, position: [-0.05, WORKTOP, -0.46], rotation: 4,
-    // 2.2 put a hot magenta wash across the whole bench once bloom got hold
-    // of it — the screen was lighting the room instead of the desk.
-    tint: 0.55, rough: 0.55, emis: 1.4,
+    // Re-graded for the NEW bake, which is a different mesh entirely: at
+    // emis 1.4 its screen blew to a flat white blob and the mandala vanished.
+    // Grades belong to the bake, not the prop.
+    tint: 0.42, rough: 0.62, emis: 0.55,
     door: 'THE BUILDS',
   },
   {
