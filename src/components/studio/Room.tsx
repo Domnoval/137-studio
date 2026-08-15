@@ -38,12 +38,28 @@ function noise(ctx: CanvasRenderingContext2D, w: number, h: number, cells: numbe
 
 /** Stone: layered noise at three frequencies, plus dark blotching and a few
  *  hairline cracks. The blotches are what stop it reading as sandpaper. */
+//
+// ALBEDO IS NOT MOOD. This base was #2b1a1c for most of the room's life, and
+// multiplied by the material's #9a6f6a it gave the walls a linear reflectance
+// of about 1.6% — darker than charcoal, darker than any painted plaster that
+// has ever existed. The room was not underlit; it could not RETURN the light
+// it was given. Measured median frame luminance was 11/255 with 41% of every
+// frame crushed flat below 8/255, and the modelled value for a 1.6% wall two
+// metres from the candelabra is 12/255, so the surfaces explained the whole
+// gap on their own.
+//
+// The tempting fix is to crank the practicals, and it is the wrong one: the
+// props carry normal albedo from their bakes, so more light blows them out
+// while the walls stay black — which is exactly the look the renders had,
+// everything dark except the things that glow. Darkness in this room comes
+// from falloff and from what the lights do not reach, never from painting the
+// surfaces black.
 function stoneCanvas(size = 1024) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const x = c.getContext('2d')!;
 
-  x.fillStyle = '#2b1a1c';
+  x.fillStyle = '#573437';
   x.fillRect(0, 0, size, size);
 
   noise(x, size, size, 8, 0.55);   // broad tonal drift
@@ -56,7 +72,7 @@ function stoneCanvas(size = 1024) {
     const r = 40 + Math.random() * 190;
     const g = x.createRadialGradient(px, py, 0, px, py, r);
     const dark = Math.random() > 0.35;
-    g.addColorStop(0, dark ? 'rgba(12,7,8,0.46)' : 'rgba(126,92,88,0.13)');
+    g.addColorStop(0, dark ? 'rgba(34,20,22,0.42)' : 'rgba(168,126,120,0.15)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g;
     x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
@@ -85,7 +101,10 @@ function floorCanvas(size = 1024) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const x = c.getContext('2d')!;
-  x.fillStyle = '#171618';
+  // was #171618, which times the material's colour came to roughly 0.1%
+  // reflectance — a floor blacker than soot, in a room lit only by practicals.
+  // See the note above stoneCanvas.
+  x.fillStyle = '#35333a';
   x.fillRect(0, 0, size, size);
   noise(x, size, size, 6, 0.42);
   noise(x, size, size, 128, 0.2);
@@ -93,7 +112,7 @@ function floorCanvas(size = 1024) {
     const px = Math.random() * size, py = Math.random() * size;
     const r = 70 + Math.random() * 240;
     const g = x.createRadialGradient(px, py, 0, px, py, r);
-    g.addColorStop(0, 'rgba(46,52,60,0.30)');
+    g.addColorStop(0, 'rgba(84,94,108,0.30)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g;
     x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
@@ -133,8 +152,20 @@ function floorRoughCanvas(size = 512) {
  *
  *  So the marks are sized in real centimetres against the wall (CM below) and
  *  drawn in three tiers: ~40 cm sigils, ~12 cm glyphs, ~4 cm working. Density
- *  and layering are what sell a wall someone has thought on for years. */
-function chalkCanvas(w = 3072, h = 1536) {
+ *  and layering are what sell a wall someone has thought on for years.
+ *
+ *  `metres` is the real-world width of the wall this canvas will be stretched
+ *  across, and it is the reason this function takes it rather than assuming.
+ *  The back wall is 7.4 m and the side walls are 6.2 m; hard-coding the scale
+ *  to the back wall would draw the side walls' marks 19% too large, which is
+ *  the exact kind of error that reads as "something is off" without ever
+ *  reading as "the chalk is the wrong size".
+ *
+ *  `density` scales the mark COUNT, not the mark size. The back wall is the
+ *  board he actually works on and stays at 1; the side walls are overflow —
+ *  what happens when the main wall runs out — so they get less, and being
+ *  sparser is what makes them read as spill rather than as wallpaper. */
+function chalkCanvas(w = 3072, h = 1536, metres = 7.4, density = 1) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const x = c.getContext('2d')!;
@@ -148,18 +179,19 @@ function chalkCanvas(w = 3072, h = 1536) {
   ];
   const glyphs = '△▽◇○◎☉⊕⊗✧✦⟁⟠⌬⎈⏣✕⧗⧖✴✳❂◈⬡⬢';
 
-  // Scale reference: this canvas covers the whole 7.4 × 3.5 m wall, so at
-  // 3072 px across, 1 cm ≈ 4.1 px. Michael's reference is graffiti, not
-  // lecture notes — head-sized circles and triangles layered over each other,
-  // with small working filling the gaps between. Three tiers below:
-  // ~40 cm sigils, ~12 cm symbols, ~4 cm writing.
-  const CM = w / 740;
+  // Scale reference: this canvas covers `metres` of wall, so CM is pixels per
+  // real centimetre. Michael's reference is graffiti, not lecture notes —
+  // head-sized circles and triangles layered over each other, with small
+  // working filling the gaps between. Three tiers below: ~40 cm sigils,
+  // ~12 cm symbols, ~4 cm writing.
+  const CM = w / (metres * 100);
+  const n = (base: number) => Math.round(base * density);
 
   const chalk = (a: number) => `rgba(236,233,226,${a})`;
 
   // TIER 1 — big drawn sigils. Struck by hand, so the circles are not round.
   x.lineCap = 'round';
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < n(46); i++) {
     const cx = Math.random() * w, cy = Math.random() * h;
     const r = (14 + Math.random() * 26) * CM;
     x.save();
@@ -202,7 +234,7 @@ function chalkCanvas(w = 3072, h = 1536) {
   }
 
   // TIER 2 — hand-sized glyphs, scattered thickly
-  for (let i = 0; i < 340; i++) {
+  for (let i = 0; i < n(340); i++) {
     x.save();
     x.translate(Math.random() * w, Math.random() * h);
     x.rotate((Math.random() - 0.5) * 0.8);
@@ -213,7 +245,7 @@ function chalkCanvas(w = 3072, h = 1536) {
   }
 
   // TIER 3 — the working, filling every gap between the drawings
-  for (let cl = 0; cl < 420; cl++) {
+  for (let cl = 0; cl < n(420); cl++) {
     const px = (1.4 + Math.random() * 1.8) * CM;
     x.save();
     x.translate(Math.random() * w, Math.random() * h);
@@ -229,7 +261,7 @@ function chalkCanvas(w = 3072, h = 1536) {
 
   // rubbed-out working — the wall has been worked over for years. Very faint:
   // any brighter and these read as blobs floating in front of the stone.
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < n(40); i++) {
     const px = Math.random() * w, py = Math.random() * h;
     const r = (8 + Math.random() * 30) * CM;
     const g = x.createRadialGradient(px, py, 0, px, py, r);
@@ -339,6 +371,17 @@ export function Room() {
   const floorN = useTex(() => normalFromCanvas(floorSrc, 1.5), [6, 6], false);
   const floorRough = useTex(() => floorRoughCanvas(), [6, 6], false);
   const chalk = useTex(() => chalkCanvas(), [1, 1], true);
+  // The side walls carry their own chalk, and each gets its OWN canvas rather
+  // than a shared one: two walls facing each other across a small room with
+  // identical marks on them is a mirror, and the eye catches a mirror
+  // instantly even when it cannot say what it caught.
+  //
+  // Half the resolution of the back wall on purpose — these are seen at a
+  // glancing angle when you turn your head, never straight on, so the texel
+  // density that matters is the projected one. Sparser too: this is overflow
+  // from the board he actually works on, not a second board.
+  const chalkL = useTex(() => chalkCanvas(2048, 1152, ROOM.depth, 0.5), [1, 1], true);
+  const chalkR = useTex(() => chalkCanvas(2048, 1152, ROOM.depth, 0.5), [1, 1], true);
 
   // normalScale is deliberately strong on the walls: the neon and candelabra
   // both rake across them at a shallow angle, which is where relief reads.
@@ -349,8 +392,16 @@ export function Room() {
       normalScale={new THREE.Vector2(1.35, 1.35)}
       roughness={0.94}
       metalness={0}
-      color="#9a6f6a"
+      color="#b58c85"
     />
+  );
+
+  // The chalk overlay, shared by all three walls that carry it. Basic, not
+  // standard: chalk dust is not a lit surface with a normal — it is pigment
+  // sitting in the stone's own relief, and shading it a second time made it
+  // read as stickers. depthWrite off so it never fights the wall behind it.
+  const chalkLayer = (map: THREE.Texture) => (
+    <meshBasicMaterial map={map} transparent opacity={0.9} depthWrite={false} />
   );
 
   return (
@@ -365,14 +416,14 @@ export function Room() {
           roughnessMap={floorRough}
           roughness={1}
           metalness={0.22}
-          color="#6f6a68"
+          color="#8e8a86"
         />
       </mesh>
 
       {/* ceiling — unlit and far enough up to stay a suggestion */}
       <mesh position={[0, H, 0]} rotation-x={Math.PI / 2}>
         <planeGeometry args={[W, D]} />
-        <meshStandardMaterial map={stone} normalMap={stoneN} roughness={1} color="#3a3632" />
+        <meshStandardMaterial map={stone} normalMap={stoneN} roughness={1} color="#57514a" />
       </mesh>
 
       {/* back wall, the one you face */}
@@ -383,17 +434,29 @@ export function Room() {
       {/* the chalk sits just proud of the stone so it never z-fights */}
       <mesh position={[0, H / 2, -D / 2 + 0.004]}>
         <planeGeometry args={[W, H]} />
-        <meshBasicMaterial map={chalk} transparent opacity={0.9} depthWrite={false} />
+        {chalkLayer(chalk)}
       </mesh>
 
-      {/* side walls — the chalk carries round the corners */}
+      {/* Side walls — and the chalk really does carry round the corners now.
+          This comment claimed it did for a long time while the side walls
+          rendered as bare stone, which is worse than saying nothing: it is
+          the two walls you see every time you turn your head, and the comment
+          stopped anyone looking. */}
       <mesh position={[-W / 2, H / 2, 0]} rotation-y={Math.PI / 2} receiveShadow>
         <planeGeometry args={[D, H]} />
         {wall}
       </mesh>
+      <mesh position={[-W / 2 + 0.004, H / 2, 0]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[D, H]} />
+        {chalkLayer(chalkL)}
+      </mesh>
       <mesh position={[W / 2, H / 2, 0]} rotation-y={-Math.PI / 2} receiveShadow>
         <planeGeometry args={[D, H]} />
         {wall}
+      </mesh>
+      <mesh position={[W / 2 - 0.004, H / 2, 0]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[D, H]} />
+        {chalkLayer(chalkR)}
       </mesh>
 
       {/* wall behind the seat — you can turn far enough to catch it */}

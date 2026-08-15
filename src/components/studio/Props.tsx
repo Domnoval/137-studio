@@ -82,7 +82,35 @@ function Prop({
       const src = o.material as THREE.MeshStandardMaterial;
       const m = src.clone();
       if (spec.tint !== undefined && m.color) m.color.multiplyScalar(spec.tint);
-      if (spec.rough !== undefined) m.roughness = Math.max(m.roughness ?? 1, spec.rough);
+
+      // METALNESS. Every one of these GLBs ships a metallicRoughness texture
+      // and NO factors, which in glTF means metallicFactor defaults to 1.0 —
+      // so whatever metal the reconstruction hallucinated went through at full
+      // strength. That is what turned the console into a blob of liquid chrome
+      // and gave every prop the same wet-plastic sheen: not a lighting
+      // problem, not the reconstruction's polygon budget, just an unclamped
+      // multiplier. These are painted iron, timber and brass in a room with no
+      // environment map to reflect; almost nothing here should be metal.
+      //
+      // Scaling the factor rather than nulling the map keeps the map's
+      // variation, which is the only thing distinguishing the brass fittings
+      // from the body they are bolted to.
+      m.metalness = spec.metal ?? 0.16;
+
+      // ROUGHNESS. `roughness` is also a FACTOR against the map, not a value,
+      // and this line used to read
+      //     m.roughness = Math.max(m.roughness ?? 1, spec.rough)
+      // which computed Math.max(1.0, 0.66) and returned 1.0, every time, for
+      // every prop. The whole roughness column in studio-data.ts has never
+      // done anything. Because a factor can only ever make a surface
+      // SMOOTHER, a floor is not expressible this way at all — so `rough` is
+      // now an explicit scalar that replaces the map, and it is opt-in: only
+      // props whose bake came back lacquered pay the cost of losing the map's
+      // variation.
+      if (spec.rough !== undefined) {
+        m.roughnessMap = null;
+        m.roughness = spec.rough;
+      }
       if (m.emissiveMap || (m.emissive && m.emissive.getHex() !== 0x000000)) {
         m.emissiveIntensity = spec.emis ?? 1;
       }

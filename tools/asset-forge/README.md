@@ -61,3 +61,35 @@ came back as an incoherent box. Reconstruction needs a single solid subject.
 Cables, stacked paper, hanging cloth and the canvas stack get built
 procedurally in the engine instead, where the arrangement is controllable and
 the artwork can be swapped per frame.
+
+## measure.mjs — exposure audit
+
+```
+node tools/asset-forge/measure.mjs <dir> [<dir> …]
+```
+
+Reads every PNG in a render directory and reports a Rec. 709 luminance
+profile: mean, 5th/50th/95th percentile, and three fractions that matter more
+than any of them — `crushed` (below 8/255, where an 8-bit frame stops carrying
+recoverable detail), `mids` (40–200, the band where texture and material
+actually read) and `blown` (above 250).
+
+Zero dependencies; it inflates the PNG and undoes the scanline filters itself.
+
+**Why this exists.** The room was graded by eye for months against a broken
+render and every judgement made in that time was worthless. The numbers said
+what no amount of looking had: median 11/255, **41% of every frame below
+8/255**, only 15% of it in the midtones. Not "moody" — *missing*. Point this at
+a render before forming an opinion about it.
+
+Targets for a deliberately dark, practical-lit interior:
+
+| metric  | want      | before | after |
+|---------|-----------|--------|-------|
+| median  | 45–75     | 11     | 44    |
+| crushed | under 15% | 40.9%  | 10.7% |
+| mids    | over 45%  | 14.8%  | 53.6% |
+| blown   | under 1%  | 0.01%  | 0.02% |
+
+Pair it with `room.mjs`, which can shoot the same frame under every tone curve
+in one pass via `--url='http://localhost:3000/studio?tm=agx|aces|neutral|none'`.

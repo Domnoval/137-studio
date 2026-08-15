@@ -9,15 +9,24 @@
 // A prop with an emissive map LOOKS lit but does not LIGHT anything, so each
 // glowing prop gets a matching point light (PRACTICALS in studio-data.ts).
 //
-// Only the candelabra casts shadows. Five shadow-casting point lights would
-// cost five cube-map renders a frame for a room this small, and in a space
-// this dark you cannot tell the other four are faking it.
+// Two of the seven cast shadows — the candelabra and the console screen, both
+// flagged in PRACTICALS. Seven shadow-casting point lights would cost seven
+// cube-map renders a frame for a room this small, and away from those two the
+// eye cannot tell the rest are faking it.
+//
+// EXPOSURE. This room is dark on purpose and was accidentally BLACK: the
+// surfaces were painted at roughly 1.6% reflectance, so nearly half of every
+// frame sat below 8/255 carrying no information at all. Darkness here has to
+// come from falloff and from where the practicals do not reach, never from
+// low albedo — see the note above stoneCanvas in Room.tsx, and measure any
+// change with tools/asset-forge/measure.mjs before trusting your eye. The
+// room was tuned by eye against a bug for months.
 
 import { Suspense, useCallback, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { AdaptiveDpr, Preload } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, ChromaticAberration, SSAO } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import { EffectComposer, Bloom, Vignette, ChromaticAberration, SSAO, ToneMapping } from '@react-three/postprocessing';
+import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { Room } from './Room';
 import { Props } from './Props';
@@ -35,23 +44,86 @@ function Practicals({ reduced }: { reduced: boolean }) {
           distance={p.distance}
           decay={2}
           position={p.position as unknown as [number, number, number]}
-          // The candelabra (3) and the console screen (1) both cast. Two is
+          // The candelabra (5) and the console screen (1) both cast. Two is
           // the affordable number — each shadow-casting point light is a cube
           // render per frame. The candelabra throws the room's long shadows;
           // the console grounds everything standing on the bench, which is
           // where the eye actually rests.
-          castShadow={!reduced && (i === 3 || i === 1)}
+          //
+          // INDEX BY NAME, NOT BY NUMBER. This read `i === 3` for weeks, and
+          // 3 is the LEFT MONITOR WASH — a 1.5-intensity invisible green fill
+          // tucked behind the screens. So the room's key light cast nothing at
+          // all, while a dim fill burned a shadow cube every frame and threw
+          // hard shadows from behind a wall. The cool rim was inserted at
+          // index 2 long after this line was written and pushed every index
+          // below it down by one; nothing complained, because a wrong index is
+          // still a valid light. PRACTICALS carries a `casts` flag now so the
+          // fact lives next to the light it describes and travels with it.
+          castShadow={!reduced && p.casts === true}
           shadow-mapSize={[1024, 1024]}
           shadow-bias={-0.0015}
           shadow-normalBias={0.02}
         />
       ))}
-      {/* the room is not pitch black in the corners, but very nearly */}
-      <ambientLight intensity={0.055} color="#3d2a3a" />
-      <hemisphereLight args={['#2a2d3a', '#0e0c0a', 0.09]} />
+      {/* THE FILL, and it is doing a real job now rather than a token one.
+          At 0.055 / 0.09 this was decorative: everywhere the seven practicals
+          did not reach fell to zero, which is most of the ceiling, both far
+          corners and the floor behind the seat — about a quarter of the frame
+          sitting flat below 8/255 with nothing in it.
+
+          There is no bounce in this renderer. Every real room this dark still
+          has light in its corners because the walls throw it back at each
+          other, and with no GI something has to stand in for that. This is
+          that stand-in, tinted to the two things doing the bouncing: a cool
+          violet ambient off the stone, a warmer floor bounce below.
+
+          It stays well under the practicals on purpose — fill that competes
+          with the key is what makes a scene read as evenly lit, which is the
+          one thing this room must never be. */}
+      <ambientLight intensity={0.20} color="#4a3444" />
+      <hemisphereLight args={['#3a4054', '#2a1c16', 0.34]} />
+      {/* THE BOUNCE off the worktop, and the one fill light with a real
+          physical alibi. Mapping the pure-black pixels put 43–80% of the
+          BOTTOM EIGHTH of every single view at exactly zero: the front face of
+          the bench, which the candelabra cannot reach because the bench itself
+          is in the way. That is correct physics and terrible framing — an inky
+          bar across the bottom of every frame the visitor ever sees.
+
+          In a real room that face is not black, because the candelabra is
+          pouring onto a pale timber worktop a foot above it and timber throws
+          a lot of it back. No GI here, so this stands in for that: warm,
+          weak, short-throw, sitting just above the slab in front of the
+          sitter. Never a shadow caster — bounce has no hard edges. */}
+      <pointLight
+        color="#c9925f"
+        intensity={2.2}
+        distance={2.6}
+        decay={2}
+        position={[-0.3, 1.02, 0.75]}
+      />
     </>
   );
 }
+
+// The tone curve, overridable from the URL as ?tm=aces|agx|neutral|none.
+//
+// This exists for the render rig in tools/asset-forge, and it earns its keep:
+// grading is the one decision you cannot make by reasoning, only by looking,
+// and swapping a curve used to mean an edit and a three-minute headless render
+// per candidate. With this the rig shoots every curve in one pass off the same
+// scene, so the comparison is honest — same frame, same settle, same noise.
+// Anything unrecognised falls through to the shipping default.
+// `none` is LINEAR rather than omitting the pass, so the chain has the same
+// shape whichever curve is selected. Dropping a pass conditionally would make
+// the rig's comparison shots differ by one shader stage as well as by the
+// curve, and the point of the comparison is that nothing else moves.
+const TONE_CURVES: Record<string, number> = {
+  aces: ToneMappingMode.ACES_FILMIC,
+  agx: ToneMappingMode.AGX,
+  neutral: ToneMappingMode.NEUTRAL,
+  none: ToneMappingMode.LINEAR,
+};
+const DEFAULT_CURVE = ToneMappingMode.AGX;
 
 export function Studio() {
   // Read once at mount rather than in an effect. This component is imported
@@ -60,6 +132,10 @@ export function Studio() {
   const [reduced] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
+  const [curve] = useState(() => {
+    const q = new URLSearchParams(window.location.search).get('tm');
+    return q !== null && q in TONE_CURVES ? TONE_CURVES[q] : DEFAULT_CURVE;
+  });
 
   // THE HOVER LABEL IS WRITTEN TO THE DOM DIRECTLY, AND MUST STAY THAT WAY.
   //
@@ -97,10 +173,14 @@ export function Studio() {
           // NOTE: do NOT set gl.toneMapping here. @react-three/postprocessing
           // forces NoToneMapping onto the renderer for as long as it is
           // mounted, so anything assigned here is dead code — this room went
-          // un-graded for its whole life because of exactly that. The fix is a
-          // ToneMapping pass in the chain; see the note at the end of it for
-          // why that is not in yet.
-          scene.fog = new THREE.FogExp2(0x0a0908, 0.055);
+          // un-graded for its whole life because of exactly that. The curve
+          // lives as a pass at the end of the chain; see the note there.
+          //
+          // Fog lifted off pure black along with the surfaces. Fog colour is
+          // what distance converges TO, so at 0x0a0908 every far surface was
+          // being pulled back toward the same near-black the albedo fix just
+          // pulled it out of.
+          scene.fog = new THREE.FogExp2(0x241a1c, 0.05);
         }}
       >
         <CameraRig reduced={reduced} />
@@ -118,42 +198,68 @@ export function Studio() {
               the whole room reads as flat planes with pictures on them — which
               is exactly how it read before this pass existed.
               Costs a normal pass; worth every millisecond. */}
+          {/* Intensity was 26 against this effect's default of 1, and it was
+              compensating for the wrong thing: with the walls at 1.6% albedo
+              there was no tonal separation anywhere, so occlusion was the only
+              contrast in the frame and it got cranked until the room looked
+              three-dimensional. It multiplies, so at 26 every crease and wall
+              corner went to pure zero — which is most of what was holding p05
+              at 0 across every view after the exposure was fixed.
+              The room has real light in it now. Occlusion can go back to
+              seating objects rather than drawing the picture. */}
           <SSAO
             blendFunction={BlendFunction.MULTIPLY}
             samples={20}
             rings={4}
             radius={0.22}
-            intensity={26}
+            intensity={4.5}
             luminanceInfluence={0.55}
             worldDistanceThreshold={2.4}
             worldDistanceFalloff={0.6}
             worldProximityThreshold={0.4}
             worldProximityFalloff={0.1}
           />
-          {/* only genuinely emissive pixels bloom — a low threshold turns
-              every lit brass edge into a glass smear */}
-          <Bloom intensity={0.62} luminanceThreshold={0.78} luminanceSmoothing={0.28} mipmapBlur />
+          {/* Bloom runs on the HDR buffer, BEFORE the tone curve, which is why
+              its threshold is above 1.0. Everything below 1.0 is a surface
+              returning light it was given; only a source emitting more than it
+              receives should smear, and after the albedo fix a threshold of
+              0.78 caught most of the back wall. */}
+          <Bloom intensity={0.55} luminanceThreshold={1.05} luminanceSmoothing={0.3} mipmapBlur />
           <ChromaticAberration
             blendFunction={BlendFunction.NORMAL}
-            offset={new THREE.Vector2(0.0006, 0.0006)}
+            offset={new THREE.Vector2(0.0004, 0.0004)}
           />
-          <Vignette eskil={false} offset={0.22} darkness={0.92} />
-          {/* NO TONE MAPPING PASS — deliberately, and this is not an oversight.
-              This composer pins the renderer to NoToneMapping (see onCreated),
-              so the room has always rendered with no tone curve at all, and
-              <ToneMapping mode={ACES_FILMIC}/> here is the textbook fix.
+          {/* Softened hard: at darkness 0.92 / offset 0.22 this was crushing
+              the frame edges to black on its own, and heavy vignette is the
+              single most recognisable tell of a scene trying to hide that it
+              has nothing in the corners. The room has chalk in the corners
+              now. Let it be seen. */}
+          <Vignette eskil={false} offset={0.50} darkness={0.40} />
+          {/* THE TONE CURVE, and the last thing in the chain by necessity —
+              everything above it works in linear HDR.
 
-              It is not in because it renders the room COMPLETELY BLACK, with
-              zero console errors: mean frame luminance 1.6 against a 19.7
-              baseline, measured at a 26 s settle so it is not a load-timing
-              artefact, and unchanged with adaptive={false} — which rules out
-              the AdaptiveLuminancePass that was the obvious suspect. Cause
-              still unidentified.
+              This was absent for the room's whole life, on a note saying it
+              rendered the scene COMPLETELY BLACK (mean luminance 1.6 against a
+              19.7 baseline). That measurement was real and the conclusion was
+              wrong: a curve maps scene-referred light to display-referred, and
+              this scene sat about four stops under where any curve expects its
+              input. Median linear radiance was 0.0034, which ACES correctly
+              maps to under 1/255. The curve was not broken. It was the only
+              thing in the room telling the truth about the exposure.
 
-              It may behave on real hardware, but a change whose failure mode
-              is a black site and which cannot be verified here is not worth a
-              highlight rolloff. Revisit deliberately, alongside a re-tune of
-              the practicals, because grading the room moves every value in it. */}
+              So the order matters and it is the reverse of the obvious one:
+              fix the albedo, raise the practicals, THEN grade. Putting the
+              curve in first makes the room black and makes the curve look
+              guilty.
+
+              AgX rather than ACES by default, which is the newer answer and
+              the right one HERE specifically: every light in this room is a
+              saturated practical — #c41230 neon, #4a8f6f monitors, #2e9fd4 rim
+              — and ACES is well known for skewing exactly those hues as they
+              climb (its reds march toward orange). AgX desaturates into the
+              highlights instead of rotating them, so the neon stays red when
+              it blooms. Compare for yourself with ?tm=aces. */}
+          <ToneMapping mode={curve} />
         </EffectComposer>
       </Canvas>
 
