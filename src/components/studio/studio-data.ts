@@ -35,6 +35,16 @@ export interface PropSpec {
   /** Door label. null = dressing, not interactive.
    *  PROVISIONAL — which props are doors is Michael's call, still open. */
   door: string | null;
+  /** A painting hung on this prop's face, in the mesh's own normalised units
+   *  (before the height scaling above), so the slot travels with the model.
+   *
+   *  The easel's canvas cannot be textured directly: the reconstruction fuses
+   *  the whole prop into one mesh with one material, and its "canvas" is not a
+   *  clean plane — the Z-facing vertices scatter across z = 0.04…0.10 rather
+   *  than sitting flat. So the artwork is a separate plane laid just proud of
+   *  that face. It also has to be separate anyway, because the painting on the
+   *  easel needs to change. */
+  canvas?: { art: string; x: number; y: number; z: number; w: number; h: number };
 }
 
 /** Room envelope. Wider than deep so the seated view has something to look
@@ -83,7 +93,11 @@ export const PROPS: PropSpec[] = [
   // ——— on the bench ————————————————————————————————————————————————
   {
     id: 'consoleMV', file: 'consoleMV.glb',
-    height: 0.52, position: [-0.34, WORKTOP, -0.28], rotation: 8,
+    // The centrepiece. At 0.52 m this read as a desktop toy; the reference is
+    // a machine the size of a church organ console, and it has to dominate the
+    // seated view. Its top now sits at 1.65 m — above eye level at 1.26 m —
+    // which is why the monitor bank had to move off the wall behind it.
+    height: 0.85, position: [-0.05, WORKTOP, -0.46], rotation: 4,
     // 2.2 put a hot magenta wash across the whole bench once bloom got hold
     // of it — the screen was lighting the room instead of the desk.
     tint: 0.55, rough: 0.55, emis: 1.4,
@@ -111,7 +125,7 @@ export const PROPS: PropSpec[] = [
   {
     id: 'monitors', file: 'monitors.glb',
     // hard against the stone — 12 cm proud read as floating
-    height: 1.15, position: [-0.1, 1.55, -D + 0.04], rotation: 0,
+    height: 1.05, position: [-2.62, 1.72, -D + 0.04], rotation: 12,
     tint: 0.7, rough: 0.5, emis: 1.8,
     door: 'THE WORK',
   },
@@ -127,6 +141,10 @@ export const PROPS: PropSpec[] = [
     height: 1.62, position: [-2.55, 0, -1.5], rotation: 38,
     tint: 0.7, rough: 0.6,
     door: 'THE PAINTINGS',
+    // Slot measured off the mesh: its Z-facing vertices cluster at z ≈ 0.08,
+    // spanning x -0.49…0.43 and y -0.50…0.64. The plane sits just proud of
+    // that and is inset from the stretcher bars.
+    canvas: { art: '/art/tex/rosetta.jpg', x: -0.03, y: 0.09, z: 0.115, w: 0.72, h: 0.90 },
   },
   // ——— dressing ————————————————————————————————————————————————————
   // These three stand on their own surfaces off the bench, so they get a
@@ -165,10 +183,11 @@ export const PROPS: PropSpec[] = [
 export const PRACTICALS = [
   // the neon sign, throwing red across the back wall
   { color: '#c41230', intensity: 4.4, distance: 5.4, position: [2.35, 2.15, -D + 0.35] },
-  // the console screen — close range only, or it becomes the whole room
-  { color: '#d946a8', intensity: 0.95, distance: 1.15, position: [-0.34, WORKTOP + 0.34, -0.02] },
+  // the console screen. Amber now, not magenta: the new machine's mandala is
+  // warm, and the old magenta was fighting the neon for the whole room.
+  { color: '#d4a030', intensity: 1.5, distance: 2.1, position: [-0.05, WORKTOP + 0.5, -0.18] },
   // the monitor bank, faint green wash on the stone behind it
-  { color: '#4a8f6f', intensity: 1.6, distance: 2.6, position: [-0.1, 1.55, -D + 0.45] },
+  { color: '#4a8f6f', intensity: 1.6, distance: 2.6, position: [-2.62, 1.72, -D + 0.45] },
   // the candelabra: the warm anchor, and the only thing casting real shadow
   { color: '#ffb46b', intensity: 6.5, distance: 6.0, position: [-2.15, 1.5, -0.5] },
   // the radio dial, a small amber pool on the bench

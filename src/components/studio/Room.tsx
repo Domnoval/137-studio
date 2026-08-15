@@ -43,7 +43,7 @@ function stoneCanvas(size = 1024) {
   c.width = c.height = size;
   const x = c.getContext('2d')!;
 
-  x.fillStyle = '#211e1c';
+  x.fillStyle = '#2b1a1c';
   x.fillRect(0, 0, size, size);
 
   noise(x, size, size, 8, 0.55);   // broad tonal drift
@@ -56,7 +56,7 @@ function stoneCanvas(size = 1024) {
     const r = 40 + Math.random() * 190;
     const g = x.createRadialGradient(px, py, 0, px, py, r);
     const dark = Math.random() > 0.35;
-    g.addColorStop(0, dark ? 'rgba(10,9,8,0.42)' : 'rgba(120,110,98,0.13)');
+    g.addColorStop(0, dark ? 'rgba(12,7,8,0.46)' : 'rgba(126,92,88,0.13)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g;
     x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
@@ -124,14 +124,17 @@ function floorRoughCanvas(size = 512) {
 /** The chalk wall. Hand-drawn equations and invented glyphs, scrawled at a
  *  slight angle in clusters, the way someone actually works a wall over.
  *
- *  SCALE IS THE WHOLE GAME HERE. The canvas maps to the full 7.4 × 3.5 m wall,
- *  so a 26 px glyph on a 2048 px canvas is a 9 cm letter and a short equation
- *  ends up a metre wide — which is what the first render showed, and it read
- *  as an HTML overlay rather than writing on stone. Real chalk working is
- *  ~4 cm tall. Everything below is sized against that, and there is a lot more
- *  of it: density is what sells a wall someone has been thinking on for years,
- *  not size. */
-function chalkCanvas(w = 2048, h = 1024) {
+ *  SCALE IS THE WHOLE GAME HERE, and it took two passes to land. The first
+ *  attempt drew metre-wide equations that read as an HTML overlay rather than
+ *  writing on stone. Shrinking everything to neat 4 cm working fixed that and
+ *  introduced the opposite problem — a tidy blackboard, when the reference is
+ *  GRAFFITI: head-sized circles and triangles struck over each other, with
+ *  small working crammed into the gaps.
+ *
+ *  So the marks are sized in real centimetres against the wall (CM below) and
+ *  drawn in three tiers: ~40 cm sigils, ~12 cm glyphs, ~4 cm working. Density
+ *  and layering are what sell a wall someone has thought on for years. */
+function chalkCanvas(w = 3072, h = 1536) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const x = c.getContext('2d')!;
@@ -141,48 +144,97 @@ function chalkCanvas(w = 2048, h = 1024) {
     'a = 1/137.035999', 'E = mc2', 'f = 1/T', 'r = e^(b0)', 'F = phi',
     'dS >= 0', 'y = 137', 'n -> inf', 'i^2 = -1', 'c = 299792458',
     'h = 6.626e-34', 'sum 1/n^2', 'x = -b/2a', 'lim f(x)',
+    'PERCEPTION IS CHOICE', 'LOVE IS THE ANSWER', '137',
   ];
-  const glyphs = '△▽◇○◎☉⊕⊗✧✦⟁⟠⌬⎈⏣✕⧗⧖';
+  const glyphs = '△▽◇○◎☉⊕⊗✧✦⟁⟠⌬⎈⏣✕⧗⧖✴✳❂◈⬡⬢';
 
-  x.fillStyle = 'rgba(232,228,220,0.30)';
+  // Scale reference: this canvas covers the whole 7.4 × 3.5 m wall, so at
+  // 3072 px across, 1 cm ≈ 4.1 px. Michael's reference is graffiti, not
+  // lecture notes — head-sized circles and triangles layered over each other,
+  // with small working filling the gaps between. Three tiers below:
+  // ~40 cm sigils, ~12 cm symbols, ~4 cm writing.
+  const CM = w / 740;
 
-  // clusters of working — many, small, tilted, sometimes overlapping
-  for (let cl = 0; cl < 150; cl++) {
+  const chalk = (a: number) => `rgba(236,233,226,${a})`;
+
+  // TIER 1 — big drawn sigils. Struck by hand, so the circles are not round.
+  x.lineCap = 'round';
+  for (let i = 0; i < 46; i++) {
     const cx = Math.random() * w, cy = Math.random() * h;
-    const tilt = (Math.random() - 0.5) * 0.20;
-    const px = 7 + Math.random() * 6; // ≈ 2.4–4.4 cm letters on the wall
+    const r = (14 + Math.random() * 26) * CM;
     x.save();
     x.translate(cx, cy);
-    x.rotate(tilt);
-    x.font = `${px}px ui-monospace, monospace`;
-    const lines = 1 + Math.floor(Math.random() * 5);
-    for (let i = 0; i < lines; i++) {
-      x.globalAlpha = 0.13 + Math.random() * 0.24;
-      x.fillText(marks[Math.floor(Math.random() * marks.length)], 0, i * px * 1.35);
+    x.rotate(Math.random() * Math.PI);
+    x.strokeStyle = chalk(0.10 + Math.random() * 0.16);
+    x.lineWidth = (0.5 + Math.random() * 0.9) * CM;
+    const kind = Math.floor(Math.random() * 4);
+    x.beginPath();
+    if (kind === 0) {
+      // wobbling circle
+      for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.18) {
+        const rr = r * (0.94 + Math.random() * 0.12);
+        const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+        if (a === 0) x.moveTo(px, py); else x.lineTo(px, py);
+      }
+    } else if (kind === 1) {
+      const n = 3 + Math.floor(Math.random() * 4); // triangle … hexagon
+      for (let k = 0; k <= n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        const px = Math.cos(a) * r, py = Math.sin(a) * r;
+        if (k === 0) x.moveTo(px, py); else x.lineTo(px, py);
+      }
+    } else if (kind === 2) {
+      // star polygon — the pentagram-ish scrawl
+      const n = 5 + Math.floor(Math.random() * 3), step = 2;
+      for (let k = 0; k <= n; k++) {
+        const a = ((k * step) / n) * Math.PI * 2;
+        const px = Math.cos(a) * r, py = Math.sin(a) * r;
+        if (k === 0) x.moveTo(px, py); else x.lineTo(px, py);
+      }
+    } else {
+      // crossed axes with a ring
+      x.moveTo(-r, 0); x.lineTo(r, 0);
+      x.moveTo(0, -r); x.lineTo(0, r);
+      x.moveTo(r * 0.55, 0); x.arc(0, 0, r * 0.55, 0, Math.PI * 2);
     }
+    x.stroke();
     x.restore();
   }
 
-  // loose sigils, drawn bigger than the writing but still hand-sized
-  for (let i = 0; i < 130; i++) {
+  // TIER 2 — hand-sized glyphs, scattered thickly
+  for (let i = 0; i < 340; i++) {
     x.save();
     x.translate(Math.random() * w, Math.random() * h);
-    x.rotate((Math.random() - 0.5) * 0.7);
-    x.globalAlpha = 0.08 + Math.random() * 0.2;
-    x.font = `${9 + Math.random() * 17}px serif`;
+    x.rotate((Math.random() - 0.5) * 0.8);
+    x.fillStyle = chalk(0.09 + Math.random() * 0.2);
+    x.font = `${(5 + Math.random() * 12) * CM}px serif`;
     x.fillText(glyphs[Math.floor(Math.random() * glyphs.length)], 0, 0);
     x.restore();
   }
 
-  // rubbed-out working. Kept very faint — at 0.05 these read as bright blobs
-  // floating in front of the wall rather than as smeared chalk.
-  for (let i = 0; i < 30; i++) {
+  // TIER 3 — the working, filling every gap between the drawings
+  for (let cl = 0; cl < 420; cl++) {
+    const px = (1.4 + Math.random() * 1.8) * CM;
+    x.save();
+    x.translate(Math.random() * w, Math.random() * h);
+    x.rotate((Math.random() - 0.5) * 0.24);
+    x.fillStyle = chalk(0.11 + Math.random() * 0.22);
+    x.font = `${px}px ui-monospace, monospace`;
+    const lines = 1 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < lines; i++) {
+      x.fillText(marks[Math.floor(Math.random() * marks.length)], 0, i * px * 1.4);
+    }
+    x.restore();
+  }
+
+  // rubbed-out working — the wall has been worked over for years. Very faint:
+  // any brighter and these read as blobs floating in front of the stone.
+  for (let i = 0; i < 40; i++) {
     const px = Math.random() * w, py = Math.random() * h;
-    const r = 25 + Math.random() * 85;
+    const r = (8 + Math.random() * 30) * CM;
     const g = x.createRadialGradient(px, py, 0, px, py, r);
-    g.addColorStop(0, 'rgba(232,228,220,0.016)');
-    g.addColorStop(1, 'rgba(232,228,220,0)');
-    x.globalAlpha = 1;
+    g.addColorStop(0, chalk(0.018));
+    g.addColorStop(1, chalk(0));
     x.fillStyle = g;
     x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
   }
@@ -210,7 +262,7 @@ export function Room() {
   const chalk = useTex(() => chalkCanvas(), [1, 1], true);
 
   const wall = (
-    <meshStandardMaterial map={stone} roughness={0.94} metalness={0} color="#8a8078" />
+    <meshStandardMaterial map={stone} roughness={0.94} metalness={0} color="#9a6f6a" />
   );
 
   return (
@@ -241,10 +293,10 @@ export function Room() {
       {/* the chalk sits just proud of the stone so it never z-fights */}
       <mesh position={[0, H / 2, -D / 2 + 0.004]}>
         <planeGeometry args={[W, H]} />
-        <meshBasicMaterial map={chalk} transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial map={chalk} transparent opacity={0.9} depthWrite={false} />
       </mesh>
 
-      {/* side walls */}
+      {/* side walls — the chalk carries round the corners */}
       <mesh position={[-W / 2, H / 2, 0]} rotation-y={Math.PI / 2} receiveShadow>
         <planeGeometry args={[D, H]} />
         {wall}

@@ -20,7 +20,7 @@
 // shared material would compound every time the component remounts.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PROPS, type PropSpec } from './studio-data';
@@ -33,6 +33,31 @@ const MODEL_PATH = '/models/';
 // on the critical path of the site drawing at all. The decoder is 756 KB and
 // lives in /public/draco — cheaper than the models it unpacks.
 const DRACO_PATH = '/draco/';
+
+/** The painting on the easel. A separate plane rather than a texture swap:
+ *  the reconstruction fuses the whole easel into one mesh with one material,
+ *  so there is no canvas to re-texture — and the artwork has to be swappable
+ *  anyway. Sits inside the model group, so it inherits the mesh's scale and
+ *  travels with it. */
+function CanvasArt({ slot }: { slot: NonNullable<PropSpec['canvas']> }) {
+  // useTexture's return is the loader's cached object and not ours to mutate —
+  // two props sharing a file would fight over it. Clone, then configure.
+  const shared = useTexture(slot.art);
+  const tex = useMemo(() => {
+    const t = shared.clone();
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    t.needsUpdate = true;
+    return t;
+  }, [shared]);
+  return (
+    <mesh position={[slot.x, slot.y, slot.z]} castShadow={false} receiveShadow>
+      <planeGeometry args={[slot.w, slot.h]} />
+      {/* not emissive — a painting is lit by the room, like everything else */}
+      <meshStandardMaterial map={tex} roughness={0.86} metalness={0} />
+    </mesh>
+  );
+}
 
 function Prop({
   spec,
@@ -92,7 +117,9 @@ function Prop({
       onPointerOver={spec.door ? (e) => { e.stopPropagation(); setHot(true); onHover(spec.door); } : undefined}
       onPointerOut={spec.door ? () => { setHot(false); onHover(null); } : undefined}
     >
-      <primitive object={model} />
+      <primitive object={model}>
+        {spec.canvas && <CanvasArt slot={spec.canvas} />}
+      </primitive>
     </group>
   );
 }
