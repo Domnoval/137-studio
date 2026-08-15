@@ -114,13 +114,16 @@ export const PROPS: PropSpec[] = [
     id: 'grimoire', file: 'grimoire.glb',
     height: 0.09, position: [0.34, WORKTOP, 0.12], rotation: 14,
     tint: 0.75, rough: 0.65,
-    door: 'THE JOURNAL',
+    door: 'THE JOURNAL',   // and contact, in the back, like a real notebook
   },
   {
     id: 'telephone', file: 'telephone.glb',
     height: 0.17, position: [-1.02, WORKTOP, 0.06], rotation: 26,
     tint: 0.7, rough: 0.55,
-    door: 'THE LINE',
+    // Not a door. Contact lives in the back of the journal now, where an
+    // address goes in a real notebook, so a phone would be a second way to
+    // the same place for no reason. It stays as furniture.
+    door: null,
   },
   // ——— the walls ———————————————————————————————————————————————————
   {
@@ -128,7 +131,7 @@ export const PROPS: PropSpec[] = [
     // hard against the stone — 12 cm proud read as floating
     height: 1.05, position: [-2.62, 1.72, -D + 0.04], rotation: 12,
     tint: 0.7, rough: 0.5, emis: 1.8,
-    door: 'THE WORK',
+    door: 'THE BUILDS',    // loops back to the same place as the machine
   },
   {
     id: 'neon', file: 'neon.glb',
