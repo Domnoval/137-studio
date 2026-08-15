@@ -106,8 +106,10 @@ export const PROPS: PropSpec[] = [
     height: 1.05, position: [-0.05, WORKTOP, -0.5], rotation: 4,
     // Re-graded for the NEW bake, which is a different mesh entirely: at
     // emis 1.4 its screen blew to a flat white blob and the mandala vanished.
-    // Grades belong to the bake, not the prop.
-    tint: 0.42, rough: 0.62, emis: 0.55,
+    // Grades belong to the bake, not the prop. Tint pulled down again once the
+    // machine grew — a bigger object catches more of the warm practical, and
+    // at 0.42 the iron was reading as polished brass.
+    tint: 0.34, rough: 0.66, emis: 0.55,
     door: 'THE BUILDS',
   },
   {
@@ -207,7 +209,14 @@ export const PRACTICALS = [
   { color: '#c41230', intensity: 4.4, distance: 5.4, position: [0, 2.62, -D + 0.35] },
   // the console screen. Amber now, not magenta: the new machine's mandala is
   // warm, and the old magenta was fighting the neon for the whole room.
-  { color: '#d4a030', intensity: 1.5, distance: 2.1, position: [-0.05, WORKTOP + 0.62, -0.2] },
+  { color: '#d4a030', intensity: 0.85, distance: 1.9, position: [-0.05, WORKTOP + 0.62, -0.2] },
+  // COOL RIM on the machine. With only the amber screen on it, a brass-and-
+  // iron body lit warm from the front reads as a solid gold lamp — it lost the
+  // blackened iron of the reference entirely, and got worse as the machine got
+  // bigger. This sits behind and above it, so it catches the top edges and the
+  // shoulders and separates the silhouette from the wall. Warm key, cool rim:
+  // the oldest trick there is, and the reason the reference photo has depth.
+  { color: '#2e9fd4', intensity: 3.2, distance: 3.4, position: [0.35, 1.95, -1.5] },
   // the monitor bank, faint green wash on the stone behind it
   { color: '#4a8f6f', intensity: 1.5, distance: 3.0, position: [-2.42, 1.5, -D + 0.5] },
   { color: '#4a8f6f', intensity: 1.5, distance: 3.0, position: [2.42, 1.5, -D + 0.5] },
