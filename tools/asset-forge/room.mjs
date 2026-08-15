@@ -26,7 +26,10 @@ const flags = Object.fromEntries(
 );
 const outDir = args[0] || './room';
 const url = flags.url || 'http://localhost:3000/studio';
-const settle = parseInt(flags.settle || '9000', 10);
+// 9 s was marginal and produced two false 'the room is black' results that
+// cost a bisect each. Twelve GLBs plus procedural textures on SwiftShader
+// need this much; a partial frame is indistinguishable from a real bug.
+const settle = parseInt(flags.settle || '26000', 10);
 
 // This harness captures the local dev server only. Capturing external sites
 // would mean getting Chromium through the sandbox's outbound proxy, which is a
