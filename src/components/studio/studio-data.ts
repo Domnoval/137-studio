@@ -39,6 +39,12 @@ export interface PropSpec {
    *  as 1.0, so every prop arrived fully metal — the reason the console read
    *  as liquid chrome. Raise it only for things that are actually metal. */
   metal?: number;
+  /** Environment reflection strength. Defaults to 0.7 in Props.tsx. The
+   *  environment is painted from the room's own lights (RoomEnvironment.tsx),
+   *  so this is really "how much of the room does this surface show back" —
+   *  push it up on anything polished, down on anything that should stay matte
+   *  no matter how metal the bake decided it was. */
+  env?: number;
   /** Emissive boost. Opt-in: these bakes give a prop ONE material, so
    *  boosting anything with an emissive map torches props whose only bright
    *  pixels are a white canvas or a pale label. */
@@ -55,7 +61,14 @@ export interface PropSpec {
    *  than sitting flat. So the artwork is a separate plane laid just proud of
    *  that face. It also has to be separate anyway, because the painting on the
    *  easel needs to change. */
-  canvas?: { art: string; x: number; y: number; z: number; w: number; h: number };
+  canvas?: {
+    art: string; x: number; y: number; z: number; w: number; h: number;
+    /** Lean, in degrees about X. An easel is not a wall: its canvas tips
+     *  backwards, so a plane laid at a constant z INTERSECTS it — proud at the
+     *  top, buried at the bottom. Match the lean or the painting is half
+     *  swallowed by the prop it is standing on. */
+    tilt?: number;
+  };
   /** Tile this prop into a grid, laid out from its own measured size so the
    *  spacing holds whatever the mesh's aspect turns out to be. Used to build
    *  the monitor walls out of one 3x3 bank rather than generating a bigger
@@ -105,7 +118,7 @@ export const PROPS: PropSpec[] = [
   {
     id: 'desk', file: 'desk.glb',
     height: DESK_BBOX, position: [0, 0, -0.15], rotation: 0,
-    tint: 0.58, rough: 0.82, metal: 0.05, door: null,
+    tint: 0.44, rough: 0.82, metal: 0.05, env: 0.4, door: null,
   },
   // ——— on the bench ————————————————————————————————————————————————
   {
@@ -120,25 +133,25 @@ export const PROPS: PropSpec[] = [
     // Grades belong to the bake, not the prop. Tint pulled down again once the
     // machine grew — a bigger object catches more of the warm practical, and
     // at 0.42 the iron was reading as polished brass.
-    tint: 0.34, rough: 0.55, metal: 0.30, emis: 0.55,
+    tint: 0.34, rough: 0.55, metal: 0.30, env: 1.15, emis: 0.55,
     door: 'THE BUILDS',
   },
   {
     id: 'radio', file: 'radio.glb',
     height: 0.24, position: [0.78, WORKTOP, -0.16], rotation: -22,
-    tint: 0.9, rough: 0.62, metal: 0.14, emis: 1.2,
+    tint: 0.9, rough: 0.62, metal: 0.14, env: 0.7, emis: 1.2,
     door: 'THE SOUND',
   },
   {
     id: 'grimoire', file: 'grimoire.glb',
     height: 0.09, position: [0.34, WORKTOP, 0.12], rotation: 14,
-    tint: 0.75, rough: 0.78, metal: 0.03,
+    tint: 0.75, rough: 0.78, metal: 0.03, env: 0.35,
     door: 'THE JOURNAL',   // and contact, in the back, like a real notebook
   },
   {
     id: 'telephone', file: 'telephone.glb',
     height: 0.17, position: [-1.02, WORKTOP, 0.06], rotation: 26,
-    tint: 0.7, rough: 0.5, metal: 0.10,
+    tint: 0.7, rough: 0.5, metal: 0.10, env: 0.9,
     // Not a door. Contact lives in the back of the journal now, where an
     // address goes in a real notebook, so a phone would be a second way to
     // the same place for no reason. It stays as furniture.
@@ -151,14 +164,14 @@ export const PROPS: PropSpec[] = [
     id: 'monitors', file: 'monitors.glb',
     height: 1.02, position: [-2.42, 0.95, -D + 0.04], rotation: 9,
     grid: { cols: 2, rows: 2, gap: 0.04 },
-    tint: 0.7, rough: 0.58, metal: 0.12, emis: 1.8,
+    tint: 0.7, rough: 0.58, metal: 0.12, env: 0.75, emis: 1.8,
     door: 'THE BUILDS',    // loops back to the same place as the machine
   },
   {
     id: 'monitorsR', file: 'monitors.glb',
     height: 1.02, position: [2.42, 0.95, -D + 0.04], rotation: -9,
     grid: { cols: 2, rows: 2, gap: 0.04 },
-    tint: 0.7, rough: 0.58, metal: 0.12, emis: 1.8,
+    tint: 0.7, rough: 0.58, metal: 0.12, env: 0.75, emis: 1.8,
     door: 'THE BUILDS',
   },
   {
@@ -167,19 +180,33 @@ export const PROPS: PropSpec[] = [
     // screens. It is the room's sign; it belongs over the altar, not off in
     // a corner competing with a monitor bank for the same square metre.
     height: 0.7, position: [0, 2.62, -D + 0.1], rotation: 0,
-    tint: 1.0, rough: 0.34, metal: 0.10, emis: 3.0,
+    tint: 1.0, rough: 0.34, metal: 0.10, env: 0.8, emis: 3.0,
     door: null,
   },
   // ——— the easel: the way into the paintings ———————————————————————
   {
     id: 'easel', file: 'easel.glb',
-    height: 1.62, position: [-2.55, 0, -1.5], rotation: 38,
-    tint: 0.7, rough: 0.85, metal: 0.03,
+    // Pulled back into the corner and turned further toward the seat. At
+    // [-2.55, 0, -1.5] the canvas sat 1.2 m from the candelabra, which at 21 cd
+    // meant the one thing in the room that is actually a PAINTING was the most
+    // overexposed surface in the frame — measured median 192/156/118, a warm
+    // cream with the artwork washed out of it. Moving the easel rather than
+    // dimming the key, because the key is the room's whole exposure and the
+    // easel is a prop: inverse square does the rest, cutting what lands on the
+    // canvas to about a third.
+    height: 1.62, position: [-2.95, 0, -2.15], rotation: 52,
+    tint: 0.7, rough: 0.85, metal: 0.03, env: 0.3,
     door: 'THE PAINTINGS',
     // Slot measured off the mesh: its Z-facing vertices cluster at z ≈ 0.08,
     // spanning x -0.49…0.43 and y -0.50…0.64. The plane sits just proud of
     // that and is inset from the stretcher bars.
-    canvas: { art: '/art/tex/rosetta.jpg', x: -0.03, y: 0.09, z: 0.115, w: 0.72, h: 0.90 },
+    // The mesh's own blank canvas was winning the depth test over most of
+    // this plane, so what the room actually showed where the paintings live
+    // was the reconstruction's bare primed board — a pale cream rectangle,
+    // measured at median 207/172/138 against artwork whose source median is
+    // 50/37/19. Not an exposure problem, though it read as one: the painting
+    // was never on screen at all.
+    canvas: { art: '/art/tex/rosetta.jpg', x: -0.03, y: 0.09, z: 0.205, w: 0.70, h: 0.88, tilt: -7 },
   },
   // ——— dressing ————————————————————————————————————————————————————
   // These three stand on their own surfaces off the bench, so they get a
@@ -187,22 +214,22 @@ export const PROPS: PropSpec[] = [
   {
     id: 'orrery', file: 'orrery.glb',
     height: 0.44, position: [2.15, 0.86, -1.1], rotation: -14,
-    tint: 0.8, rough: 0.42, metal: 0.48, door: null,
+    tint: 0.8, rough: 0.42, metal: 0.48, env: 1.3, door: null,
   },
   {
     id: 'apothecary', file: 'apothecary.glb',
     height: 0.34, position: [2.62, 0.86, -0.35], rotation: -30,
-    tint: 0.85, rough: 0.3, metal: 0.12, door: null,
+    tint: 0.85, rough: 0.3, metal: 0.12, env: 1.1, door: null,
   },
   {
     id: 'candelabra', file: 'candelabra.glb',
     height: 0.78, position: [-2.15, 0.86, -0.5], rotation: 12,
-    tint: 0.75, rough: 0.45, metal: 0.42, emis: 2.4, door: null,
+    tint: 0.75, rough: 0.45, metal: 0.42, env: 1.2, emis: 2.4, door: null,
   },
   {
     id: 'plant', file: 'plant.glb',
     height: 0.95, position: [W - 0.95, 0, -D + 0.85], rotation: -40,
-    tint: 0.8, rough: 0.75, metal: 0.03, door: null,
+    tint: 0.8, rough: 0.75, metal: 0.03, env: 0.35, door: null,
   },
 ];
 
@@ -236,16 +263,16 @@ export const PRACTICALS = [
   // bigger. This sits behind and above it, so it catches the top edges and the
   // shoulders and separates the silhouette from the wall. Warm key, cool rim:
   // the oldest trick there is, and the reason the reference photo has depth.
-  { color: '#2e9fd4', intensity: 7.0, distance: 3.4, casts: false, position: [0.35, 1.95, -1.5] },
+  { color: '#2e9fd4', intensity: 9.5, distance: 3.8, casts: false, position: [0.35, 1.95, -1.5] },
   // the monitor bank, faint green wash on the stone behind it
-  { color: '#4a8f6f', intensity: 4.2, distance: 3.4, casts: false, position: [-2.42, 1.5, -D + 0.5] },
-  { color: '#4a8f6f', intensity: 4.2, distance: 3.4, casts: false, position: [2.42, 1.5, -D + 0.5] },
+  { color: '#4a8f6f', intensity: 5.4, distance: 3.6, casts: false, position: [-2.42, 1.5, -D + 0.5] },
+  { color: '#4a8f6f', intensity: 5.4, distance: 3.6, casts: false, position: [2.42, 1.5, -D + 0.5] },
   // THE KEY. The warm anchor, the source of every long shadow in the room, and
   // the reason the timber reads as timber. Throw extended past the far wall so
   // its falloff window stops eating the light before it crosses the room — at
   // distance 6.0 in a 7.4 m room it was down to 44% by the time it reached the
   // bench two metres away.
-  { color: '#ffb46b', intensity: 21.0, distance: 9.0, casts: true, position: [-2.15, 1.5, -0.5] },
+  { color: '#ffb46b', intensity: 14.5, distance: 9.0, casts: true, position: [-2.15, 1.5, -0.5] },
   // the radio dial, a small amber pool on the bench
   { color: '#d4a030', intensity: 1.5, distance: 1.4, casts: false, position: [0.78, WORKTOP + 0.12, -0.16] },
 ] as const;

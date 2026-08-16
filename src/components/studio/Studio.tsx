@@ -31,7 +31,7 @@ import * as THREE from 'three';
 import { Room } from './Room';
 import { Props } from './Props';
 import { CameraRig } from './CameraRig';
-import { Ink, LOOKS, type LookName } from './InkPass';
+import { RoomEnvironment } from './RoomEnvironment';
 import { PRACTICALS } from './studio-data';
 
 function Practicals({ reduced }: { reduced: boolean }) {
@@ -82,7 +82,7 @@ function Practicals({ reduced }: { reduced: boolean }) {
           with the key is what makes a scene read as evenly lit, which is the
           one thing this room must never be. */}
       <ambientLight intensity={0.20} color="#4a3444" />
-      <hemisphereLight args={['#3a4054', '#2a1c16', 0.34]} />
+      <hemisphereLight args={['#42496a', '#2a1c16', 0.40]} />
       {/* THE BOUNCE off the worktop, and the one fill light with a real
           physical alibi. Mapping the pure-black pixels put 43–80% of the
           BOTTOM EIGHTH of every single view at exactly zero: the front face of
@@ -96,8 +96,8 @@ function Practicals({ reduced }: { reduced: boolean }) {
           weak, short-throw, sitting just above the slab in front of the
           sitter. Never a shadow caster — bounce has no hard edges. */}
       <pointLight
-        color="#c9925f"
-        intensity={2.2}
+        color="#c08a63"
+        intensity={1.9}
         distance={2.6}
         decay={2}
         position={[-0.3, 1.02, 0.75]}
@@ -126,15 +126,6 @@ const TONE_CURVES: Record<string, number> = {
 };
 const DEFAULT_CURVE = ToneMappingMode.AGX;
 
-// THE LOOK, overridable as ?look=ink|photo — the open direction question.
-//
-// Photoreal in this room was never chosen; it was inherited from the tools.
-// Ink is the alternative being tested, and the two share every light, every
-// material and every pass in the chain, so what differs between the two shots
-// is the look and nothing else. When the decision is made, one of these
-// branches and the InkPass beside it gets deleted outright — this is a fork in
-// the road, not a feature.
-const DEFAULT_LOOK = 'photo';
 
 export function Studio() {
   // Read once at mount rather than in an effect. This component is imported
@@ -143,15 +134,10 @@ export function Studio() {
   const [reduced] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
-  const [curve, look] = useState(() => {
-    const q = new URLSearchParams(window.location.search);
-    const tm = q.get('tm');
-    return [
-      tm !== null && tm in TONE_CURVES ? TONE_CURVES[tm] : DEFAULT_CURVE,
-      (q.get('look') ?? DEFAULT_LOOK) as string,
-    ] as const;
-  })[0];
-  const inked = look in LOOKS;
+  const [curve] = useState(() => {
+    const tm = new URLSearchParams(window.location.search).get('tm');
+    return tm !== null && tm in TONE_CURVES ? TONE_CURVES[tm] : DEFAULT_CURVE;
+  });
 
   // THE HOVER LABEL IS WRITTEN TO THE DOM DIRECTLY, AND MUST STAY THAT WAY.
   //
@@ -200,6 +186,7 @@ export function Studio() {
         }}
       >
         <CameraRig reduced={reduced} />
+        <RoomEnvironment />
         <Practicals reduced={reduced} />
         <Suspense fallback={null}>
           <Room />
@@ -228,7 +215,7 @@ export function Studio() {
             samples={20}
             rings={4}
             radius={0.22}
-            intensity={inked ? 1.6 : 4.5}
+            intensity={4.5}
             luminanceInfluence={0.55}
             worldDistanceThreshold={2.4}
             worldDistanceFalloff={0.6}
@@ -240,17 +227,17 @@ export function Studio() {
               returning light it was given; only a source emitting more than it
               receives should smear, and after the albedo fix a threshold of
               0.78 caught most of the back wall. */}
-          <Bloom intensity={inked ? 0.22 : 0.55} luminanceThreshold={1.05} luminanceSmoothing={0.3} mipmapBlur />
+          <Bloom intensity={0.55} luminanceThreshold={1.05} luminanceSmoothing={0.3} mipmapBlur />
           <ChromaticAberration
             blendFunction={BlendFunction.NORMAL}
-            offset={new THREE.Vector2(inked ? 0 : 0.0004, inked ? 0 : 0.0004)}
+            offset={new THREE.Vector2(0.0004, 0.0004)}
           />
           {/* Softened hard: at darkness 0.92 / offset 0.22 this was crushing
               the frame edges to black on its own, and heavy vignette is the
               single most recognisable tell of a scene trying to hide that it
               has nothing in the corners. The room has chalk in the corners
               now. Let it be seen. */}
-          <Vignette eskil={false} offset={0.50} darkness={inked ? 0.22 : 0.40} />
+          <Vignette eskil={false} offset={0.50} darkness={0.40} />
           {/* THE TONE CURVE, and the last thing in the chain by necessity —
               everything above it works in linear HDR.
 
@@ -276,12 +263,6 @@ export function Studio() {
               highlights instead of rotating them, so the neon stays red when
               it blooms. Compare for yourself with ?tm=aces. */}
           <ToneMapping mode={curve} />
-          {/* THE INK PASS, last of all — it posterises, so it has to see
-              display-referred values or it would be quantising an HDR buffer
-              where almost everything falls in one band. Costs nothing at
-              strength 0; see InkPass.tsx for why it is gated that way rather
-              than added and removed. */}
-          <Ink strength={inked ? 1 : 0} look={(inked ? look : 'chalk') as LookName} />
         </EffectComposer>
       </Canvas>
 

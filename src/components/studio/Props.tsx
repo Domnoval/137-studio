@@ -51,10 +51,18 @@ function CanvasArt({ slot }: { slot: NonNullable<PropSpec['canvas']> }) {
     return t;
   }, [shared]);
   return (
-    <mesh position={[slot.x, slot.y, slot.z]} castShadow={false} receiveShadow>
+    <mesh
+      position={[slot.x, slot.y, slot.z]}
+      rotation-x={((slot.tilt ?? 0) * Math.PI) / 180}
+      castShadow={false}
+      receiveShadow
+    >
       <planeGeometry args={[slot.w, slot.h]} />
-      {/* not emissive — a painting is lit by the room, like everything else */}
-      <meshStandardMaterial map={tex} roughness={0.86} metalness={0} />
+      {/* Not emissive — a painting is lit by the room, like everything else.
+          envMapIntensity is held low deliberately: the environment is painted
+          from this room's own practicals, and a canvas that mirrors the
+          candelabra back at you stops reading as paint. */}
+      <meshStandardMaterial map={tex} roughness={0.9} metalness={0} envMapIntensity={0.25} />
     </mesh>
   );
 }
@@ -96,6 +104,12 @@ function Prop({
       // variation, which is the only thing distinguishing the brass fittings
       // from the body they are bolted to.
       m.metalness = spec.metal ?? 0.16;
+
+      // How much of the room this surface shows back. Without an environment
+      // a metal has nothing to reflect but seven point lights, which is why
+      // these props read as wet plastic no matter what the metalness says —
+      // see RoomEnvironment.tsx.
+      m.envMapIntensity = spec.env ?? 0.7;
 
       // ROUGHNESS. `roughness` is also a FACTOR against the map, not a value,
       // and this line used to read

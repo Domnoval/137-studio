@@ -392,7 +392,11 @@ export function Room() {
       normalScale={new THREE.Vector2(1.35, 1.35)}
       roughness={0.94}
       metalness={0}
-      color="#b58c85"
+      // Faint, because plaster is not a mirror — but not zero, because a wall
+      // with no environment response is the flattest surface a renderer can
+      // produce and this room has 26 square metres of it.
+      envMapIntensity={0.35}
+      color="#ad838b"
     />
   );
 
@@ -416,6 +420,11 @@ export function Room() {
           roughnessMap={floorRough}
           roughness={1}
           metalness={0.22}
+          // The floor is the one surface that was always MEANT to be
+          // reflective — it is wet concrete, and the damp patches are the
+          // whole reason it reads as wet. Until now they had nothing to be
+          // wet with: no environment, so the sheen had nothing to show.
+          envMapIntensity={0.85}
           color="#8e8a86"
         />
       </mesh>
@@ -423,7 +432,7 @@ export function Room() {
       {/* ceiling — unlit and far enough up to stay a suggestion */}
       <mesh position={[0, H, 0]} rotation-x={Math.PI / 2}>
         <planeGeometry args={[W, D]} />
-        <meshStandardMaterial map={stone} normalMap={stoneN} roughness={1} color="#57514a" />
+        <meshStandardMaterial map={stone} normalMap={stoneN} roughness={1} envMapIntensity={0.25} color="#57514a" />
       </mesh>
 
       {/* back wall, the one you face */}
