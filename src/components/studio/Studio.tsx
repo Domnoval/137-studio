@@ -32,6 +32,8 @@ import { Room } from './Room';
 import { Props } from './Props';
 import { CameraRig } from './CameraRig';
 import { RoomEnvironment } from './RoomEnvironment';
+import { Fold } from './Fold';
+import { Beyond } from './Beyond';
 import { PRACTICALS } from './studio-data';
 
 function Practicals({ reduced }: { reduced: boolean }) {
@@ -126,6 +128,22 @@ const TONE_CURVES: Record<string, number> = {
 };
 const DEFAULT_CURVE = ToneMappingMode.AGX;
 
+// THE FOLD IS OFF BY DEFAULT, and this flag comes out the moment it works.
+//
+// It is wired end to end — click a door, the frame freezes, twelve pentagons
+// carry it apart, the destination is swapped underneath, a control brings you
+// back — and one piece of it is broken: the framebuffer capture comes back
+// black, so the shell flies apart carrying nothing. The projective mapping
+// itself is verified exact (the uv debug output is a clean full-screen 0..1
+// gradient with no out-of-range pixels), so this is a capture bug and not a
+// maths bug.
+//
+// Before this flag, clicking a door did nothing at all. Shipping it ungated
+// would replace "nothing happens" with "the room turns black", which is worse
+// on a preview someone is actually looking at. Off by default, `?fold=1` to
+// work on it.
+const FOLD_ENABLED_BY_DEFAULT = false;
+
 
 export function Studio() {
   // Read once at mount rather than in an effect. This component is imported
@@ -162,6 +180,47 @@ export function Studio() {
     el.style.transform = `translateY(${next ? 0 : 6}px)`;
   }, []);
 
+  // THE FOLD, as two pieces of state that mean different things.
+  //
+  // `folding` is the door whose transition is playing; `beyond` is where you
+  // actually are. They are deliberately not one value, because the whole point
+  // of the move is that the swap happens UNDER cover — the fold names its own
+  // midpoint, and only then does what is behind the shards change. Collapse
+  // these into one and the room changes on the first frame, in full view, and
+  // every bit of the effect is wasted.
+  //
+  // Declared after the hover label on purpose, so opening a door can clear the
+  // label through labelRef directly. Routing it through a second ref assigned
+  // during render is a render-phase side effect, which React 19 rejects and
+  // was right to.
+  const [foldEnabled] = useState(() => {
+    const q = new URLSearchParams(window.location.search).get('fold');
+    return q === null ? FOLD_ENABLED_BY_DEFAULT : q === '1';
+  });
+  const [folding, setFolding] = useState<string | null>(null);
+  const [beyond, setBeyond] = useState<string | null>(null);
+  const pending = useRef<string | null>(null);
+
+  const onOpen = useCallback((door: string) => {
+    // A second click mid-fold would capture a frame of the fold itself and
+    // recurse the room into its own transition. Tempting to watch exactly once.
+    if (!foldEnabled || pending.current !== null) return;
+    pending.current = door;
+    setFolding(door);
+    onHover(null);
+  }, [onHover, foldEnabled]);
+
+  // Named by the fold, not guessed at with a timer: it fires when the shards
+  // have broken up enough to hide the swap.
+  const onMidpoint = useCallback(() => {
+    setBeyond((current) => (current === null ? pending.current : null));
+  }, []);
+
+  const onFoldDone = useCallback(() => {
+    pending.current = null;
+    setFolding(null);
+  }, []);
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0a0908' }}>
       <Canvas
@@ -187,12 +246,23 @@ export function Studio() {
       >
         <CameraRig reduced={reduced} />
         <RoomEnvironment />
-        <Practicals reduced={reduced} />
-        <Suspense fallback={null}>
-          <Room />
-          <Props onHover={onHover} />
-          <Preload all />
-        </Suspense>
+        {/* HIDDEN, NOT UNMOUNTED. The studio's surfaces are painted into
+            canvases at mount — a 3072x1536 chalk wall, three stone maps and
+            their Sobel normals — and twelve Draco meshes are unpacked beside
+            them. Unmounting the room to show what is behind a door would pay
+            all of that again on the way back, and the way back is supposed to
+            feel like turning your head. three skips invisible subtrees when it
+            collects the scene, lights included, so this costs nothing to leave
+            standing. */}
+        <group visible={beyond === null}>
+          <Practicals reduced={reduced} />
+          <Suspense fallback={null}>
+            <Room />
+            <Props onHover={onHover} onOpen={onOpen} />
+            <Preload all />
+          </Suspense>
+        </group>
+        {beyond !== null && <Beyond door={beyond} />}
         <AdaptiveDpr pixelated />
         <EffectComposer enableNormalPass>
           {/* AMBIENT OCCLUSION. The thing that stops every object looking
@@ -264,7 +334,50 @@ export function Studio() {
               it blooms. Compare for yourself with ?tm=aces. */}
           <ToneMapping mode={curve} />
         </EffectComposer>
+        {/* AFTER the composer, deliberately, and it renders itself — see
+            Fold.tsx. The shards carry an already-graded capture of the canvas,
+            so sending them back through this chain would grade them twice. */}
+        <Fold active={folding} onMidpoint={onMidpoint} onDone={onFoldDone} />
       </Canvas>
+
+      {/* Where you are, once you are through a door. Sits opposite the hover
+          label rather than replacing it, because the two say different things:
+          one is what you are about to do, this is what you did. */}
+      {beyond !== null && (
+        <div
+          style={{
+            position: 'absolute', left: 32, bottom: 30, right: 32,
+            display: 'flex', alignItems: 'baseline', gap: 26, flexWrap: 'wrap',
+            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+            pointerEvents: 'none',
+          }}
+        >
+          <span style={{ fontSize: '0.7rem', letterSpacing: '0.24em', color: '#e8e4dc' }}>
+            {beyond}
+          </span>
+          <span style={{ fontSize: '0.62rem', letterSpacing: '0.18em', color: '#7d6f6a' }}>
+            NOT BUILT YET
+          </span>
+          <button
+            type="button"
+            onClick={() => onOpen('BACK')}
+            style={{
+              pointerEvents: 'auto',
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: '1px solid #4a3d38',
+              color: '#e8e4dc',
+              font: 'inherit',
+              fontSize: '0.62rem',
+              letterSpacing: '0.2em',
+              padding: '9px 16px',
+              cursor: 'pointer',
+            }}
+          >
+            BACK TO THE STUDIO
+          </button>
+        </div>
+      )}
 
       {/* the door label — mono, tracked, bottom left, no box around it */}
       <div

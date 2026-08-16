@@ -70,9 +70,11 @@ function CanvasArt({ slot }: { slot: NonNullable<PropSpec['canvas']> }) {
 function Prop({
   spec,
   onHover,
+  onOpen,
 }: {
   spec: PropSpec;
   onHover: (id: string | null) => void;
+  onOpen: (door: string) => void;
 }) {
   const { scene } = useGLTF(MODEL_PATH + spec.file, DRACO_PATH);
   const group = useRef<THREE.Group>(null);
@@ -175,6 +177,7 @@ function Prop({
       rotation-y={((spec.rotation ?? 0) * Math.PI) / 180}
       onPointerOver={spec.door ? (e) => { e.stopPropagation(); setHot(true); onHover(spec.door); } : undefined}
       onPointerOut={spec.door ? () => { setHot(false); onHover(null); } : undefined}
+      onClick={spec.door ? (e) => { e.stopPropagation(); onOpen(spec.door!); } : undefined}
     >
       <primitive object={model}>
         {spec.canvas && <CanvasArt slot={spec.canvas} />}
@@ -183,11 +186,17 @@ function Prop({
   );
 }
 
-export function Props({ onHover }: { onHover: (label: string | null) => void }) {
+export function Props({
+  onHover,
+  onOpen,
+}: {
+  onHover: (label: string | null) => void;
+  onOpen: (door: string) => void;
+}) {
   return (
     <group>
       {PROPS.map((p) => (
-        <Prop key={p.id} spec={p} onHover={onHover} />
+        <Prop key={p.id} spec={p} onHover={onHover} onOpen={onOpen} />
       ))}
     </group>
   );
