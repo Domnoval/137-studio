@@ -37,15 +37,33 @@
 // That is why the shader below carries `aRest` (each vertex's world position
 // at freeze time, which never changes as the shard flies) rather than a uv.
 //
-// ── WHY IT RENDERS ITSELF ───────────────────────────────────────────────────
+// ── WHERE THE FROZEN FRAME COMES FROM ───────────────────────────────────────
 //
-// The captured frame is already graded — it came off the canvas after the
-// composer ran. Putting these shards in the main scene would send them through
-// SSAO, bloom, AgX and a vignette a second time, and a twice-graded image is
-// visibly not the image. So the fold owns a private scene and draws itself
-// after the composer, straight to the canvas. Nothing in the chain touches it.
+// The first design copied the CANVAS with copyFramebufferToTexture, after the
+// composer had run, so the capture was already graded and the shards could be
+// drawn straight over the top without going back through the chain. It is the
+// theoretically perfect version — a byte-identical freeze — and it could not
+// be made to work. The copy returned black through a plain Texture (no storage
+// allocated), through a FramebufferTexture (correct storage, still black), and
+// through an explicit READ_FRAMEBUFFER rebind aimed at postprocessing's
+// blitFramebuffer leaving its own binding in place. Measured at 6x gain the
+// result was mean 0.1/255 every time.
+//
+// So the frame is RENDERED rather than copied: one extra pass of the scene
+// into a render target this component owns, at the instant the fold starts.
+// No framebuffer read semantics, no preserveDrawingBuffer, no dependence on
+// what postprocessing left bound. It cost one draw of the room, once.
+//
+// The consequence is that the capture is now scene-referred and UNGRADED, so
+// the shards have to live in the main scene and be graded by the composer like
+// everything else — grade the frozen frame once, exactly as it would have been
+// graded. Bloom, chromatic aberration, vignette and AgX are screen-space
+// functions of colour, so they land identically. SSAO is the one exception: it
+// reads scene depth and normals, so at t=0 the shell gets a smooth dodecahedron's
+// occlusion rather than the room's. That is a soft difference in contact
+// shadowing, not a cut, and it is the price of a capture that actually works.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -102,12 +120,6 @@ const VERT = /* glsl */ `
   uniform mat4 uFrozenViewProj;
   // The shell's own transform AT THE MOMENT OF CAPTURE. aRest is a vertex's
   // position in the shell's local frame, and the shell is then placed on the
-  // camera and spun during the fold — so without this the rest positions get
-  // projected as if the shell sat at the world origin, every uv lands outside
-  // 0..1, and twelve pentagons sample the clamped edge of the frame.
-  uniform mat4 uRestToWorld;
-  // The shell's own transform AT THE MOMENT OF CAPTURE. aRest is a vertex's
-  // position in the shell's local frame, and the shell is then placed on the
   // camera and spun during the fold — so without this the rest positions are
   // projected as if the shell sat at the world origin, every uv lands outside
   // 0..1, and twelve pentagons sample the clamped edge of the frame. The
@@ -150,20 +162,13 @@ const FRAG = /* glsl */ `
     float rim = (1.0 - d) * uEdge;
     col = mix(col, uEdgeColor, clamp(rim, 0.0, 1.0));
 
+    // NO colorspace conversion. uFrame is now a scene-referred linear render
+    // target, and this pass feeds the composer, which expects linear input and
+    // does the display conversion itself at the end of the chain. Converting
+    // here would grade the frame twice.
     gl_FragColor = vec4(col, uFade);
-    #include <colorspace_fragment>
   }
 `;
-
-type Rig = {
-  /** Allocated lazily at the first capture, and only then, because it has to
-   *  match the drawing buffer exactly. */
-  frame: THREE.FramebufferTexture | null;
-  material: THREE.ShaderMaterial;
-  shards: Shard[];
-  scene: THREE.Scene;
-  group: THREE.Group;
-};
 
 type Shard = {
   mesh: THREE.Mesh;
@@ -247,6 +252,10 @@ function buildShards(radius: number, material: THREE.ShaderMaterial): Shard[] {
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 
+/** Allocated once — a fresh Vector3 per frame per fold is exactly the kind of
+ *  churn that shows up as a hitch during the one moment that must not hitch. */
+const SPIN_AXIS = new THREE.Vector3(0.18, 1, 0.1).normalize();
+
 export function Fold({
   active,
   onMidpoint,
@@ -259,24 +268,20 @@ export function Fold({
   onMidpoint: () => void;
   onDone: () => void;
 }) {
-  // Everything mutable lives behind a ref, and the renderer is read off the
-  // frame callback's own state rather than from useThree.
+  // The shell is built once and rendered as ordinary scene children, so the
+  // composer grades it along with everything else — see the note at the top of
+  // this file for why the frozen frame is rendered rather than copied.
   //
-  // React 19's immutability rule rejects assigning to properties of anything a
-  // hook returned — `gl.autoClear = false`, `frame.image = {...}` — and it is
-  // right to: those objects belong to r3f, not to this component. A ref is the
-  // sanctioned place to keep things this component genuinely owns and mutates
-  // sixty times a second, and `state.gl` inside useFrame is the renderer
-  // handed to us for exactly this purpose.
-  const rigRef = useRef<Rig | null>(null);
-
-  useEffect(() => {
-    const build = (): Rig => {
-      const material = new THREE.ShaderMaterial({
+  // Mutated with METHOD CALLS only (`.copy`, `.setScalar`, `.setFromAxisAngle`).
+  // React 19's immutability rule rejects assigning to properties of a value a
+  // hook returned, and useMemo's result is one; `group.visible` therefore goes
+  // through the ref below, which is the sanctioned mutable handle.
+  const rig = useMemo(() => {
+    const material = new THREE.ShaderMaterial({
       vertexShader: VERT,
       fragmentShader: FRAG,
       uniforms: {
-        uFrame: { value: null },
+        uFrame: { value: null as THREE.Texture | null },
         uFrozenViewProj: { value: new THREE.Matrix4() },
         uRestToWorld: { value: new THREE.Matrix4() },
         uEdge: { value: 0 },
@@ -286,94 +291,87 @@ export function Fold({
       transparent: true,
       side: THREE.DoubleSide,
       depthTest: true,
-      depthWrite: true,
-      });
+      depthWrite: false,
+      toneMapped: false,
+    });
 
-      // Radius is arbitrary — the shell only has to enclose the camera, and the
-      // projection makes the image land the same whatever the scale. Kept small
-      // so the shards' travel reads as a few metres rather than a few hundred.
-      const shards = buildShards(2.6, material);
-      const scene = new THREE.Scene();
-      const group = new THREE.Group();
-      shards.forEach((s) => group.add(s.mesh));
-      scene.add(group);
+    // HalfFloat, because this holds a scene-referred render and the room's
+    // practicals and emissive props run well past 1.0. An 8-bit target would
+    // clip every highlight in the frozen frame and the fold would start by
+    // blowing out the neon.
+    const target = new THREE.WebGLRenderTarget(2, 2, {
+      type: THREE.HalfFloatType,
+      depthBuffer: true,
+      samples: 0,
+    });
+    material.uniforms.uFrame.value = target.texture;
 
-      return { frame: null, material, shards, scene, group };
-    };
-
-    const rig = build();
-    rigRef.current = rig;
-    return () => {
-      rigRef.current = null;
-      rig.shards.forEach((sh) => sh.mesh.geometry.dispose());
-      rig.material.dispose();
-      rig.frame?.dispose();
-      rig.scene.clear();
-    };
+    // Radius is arbitrary — the shell only has to enclose the camera, and the
+    // projection makes the image land the same whatever the scale. Kept small
+    // so the shards' travel reads as a few metres rather than a few hundred.
+    const shards = buildShards(2.6, material);
+    return { material, target, shards };
   }, []);
 
+  useEffect(() => {
+    const owned = rig;
+    return () => {
+      owned.shards.forEach((sh) => sh.mesh.geometry.dispose());
+      owned.material.dispose();
+      owned.target.dispose();
+    };
+  }, [rig]);
+
+  // The same objects, reached through a ref so they can be driven per frame.
+  // React 19 tracks useMemo's result as owned-by-the-hook and rejects even
+  // `material.uniforms.x.value = …` through it; a ref is the sanctioned handle
+  // for state a component genuinely owns and mutates sixty times a second.
+  // Same objects, two doors: the memo renders them, the ref drives them.
+  const rigRef = useRef(rig);
+  const groupRef = useRef<THREE.Group>(null);
   const clock = useRef<number | null>(null);
   const swapped = useRef(false);
   const captured = useRef(false);
 
   useEffect(() => {
-    if (active === null) {
-      clock.current = null;
-      captured.current = false;
-      swapped.current = false;
-    } else {
-      clock.current = 0;
-      captured.current = false;
-      swapped.current = false;
-    }
+    clock.current = active === null ? null : 0;
+    captured.current = false;
+    swapped.current = false;
+    // Hidden until a fold actually starts, so twelve pentagons are not sitting
+    // around the camera every frame of ordinary use.
+    if (groupRef.current) groupRef.current.visible = active !== null;
   }, [active]);
 
-  // PRIORITY 3. @react-three/postprocessing renders the composer at priority
-  // 1, and r3f runs frame callbacks in ascending priority, so anything above
-  // that runs with the finished frame sitting in the canvas. That is both when
-  // the capture is valid and when the shards can be drawn over the top without
-  // going back through the chain.
+  // Priority 0, which runs BEFORE the composer at priority 1 — the shards have
+  // to be animated and in place before the frame that draws them. (r3f still
+  // skips its own render because the composer claims a priority above zero.)
   useFrame((state, dt) => {
-    const rig = rigRef.current;
-    if (rig === null || clock.current === null) return;
+    const group = groupRef.current;
+    if (group === null || clock.current === null) return;
 
-    const { gl, camera, size } = state;
-    const { material, shards, group } = rig;
+    const { gl, camera, scene, size } = state;
+    const { material, target, shards } = rigRef.current;
 
     if (!captured.current) {
-      // Copy the composed canvas — graded, bloomed, tone-mapped, everything —
-      // into the shard texture. Capturing the raw scene instead would freeze a
-      // linear image and the fold would start with a visible jump in exposure.
-      //
-      // A FramebufferTexture, NOT a plain Texture with its `image` field set
-      // to a size. That was the first attempt and it silently produced a black
-      // shell: a Texture with no data source never gets storage allocated, so
-      // the copy failed with GL_INVALID_VALUE ("offset overflows texture
-      // dimensions") as a console warning rather than an error, and the shards
-      // dutifully sampled an empty texture. FramebufferTexture exists for
-      // exactly this and allocates at construction.
       const dpr = gl.getPixelRatio();
       const w = Math.max(1, Math.floor(size.width * dpr));
       const h = Math.max(1, Math.floor(size.height * dpr));
-      if (rig.frame === null || rig.frame.image.width !== w || rig.frame.image.height !== h) {
-        rig.frame?.dispose();
-        const tex = new THREE.FramebufferTexture(w, h);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        tex.generateMipmaps = false;
-        rig.frame = tex;
-        material.uniforms.uFrame.value = tex;
-      }
-      gl.copyFramebufferToTexture(rig.frame);
+      target.setSize(w, h);
+
+      // Render the room into our own target, with the shell hidden so it
+      // cannot photograph itself. One extra pass of the scene, once, at the
+      // moment the fold begins.
+      group.visible = false;
+      const prev = gl.getRenderTarget();
+      gl.setRenderTarget(target);
+      gl.render(scene, camera);
+      gl.setRenderTarget(prev);
+      group.visible = true;
 
       camera.updateMatrixWorld();
       material.uniforms.uFrozenViewProj.value
         .multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
 
-      // The shell is built around the origin, so it has to be moved onto the
-      // camera and turned with it — the pentagons must surround the eye, not
-      // the world.
       // World, not local. The camera is a top-level object today, so these
       // happen to be the same — but reading the world transform is the version
       // that stays correct the first time the rig gets nested inside anything.
@@ -392,9 +390,7 @@ export function Fold({
     // step and the viewer is simply teleported past the thing they clicked
     // for. Measured on the headless rig, where the first frame after a click
     // arrives with dt near 0.65 s and the whole 1.55 s transition finishes in
-    // two frames. At 60 Hz this ceiling is never reached; below about 20 fps
-    // the fold stops being a fixed duration and becomes a fixed number of
-    // frames, which is the right trade — better slightly slow than skipped.
+    // two frames. At 60 Hz this ceiling is never reached.
     clock.current += Math.min(dt, 0.05);
     const t = clamp01(clock.current / FOLD_SECONDS);
 
@@ -406,14 +402,11 @@ export function Fold({
     // The whole shell turns, which is the "change of perspective" — the eye
     // stays put and the world rotates around it.
     const spin = easeInOut(t) * Math.PI * 0.62;
-    group.rotateOnAxis(new THREE.Vector3(0.18, 1, 0.1).normalize(), spin * dt * 1.4);
+    group.rotateOnAxis(SPIN_AXIS, spin * dt * 1.4);
 
     for (const s of shards) {
       const local = clamp01((t - s.delay) / (1 - s.delay));
       const e = easeInOut(local);
-      // Out along the shard's own normal: the shell inflates rather than
-      // exploding from a point, so the image stays legible while it comes
-      // apart instead of instantly becoming confetti.
       // From the pentagon's OWN centroid radius, not the circumradius. The
       // geometry is modelled about that centroid, so starting anywhere else
       // shifts every face off its neighbours and opens twelve hairline gaps
@@ -428,19 +421,18 @@ export function Fold({
     material.uniforms.uEdge.value = Math.sin(clamp01(t / 0.55) * Math.PI) * 0.30;
     material.uniforms.uFade.value = 1 - clamp01((t - 0.55) / 0.45) ** 1.6;
 
-    const wasAutoClear = gl.autoClear;
-    gl.autoClear = false;
-    // Depth only: the composed frame is already in the colour buffer and is
-    // what the shards are flying away from.
-    gl.clearDepth();
-    gl.render(rig.scene, camera);
-    gl.autoClear = wasAutoClear;
-
     if (t >= 1) {
       clock.current = null;
+      group.visible = false;
       onDone();
     }
-  }, 3);
+  });
 
-  return null;
+  return (
+    <group ref={groupRef} visible={false} frustumCulled={false}>
+      {rig.shards.map((s, i) => (
+        <primitive key={i} object={s.mesh} />
+      ))}
+    </group>
+  );
 }

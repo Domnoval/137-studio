@@ -128,21 +128,14 @@ const TONE_CURVES: Record<string, number> = {
 };
 const DEFAULT_CURVE = ToneMappingMode.AGX;
 
-// THE FOLD IS OFF BY DEFAULT, and this flag comes out the moment it works.
+// THE FOLD IS ON. It carried the frozen frame correctly once the capture
+// stopped being a canvas copy and became a render into a target this app owns
+// — see the note at the top of Fold.tsx.
 //
-// It is wired end to end — click a door, the frame freezes, twelve pentagons
-// carry it apart, the destination is swapped underneath, a control brings you
-// back — and one piece of it is broken: the framebuffer capture comes back
-// black, so the shell flies apart carrying nothing. The projective mapping
-// itself is verified exact (the uv debug output is a clean full-screen 0..1
-// gradient with no out-of-range pixels), so this is a capture bug and not a
-// maths bug.
-//
-// Before this flag, clicking a door did nothing at all. Shipping it ungated
-// would replace "nothing happens" with "the room turns black", which is worse
-// on a preview someone is actually looking at. Off by default, `?fold=1` to
-// work on it.
-const FOLD_ENABLED_BY_DEFAULT = false;
+// The flag stays, because a transition is the one thing that can make a site
+// unusable without erroring: `?fold=0` turns it off and doors go back to doing
+// nothing, which is the difference between a bad release and a broken one.
+const FOLD_ENABLED_BY_DEFAULT = true;
 
 
 export function Studio() {
