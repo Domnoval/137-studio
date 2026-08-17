@@ -36,6 +36,7 @@ import { Fold } from './Fold';
 import { Beyond } from './Beyond';
 import { DoorNav } from './DoorNav';
 import { PerfProbe } from './PerfProbe';
+import { Waking } from './Waking';
 import { PRACTICALS } from './studio-data';
 
 function Practicals({ reduced }: { reduced: boolean }) {
@@ -284,8 +285,20 @@ export function Studio() {
             standing. */}
         <group visible={beyond === null}>
           <Practicals reduced={reduced} />
+          {/* TWO BOUNDARIES, NOT ONE. These shared a Suspense, which meant the
+              room shell — floor, walls, ceiling, chalk, all of it generated
+              procedurally at mount and downloading exactly nothing — waited
+              behind 7.55 MB of Draco meshes before it could appear. The
+              cheapest thing in the room was gated on the most expensive.
+
+              Split, the stone is there almost immediately and the props arrive
+              into a space that already exists. That is the whole of "stage the
+              loading": not a queue, just refusing to make the free thing wait
+              for the costly one. */}
           <Suspense fallback={null}>
             <Room />
+          </Suspense>
+          <Suspense fallback={null}>
             <Props onHover={onHover} onOpen={onOpen} />
             <Preload all />
           </Suspense>
@@ -367,6 +380,11 @@ export function Studio() {
             so sending them back through this chain would grade them twice. */}
         <Fold active={folding} onMidpoint={onMidpoint} onDone={onFoldDone} />
       </Canvas>
+
+      {/* The wait, designed as the first beat of the room. Outside the Canvas
+          on purpose: it has to be visible before WebGL has drawn anything at
+          all, which is precisely the window it exists to cover. */}
+      <Waking reduced={reduced} />
 
       {/* The keyboard path — invisible until tabbed into. See DoorNav.tsx. */}
       <DoorNav onOpen={onOpen} beyond={beyond} />
