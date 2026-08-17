@@ -34,6 +34,48 @@ const MODEL_PATH = '/models/';
 // lives in /public/draco — cheaper than the models it unpacks.
 const DRACO_PATH = '/draco/';
 
+/** Per-part grades for a console that satisfies docs/console-asset-contract.md.
+ *
+ *  The whole reason the console is being rebuilt is that the reconstruction
+ *  fused it into one mesh with one material, and one material cannot be
+ *  blackened iron AND polished brass AND glass — so it is none of them. These
+ *  are the values that stop being unusable the moment the parts are separate.
+ *
+ *  Keyed by the contract's node names, which is why those names are an API and
+ *  not a suggestion. A GLB without them falls through to the single-material
+ *  path below and behaves exactly as it does today, so this can land before the
+ *  asset does and simply start working when it arrives. */
+const CONSOLE_PARTS: Record<string, { rough: number; metal: number; env: number; emis?: number }> = {
+  // Painted cast iron: dark, but never below the 8% reflectance floor — a
+  // surface that cannot return light is how this room went black for months.
+  Body_Iron: { rough: 0.62, metal: 0.05, env: 0.55 },
+  // Actually metal, and the only part that is. Restraint here is the whole
+  // difference between "brass fittings on an iron machine" and "a gold lamp".
+  Trim_Brass: { rough: 0.34, metal: 0.9, env: 1.35 },
+  CRT_Bezel: { rough: 0.58, metal: 0.1, env: 0.7 },
+  // The single biggest win in the rebuild. A separate glass shell can catch a
+  // reflection of the room that the display behind it cannot, which is what
+  // makes a CRT read as a physical object rather than a picture of one.
+  CRT_Glass: { rough: 0.06, metal: 0.0, env: 1.6 },
+  // Emissive, and deliberately almost blind to the environment: a screen that
+  // mirrors the candles is a mirror, not a screen.
+  CRT_Display: { rough: 0.6, metal: 0.0, env: 0.15, emis: 1.0 },
+  Panel_Controls: { rough: 0.55, metal: 0.15, env: 0.8 },
+};
+
+/** Nodes that exist for the engine, not the eye. */
+const INVISIBLE_NODES = new Set(['Collision_Console', 'FocusAnchor']);
+
+/** Walk up to the nearest ancestor the contract names, since a modeller may
+ *  nest detail under Body_Iron rather than flattening everything. */
+function contractPart(o: THREE.Object3D): string | null {
+  for (let n: THREE.Object3D | null = o; n; n = n.parent) {
+    if (n.name in CONSOLE_PARTS) return n.name;
+    if (INVISIBLE_NODES.has(n.name)) return n.name;
+  }
+  return null;
+}
+
 /** The painting on the easel. A separate plane rather than a texture swap:
  *  the reconstruction fuses the whole easel into one mesh with one material,
  *  so there is no canvas to re-texture — and the artwork has to be swappable
@@ -91,6 +133,32 @@ function Prop({
       o.receiveShadow = true;
       const src = o.material as THREE.MeshStandardMaterial;
       const m = src.clone();
+
+      // CONTRACT PATH. If this mesh belongs to a node the console contract
+      // names, it is graded as that material and the prop-wide grade is
+      // skipped — the prop-wide grade exists precisely because the old asset
+      // had only one material to give.
+      const part = contractPart(o);
+      if (part !== null) {
+        if (INVISIBLE_NODES.has(part)) {
+          o.visible = false;
+          o.castShadow = false;
+          o.receiveShadow = false;
+          o.material = m;
+          return;
+        }
+        const g = CONSOLE_PARTS[part];
+        m.roughnessMap = null;
+        m.roughness = g.rough;
+        m.metalness = g.metal;
+        m.envMapIntensity = g.env;
+        if (g.emis !== undefined && (m.emissiveMap || m.emissive?.getHex() !== 0x000000)) {
+          m.emissiveIntensity = g.emis;
+        }
+        o.material = m;
+        return;
+      }
+
       if (spec.tint !== undefined && m.color) m.color.multiplyScalar(spec.tint);
 
       // METALNESS. Every one of these GLBs ships a metallicRoughness texture

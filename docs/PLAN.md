@@ -60,6 +60,14 @@ Honest inventory, not a status report.
 
 ## Next 5 days — unblock, measure, make one thing real
 
+**Status: all five landed, 17 August.** What each one actually turned up is in
+the commit messages; the short version is that three of the five found a bug
+worse than the feature they were adding. The room shell was gated behind
+7.55 MB of meshes it did not need; `?fold=0` disabled the doors rather than the
+transition; and the shard group hid itself halfway through every fold. None of
+those would have been found by building the feature and looking at it.
+
+
 The goal is not features. It is removing every reason the next 85 days could
 stall.
 
