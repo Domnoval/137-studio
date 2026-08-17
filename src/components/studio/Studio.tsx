@@ -35,6 +35,7 @@ import { RoomEnvironment } from './RoomEnvironment';
 import { Fold } from './Fold';
 import { Beyond } from './Beyond';
 import { DoorNav } from './DoorNav';
+import { PerfProbe } from './PerfProbe';
 import { PRACTICALS } from './studio-data';
 
 function Practicals({ reduced }: { reduced: boolean }) {
@@ -187,6 +188,11 @@ export function Studio() {
   // label through labelRef directly. Routing it through a second ref assigned
   // during render is a render-phase side effect, which React 19 rejects and
   // was right to.
+  // `?perf=1` only. See PerfProbe.tsx — a profiler that changes what it
+  // profiles is worse than none, so it is not on by default.
+  const [perf] = useState(
+    () => new URLSearchParams(window.location.search).get('perf') === '1',
+  );
   const [foldEnabled] = useState(() => {
     const q = new URLSearchParams(window.location.search).get('fold');
     return q === null ? FOLD_ENABLED_BY_DEFAULT : q === '1';
@@ -266,6 +272,7 @@ export function Studio() {
         }}
       >
         <CameraRig reduced={reduced} />
+        <PerfProbe enabled={perf} />
         <RoomEnvironment />
         {/* HIDDEN, NOT UNMOUNTED. The studio's surfaces are painted into
             canvases at mount — a 3072x1536 chalk wall, three stone maps and

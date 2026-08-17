@@ -1,0 +1,80 @@
+{
+  "takenAt": "2026-08-17T03:31:07.081Z",
+  "url": "http://localhost:3000/studio?perf=1",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "assets": {
+    "models": {
+      "count": 12,
+      "bytes": 7916120
+    },
+    "artwork": {
+      "count": 56,
+      "bytes": 97475637
+    },
+    "dracoDecoder": {
+      "count": 3,
+      "bytes": 763341
+    },
+    "clientJs": {
+      "count": 27,
+      "bytes": 2903676
+    },
+    "blockingBytes": 8679461
+  },
+  "transferredTop": [
+    {
+      "url": "4616ee18-104d-46e6-bf10-6822cf0bbaa6",
+      "bytes": 481242
+    },
+    {
+      "url": "rosetta.jpg",
+      "bytes": 475154
+    },
+    {
+      "url": "92d6a455-2432-49a6-83d5-e1a4aab288b8",
+      "bytes": 364526
+    },
+    {
+      "url": "98f1e1ce-12a1-45fa-801b-38ff95da4339",
+      "bytes": 273988
+    },
+    {
+      "url": "6314c222-1903-4c99-9908-0b10aef99eed",
+      "bytes": 269300
+    },
+    {
+      "url": "1aba1313-c383-4c47-97f8-a00d8d00b90b",
+      "bytes": 253706
+    },
+    {
+      "url": "b3d751e3-302a-4703-8920-b544ece31357",
+      "bytes": 242310
+    },
+    {
+      "url": "f77b1f8e-5587-4c36-9bfb-871e05763e8f",
+      "bytes": 219034
+    },
+    {
+      "url": "6bf2504a-26f3-4621-a6df-0ad8dfd5e677",
+      "bytes": 207884
+    },
+    {
+      "url": "0ce2b56e-09cc-4116-bf74-ff53706a0784",
+      "bytes": 204386
+    }
+  ],
+  "firstFrameMs": 5225,
+  "runtime": {
+    "frames": 17,
+    "medianMs": 2698,
+    "p95Ms": 6900.6,
+    "worstMs": 6900.6,
+    "fps": 0.4,
+    "calls": 34,
+    "triangles": 368959,
+    "geometries": 35,
+    "textures": 95,
+    "programs": 21
+  },
+  "errors": []
+}
