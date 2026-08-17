@@ -337,9 +337,6 @@ export function Fold({
     clock.current = active === null ? null : 0;
     captured.current = false;
     swapped.current = false;
-    // Hidden until a fold actually starts, so twelve pentagons are not sitting
-    // around the camera every frame of ordinary use.
-    if (groupRef.current) groupRef.current.visible = active !== null;
   }, [active]);
 
   // Priority 0, which runs BEFORE the composer at priority 1 — the shards have
@@ -429,7 +426,14 @@ export function Fold({
   });
 
   return (
-    <group ref={groupRef} visible={false} frustumCulled={false}>
+    // Visibility is DECLARED, not set from the effect above. Setting it
+    // imperatively worked until the first re-render during a fold — the swap at
+    // the midpoint re-renders Studio, React re-applies whatever is written
+    // here, and a hard-coded `visible={false}` would put the shards away
+    // halfway through carrying the frozen frame. Derived from `active`, the two
+    // can never disagree. (The capture still toggles it imperatively for one
+    // frame, which is safe: React cannot re-render inside a frame callback.)
+    <group ref={groupRef} visible={active !== null} frustumCulled={false}>
       {rig.shards.map((s, i) => (
         <primitive key={i} object={s.mesh} />
       ))}

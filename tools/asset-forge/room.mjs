@@ -20,6 +20,27 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Find Chromium rather than hard-code it. This container is reclaimed between
+// sessions and comes back with a different Playwright build number, so a
+// pinned path like /opt/pw-browsers/chromium-1208/... is correct exactly until
+// the next restart and then fails with "executable doesn't exist" — which
+// reads like a broken harness rather than a moved file. CHROME_BIN wins if set.
+function findChromium() {
+  if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
+  const root = '/opt/pw-browsers';
+  if (!fs.existsSync(root)) return undefined;
+  const builds = fs.readdirSync(root)
+    .filter((d) => /^chromium-\d+$/.test(d))
+    .sort((a, b) => Number(a.split('-')[1]) - Number(b.split('-')[1]));
+  for (const d of builds.reverse()) {
+    for (const sub of ['chrome-linux64', 'chrome-linux']) {
+      const bin = path.join(root, d, sub, 'chrome');
+      if (fs.existsSync(bin)) return bin;
+    }
+  }
+  return undefined; // let playwright fall back to its own resolution
+}
+
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => a.slice(2).split('=')),
@@ -64,7 +85,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const errors = [];
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1208/chrome-linux64/chrome',
+  executablePath: findChromium(),
   headless: true,
   args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--disable-dev-shm-usage'],
 });

@@ -23,6 +23,7 @@ import { PerspectiveCamera } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { PerspectiveCamera as TPerspectiveCamera } from 'three';
 import { SEAT } from './studio-data';
+import { getAim } from './look';
 
 const DEG = Math.PI / 180;
 
@@ -66,9 +67,21 @@ export function CameraRig({ reduced }: { reduced: boolean }) {
     // ease-out quart — fast off the mark, settles gently at level
     const o = 1 - Math.pow(1 - raw, 4);
 
-    const k = 1 - Math.exp(-4.2 * d);
-    current.current.yaw += (target.current.yaw - current.current.yaw) * k;
-    current.current.pitch += (target.current.pitch - current.current.pitch) * k;
+    // Keyboard focus outranks the pointer. When a door is focused the head is
+    // turned to face it, and it stays there until focus moves — otherwise a
+    // stray pointer event over the canvas would drag the view off whatever the
+    // keyboard user had just selected, which is the sort of thing that makes a
+    // site technically navigable and actually unusable.
+    const aim = getAim();
+    const wantYaw = aim ? aim.yaw : target.current.yaw;
+    const wantPitch = aim ? aim.pitch : target.current.pitch;
+
+    // Faster toward a focused door than the ambient pointer drift. The lazy
+    // spring is right for a head following a mouse; for "show me the thing I
+    // just selected" it reads as sluggish.
+    const k = 1 - Math.exp(-(aim ? 7.5 : 4.2) * d);
+    current.current.yaw += (wantYaw - current.current.yaw) * k;
+    current.current.pitch += (wantPitch - current.current.pitch) * k;
 
     // the opening tilt down at the bench, blending out as `o` rises
     const openPitch = -SEAT.pitchDown * DEG * 0.8 * (1 - o);

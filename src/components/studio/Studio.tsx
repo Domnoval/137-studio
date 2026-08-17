@@ -34,6 +34,7 @@ import { CameraRig } from './CameraRig';
 import { RoomEnvironment } from './RoomEnvironment';
 import { Fold } from './Fold';
 import { Beyond } from './Beyond';
+import { DoorNav } from './DoorNav';
 import { PRACTICALS } from './studio-data';
 
 function Practicals({ reduced }: { reduced: boolean }) {
@@ -197,11 +198,29 @@ export function Studio() {
   const onOpen = useCallback((door: string) => {
     // A second click mid-fold would capture a frame of the fold itself and
     // recurse the room into its own transition. Tempting to watch exactly once.
-    if (!foldEnabled || pending.current !== null) return;
+    if (pending.current !== null) return;
+    onHover(null);
+
+    // THE FLAG DISABLES THE ANIMATION, NOT THE NAVIGATION. This used to read
+    // `if (!foldEnabled || pending…) return`, which meant `?fold=0` did not
+    // turn the transition off — it turned the DOORS off, and every one of them
+    // silently did nothing. A kill switch for an effect has to degrade the
+    // effect and leave the function standing, or it is not a kill switch, it
+    // is a second way to break the site.
+    //
+    // The same path serves prefers-reduced-motion, which is the whole reason
+    // it has to exist: someone who cannot watch a room shatter still has to be
+    // able to go through the door.
+    if (!foldEnabled || reduced) {
+      pending.current = door;
+      setBeyond((current) => (current === null ? door : null));
+      pending.current = null;
+      return;
+    }
+
     pending.current = door;
     setFolding(door);
-    onHover(null);
-  }, [onHover, foldEnabled]);
+  }, [onHover, foldEnabled, reduced]);
 
   // Named by the fold, not guessed at with a timer: it fires when the shards
   // have broken up enough to hide the swap.
@@ -215,7 +234,16 @@ export function Studio() {
   }, []);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0a0908' }}>
+    <div
+      style={{ position: 'fixed', inset: 0, background: '#0a0908' }}
+      // A test seam, and a deliberate one. The room's state lives in React and
+      // its output lives in a canvas, so an automated check has no way to ask
+      // "did the door actually open" — it can only look at pixels, and pixels
+      // are exactly what lied during the fold debug, when a dead shader
+      // rendered the room behind the shards and looked like success. This
+      // exposes the state machine itself.
+      data-studio-state={JSON.stringify({ beyond, folding, reduced, foldEnabled })}
+    >
       <Canvas
         shadows
         dpr={[1, 2]}
@@ -332,6 +360,9 @@ export function Studio() {
             so sending them back through this chain would grade them twice. */}
         <Fold active={folding} onMidpoint={onMidpoint} onDone={onFoldDone} />
       </Canvas>
+
+      {/* The keyboard path — invisible until tabbed into. See DoorNav.tsx. */}
+      <DoorNav onOpen={onOpen} beyond={beyond} />
 
       {/* Where you are, once you are through a door. Sits opposite the hover
           label rather than replacing it, because the two say different things:
