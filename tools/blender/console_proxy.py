@@ -49,10 +49,14 @@ def mat(name, rgb, metal, rough):
 # Base colours sit at or above the 8% reflectance floor. A surface painted
 # darker than that cannot return the light it is given, which is how the room
 # went accidentally black for months.
-M_IRON    = mat("M_Iron",    (0.085, 0.075, 0.072), 0.05, 0.62)
+# Checked against the 8% floor rather than eyeballed: the first set of these
+# measured 7.7% and 7.6%, and the in-Blender contract check said so. Luminance
+# is 0.2126R + 0.7152G + 0.0722B — green carries three quarters of it, which is
+# why a colour that "looks" dark grey can sit either side of the line.
+M_IRON    = mat("M_Iron",    (0.090, 0.080, 0.077), 0.05, 0.62)
 M_BRASS   = mat("M_Brass",   (0.55,  0.40,  0.16),  0.90, 0.34)
 M_GLASS   = mat("M_Glass",   (0.10,  0.11,  0.12),  0.00, 0.06)
-M_DISPLAY = mat("M_Display", (0.09,  0.075, 0.05),  0.00, 0.60)
+M_DISPLAY = mat("M_Display", (0.095, 0.080, 0.055), 0.00, 0.60)
 
 
 def box(name, size, loc, material, parent=None):
@@ -151,10 +155,7 @@ for i in range(8):
         M_BRASS, root, rot=(math.radians(-24), 0, 0))
 
 # ── collision + focus ───────────────────────────────────────────────────────
-# A convex box, 12 triangles. Raycasting the full-detail mesh is wasteful and
-# makes the clickable area feel unreliable where the geometry is thin.
-coll = box("Collision_Console", (BODY_W, BODY_D, HEIGHT), (0, 0, HEIGHT / 2), M_IRON, root)
-coll.display_type = "WIRE"
+
 
 # Where the machine wants to be looked at: centred on the CRT, 8 cm proud of
 # the glass. This is the point the fold composes around when the console is
@@ -178,6 +179,42 @@ for o in root.children:
 bpy.context.view_layer.update()
 zs = [(o.matrix_world @ Vector(c)).z for o in meshes for c in o.bound_box]
 print(f"height {max(zs) - min(zs):.4f} m (target {HEIGHT})")
+
+# ── collision, built LAST ───────────────────────────────────────────────────
+# Order matters here and it cost a measurement to learn. Built before the
+# normalisation, the hull was included in the height that got normalised — so
+# the machine was scaled until hull-plus-margin measured 1.05 m and the part
+# you can see came out at 1.03. Two centimetres, invisible by eye, and a
+# blockout whose whole job is to be the right size.
+#
+# A convex box, 12 triangles. Raycasting the full-detail mesh is wasteful and
+# makes the clickable area feel unreliable where the geometry is thin.
+#
+# MEASURED from the machine rather than guessed alongside it. Written by hand
+# as BODY_W x BODY_D it missed the plinth, which is 1% wider, and the control
+# deck, which stands 38 mm proud of the chassis — and a hull that misses part
+# of the console is worse than no hull, because the pointer passes straight
+# through exactly the parts a visitor is most likely to aim at.
+bpy.context.view_layer.update()
+lo = [1e9] * 3
+hi = [-1e9] * 3
+for o in root.children:
+    if o.type != "MESH":
+        continue
+    for corner in o.bound_box:
+        w = o.matrix_world @ Vector(corner)
+        for a in range(3):
+            lo[a] = min(lo[a], w[a])
+            hi[a] = max(hi[a], w[a])
+MARGIN = 0.01
+coll = box(
+    "Collision_Console",
+    tuple(hi[a] - lo[a] + MARGIN * 2 for a in range(3)),
+    tuple((hi[a] + lo[a]) / 2 for a in range(3)),
+    M_IRON,
+    root,
+)
+coll.display_type = "WIRE"
 
 # ── export ──────────────────────────────────────────────────────────────────
 os.makedirs(os.path.dirname(OUT) or ".", exist_ok=True)
