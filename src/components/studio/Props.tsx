@@ -34,6 +34,35 @@ const MODEL_PATH = '/models/';
 // lives in /public/draco — cheaper than the models it unpacks.
 const DRACO_PATH = '/draco/';
 
+/** `?console=proxy` swaps the hero asset for the contract blockout in
+ *  `tools/blender/console_proxy.py`.
+ *
+ *  It is here to be RUN, not to be tidy. The per-part grading in CONSOLE_PARTS
+ *  below is code written against an asset that does not exist yet, and code
+ *  like that is wrong until something proves otherwise — the loader's name
+ *  matching, the invisible-node handling and the height normalisation all had
+ *  bugs that only a real contract-shaped GLB could show. The flag means the
+ *  drop-in path can be exercised on demand without the room having to look
+ *  like a blockout for everyone else.
+ *
+ *  Read once and cached: a prop that changed file between renders would
+ *  re-suspend the whole scene. */
+let consoleFileCache: string | null = null;
+function consoleFile(): string {
+  if (consoleFileCache === null) {
+    const q =
+      typeof window === 'undefined'
+        ? null
+        : new URLSearchParams(window.location.search).get('console');
+    consoleFileCache = q === 'proxy' ? 'consoleMV-proxy.glb' : 'consoleMV.glb';
+  }
+  return consoleFileCache;
+}
+
+function modelFile(spec: PropSpec): string {
+  return spec.id === 'consoleMV' ? consoleFile() : spec.file;
+}
+
 /** Per-part grades for a console that satisfies docs/console-asset-contract.md.
  *
  *  The whole reason the console is being rebuilt is that the reconstruction
@@ -61,17 +90,58 @@ const CONSOLE_PARTS: Record<string, { rough: number; metal: number; env: number;
   // mirrors the candles is a mirror, not a screen.
   CRT_Display: { rough: 0.6, metal: 0.0, env: 0.15, emis: 1.0 },
   Panel_Controls: { rough: 0.55, metal: 0.15, env: 0.8 },
+  // Knobs are brass, and they were the one part this table forgot. The
+  // contract asks for `Knob_00 … Knob_NN` as separate nodes and the proxy
+  // duly supplied eight — which then graded at metalness 0.30 off the
+  // single-material fallback instead of 0.90, because nothing here named
+  // them. Nothing errored; the brass just quietly stopped being brass.
+  // Found by reading the materials back off the running scene, which is what
+  // that instrument is for. The `Knob` key matches `Knob_00` through the same
+  // separator rule that makes `Trim_Brass.001` brass.
+  Knob: { rough: 0.34, metal: 0.9, env: 1.35 },
 };
 
 /** Nodes that exist for the engine, not the eye. */
 const INVISIBLE_NODES = new Set(['Collision_Console', 'FocusAnchor']);
 
+/** The names above, longest first, so `Panel_Controls` is tested before any
+ *  shorter name that happens to prefix it. */
+const PART_NAMES = [...Object.keys(CONSOLE_PARTS), ...INVISIBLE_NODES].sort(
+  (a, b) => b.length - a.length,
+);
+
+/** Resolve a node name to a contract part, tolerating the suffixes a real
+ *  export produces.
+ *
+ *  This is not politeness, it is the difference between the asset working and
+ *  not. A console has more than one piece of brass, and the moment a modeller
+ *  duplicates `Trim_Brass` Blender names the copy `Trim_Brass.001` — which is
+ *  not the string `Trim_Brass`, so an exact-match lookup drops it through to
+ *  the single-material fallback grade and it renders as painted iron. Nothing
+ *  errors. You just get a duller console than the one that was modelled, and
+ *  the reason is invisible.
+ *
+ *  Rule: strip Blender's `.NNN` duplicate suffix, then accept a contract name
+ *  if the rest of the string starts with it and the next character is a
+ *  separator — so `Trim_Brass_plinth` is brass and `Trim_Brasserie` is not.
+ *  tools/asset-forge/validate-console.mjs implements the same rule, and the
+ *  validator reports every node it cannot resolve for exactly this reason. */
+function normalisePart(raw: string): string | null {
+  const name = raw.replace(/\.\d+$/, '');
+  for (const p of PART_NAMES) {
+    if (!name.startsWith(p)) continue;
+    const next = name[p.length];
+    if (next === undefined || next === '_' || next === '.') return p;
+  }
+  return null;
+}
+
 /** Walk up to the nearest ancestor the contract names, since a modeller may
  *  nest detail under Body_Iron rather than flattening everything. */
 function contractPart(o: THREE.Object3D): string | null {
   for (let n: THREE.Object3D | null = o; n; n = n.parent) {
-    if (n.name in CONSOLE_PARTS) return n.name;
-    if (INVISIBLE_NODES.has(n.name)) return n.name;
+    const part = normalisePart(n.name);
+    if (part !== null) return part;
   }
   return null;
 }
@@ -118,7 +188,7 @@ function Prop({
   onHover: (id: string | null) => void;
   onOpen: (door: string) => void;
 }) {
-  const { scene } = useGLTF(MODEL_PATH + spec.file, DRACO_PATH);
+  const { scene } = useGLTF(MODEL_PATH + modelFile(spec), DRACO_PATH);
   const group = useRef<THREE.Group>(null);
   const [hot, setHot] = useState(false);
 
@@ -201,8 +271,20 @@ function Prop({
       o.material = m;
     });
 
-    // normalise to the specified physical height
-    const box = new THREE.Box3().setFromObject(root);
+    // Normalise to the specified physical height — measuring only what is
+    // VISIBLE. Box3.setFromObject expands over every descendant regardless of
+    // `visible`, and the contract asks for a collision hull that CONTAINS the
+    // console, so measuring the lot would size the machine by its hitbox and
+    // shrink the thing you can see by however much slack the modeller left.
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    root.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || !o.visible) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const b = o.geometry.boundingBox;
+      if (b) box.union(b.clone().applyMatrix4(o.matrixWorld));
+    });
+    if (box.isEmpty()) box.setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
     const ctr = box.getCenter(new THREE.Vector3());
     const s = spec.height / (size.y || 1);
@@ -272,7 +354,7 @@ export function Props({
 
 // Warm the cache so the room does not pop in prop by prop.
 export function preloadProps() {
-  PROPS.forEach((p) => useGLTF.preload(MODEL_PATH + p.file, DRACO_PATH));
+  PROPS.forEach((p) => useGLTF.preload(MODEL_PATH + modelFile(p), DRACO_PATH));
 }
 
 /** Called at module load by the Studio entry. */

@@ -11,7 +11,8 @@ an error, and a kill switch you have to ship to reach is not a kill switch.
 |---|---|---|
 | `?fold=0` | on | Doors open **instantly**, with no transition. |
 | `?tm=aces` \| `agx` \| `neutral` \| `none` | `agx` | Swap the tone curve. |
-| `?perf=1` | off | Expose renderer stats for `baseline.mjs`. |
+| `?perf=1` | off | Expose renderer stats **and material grades** for the harnesses. |
+| `?console=proxy` | off | Load the contract blockout instead of the hero console. |
 
 ---
 
@@ -64,3 +65,19 @@ The room's state lives in React and its output lives in a canvas, so an
 automated check can otherwise only look at pixels. Pixels are exactly what lied
 during the fold debug, when a dead shader rendered the room behind the shards
 and looked like a working transition for two rounds of testing.
+
+## `?console=proxy` — the asset that does not exist yet
+
+The console's per-part grading is code written against a GLB nobody has
+modelled. Code like that is wrong until something proves otherwise, and in this
+case it was wrong three times: the loader matched node names exactly, so a
+`Trim_Brass.001` duplicate silently rendered as iron; the height normalisation
+measured the collision hull along with the machine; and the knobs were never
+in the grade table at all, so eight brass knobs rendered at metalness 0.30.
+
+None of those throw. All three were found by loading a blockout that satisfies
+the contract and reading the materials back off the running scene with
+`?perf=1`, which writes a `data-grades` attribute alongside `data-perf`.
+
+Generate the blockout with `python3 tools/blender/console_proxy.py`, check it
+with `npm run validate:console`, and look at it with `?console=proxy`.

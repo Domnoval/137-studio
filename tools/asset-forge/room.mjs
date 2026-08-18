@@ -43,7 +43,17 @@ function findChromium() {
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const flags = Object.fromEntries(
-  process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => a.slice(2).split('=')),
+  // Split on the FIRST '=' only. `split('=')` drops everything after the
+  // second one, which silently truncated `--url=…/studio?console=proxy&fold=0`
+  // to `…/studio?console` — a valid URL that loads the default room. The
+  // harness then captured a perfectly good frame of the wrong build and
+  // reported success. Every flag this tool takes has a value that can contain
+  // an '='; this is the only parse that is safe.
+  process.argv.slice(2).filter((a) => a.startsWith('--')).map((a) => {
+    const body = a.slice(2);
+    const i = body.indexOf('=');
+    return i === -1 ? [body, '1'] : [body.slice(0, i), body.slice(i + 1)];
+  }),
 );
 const outDir = args[0] || './room';
 const url = flags.url || 'http://localhost:3000/studio';

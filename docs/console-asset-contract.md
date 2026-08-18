@@ -65,6 +65,19 @@ ConsoleRoot
 └── FocusAnchor        empty, see §5
 ```
 
+### Duplicates and suffixes are fine
+
+The loader strips Blender's `.001` suffix and accepts anything that extends a
+contract name past a `_` or a `.`. So three separate pieces of brass named
+`Trim_Brass`, `Trim_Brass.001` and `Trim_Brass_plinth` all grade as brass. Do
+not rename your duplicates by hand — that is the exporter's business, not
+yours.
+
+What you cannot do is invent a name. `Plinth` matches nothing, falls through to
+the single-material fallback grade, and renders as generic painted iron with no
+error anywhere. The validator lists every node this would happen to, which is
+the only reason it is safe to be relaxed about the rest.
+
 ### Not in this contract, deliberately
 
 There are **no levers, no bit lamps, no commit switch**. The 4-bit lever machine
@@ -164,6 +177,7 @@ maintained, not abandoned.
 
 | Setting | Value |
 |---|---|
+| Blender | 4.2 LTS or newer, **5.x included** — the exporter is stable across them |
 | Format | `.glb`, glTF 2.0 binary |
 | Include | Selected objects, custom properties off |
 | Transform | +Y up (exporter default) |
@@ -173,6 +187,17 @@ maintained, not abandoned.
 
 Drop it at `public/models/consoleMV.glb`. The pipeline in `tools/asset-forge/`
 handles Draco and texture conversion (22× reduction, measured).
+
+**Check it before you send it:**
+
+```bash
+node tools/asset-forge/validate-console.mjs path/to/your-export.glb
+```
+
+That is this document, executable. It reads the GLB's own JSON — no Blender, no
+three.js, no dev server — and it measures in world space, so node scales and
+parenting are accounted for rather than assumed away. A pass means it drops in.
+A fail names the node.
 
 ---
 
@@ -185,6 +210,7 @@ handles Draco and texture conversion (22× reduction, measured).
 - [ ] `Collision_Console` present, convex, under 40 triangles.
 - [ ] `FocusAnchor` present and centred on the CRT.
 - [ ] Total height 1.05 m; footprint within 0.95 × 0.55 m.
+- [ ] `node tools/asset-forge/validate-console.mjs <your export>` passes.
 - [ ] It survives a close-up still. **The bar is a paused frame, not motion** —
       motion hides everything and this machine is looked at while stationary.
 
