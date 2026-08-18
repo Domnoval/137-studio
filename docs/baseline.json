@@ -1,11 +1,11 @@
 {
-  "takenAt": "2026-08-17T03:31:07.081Z",
+  "takenAt": "2026-08-18T20:55:17.595Z",
   "url": "http://localhost:3000/studio?perf=1",
   "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
   "assets": {
     "models": {
-      "count": 12,
-      "bytes": 7916120
+      "count": 13,
+      "bytes": 7968216
     },
     "artwork": {
       "count": 56,
@@ -17,13 +17,13 @@
     },
     "clientJs": {
       "count": 27,
-      "bytes": 2903676
+      "bytes": 2909249
     },
-    "blockingBytes": 8679461
+    "blockingBytes": 8731557
   },
   "transferredTop": [
     {
-      "url": "4616ee18-104d-46e6-bf10-6822cf0bbaa6",
+      "url": "38bbd93d-b325-4fe5-955f-dc80a476e545",
       "bytes": 481242
     },
     {
@@ -31,50 +31,51 @@
       "bytes": 475154
     },
     {
-      "url": "92d6a455-2432-49a6-83d5-e1a4aab288b8",
+      "url": "be0ab7dc-f1ef-44bb-940e-7c8261c23bd0",
       "bytes": 364526
     },
     {
-      "url": "98f1e1ce-12a1-45fa-801b-38ff95da4339",
+      "url": "37d55aab-bd93-4c5e-a083-39ec77809153",
       "bytes": 273988
     },
     {
-      "url": "6314c222-1903-4c99-9908-0b10aef99eed",
+      "url": "59dd6c8c-eb7d-47e3-ab27-e4bc4653238e",
       "bytes": 269300
     },
     {
-      "url": "1aba1313-c383-4c47-97f8-a00d8d00b90b",
+      "url": "e948fe8f-d74f-496c-b230-b99982f9545d",
       "bytes": 253706
     },
     {
-      "url": "b3d751e3-302a-4703-8920-b544ece31357",
+      "url": "e72594ed-f354-44d5-a5a5-b01421c19fc6",
       "bytes": 242310
     },
     {
-      "url": "f77b1f8e-5587-4c36-9bfb-871e05763e8f",
+      "url": "5936765f-1fc2-40cf-9ead-72df4c4053e1",
       "bytes": 219034
     },
     {
-      "url": "6bf2504a-26f3-4621-a6df-0ad8dfd5e677",
+      "url": "13701bf3-70bc-4197-97d4-3b77ef68f6fd",
       "bytes": 207884
     },
     {
-      "url": "0ce2b56e-09cc-4116-bf74-ff53706a0784",
+      "url": "0a730a49-0bf2-4eb3-8ffe-1040478e4787",
       "bytes": 204386
     }
   ],
-  "firstFrameMs": 5225,
+  "firstFrameMs": 4966,
   "runtime": {
-    "frames": 17,
-    "medianMs": 2698,
-    "p95Ms": 6900.6,
-    "worstMs": 6900.6,
-    "fps": 0.4,
-    "calls": 34,
-    "triangles": 368959,
+    "frames": 9,
+    "medianMs": 15.7,
+    "p95Ms": 17041.8,
+    "worstMs": 17041.8,
+    "fps": 63.7,
+    "calls": 139,
+    "triangles": 2807921,
+    "passes": 23,
     "geometries": 35,
     "textures": 95,
-    "programs": 21
+    "programs": 22
   },
   "errors": []
 }

@@ -1,4 +1,4 @@
-# Baseline — 17 August 2026
+# Baseline — 17 August 2026, corrected 18 August
 
 The numbers the next ninety days get measured against. Taken before any
 optimisation work, deliberately, because "it feels faster" is not a claim
@@ -27,12 +27,48 @@ node tools/asset-forge/baseline.mjs --out=docs/baseline.json
 
 | | |
 |---|---|
-| Draw calls | 34 |
-| Triangles | 368,959 |
+| **Render passes per frame** | **23** |
+| Draw calls per frame | **139** |
+| Triangles per frame | **2,807,921** |
 | Geometries | 35 |
 | Textures | 95 |
-| Shader programs | 21 |
-| First frame | 5,225 ms *(software renderer — see below)* |
+| Shader programs | 22 |
+| First frame | 4,966 ms *(software renderer — see below)* |
+
+> **Corrected 18 August.** The first version of this table read
+> **34 draw calls / 368,959 triangles**. Those numbers were wrong, and the
+> section below explains how.
+
+
+
+---
+
+## The instrument was wrong, and here is how
+
+The original figures came from `PerfProbe`, which read `gl.info.render` inside a
+`useFrame` callback. `info.render` is **cleared at the start of every
+`renderer.render()` call**, and this room renders about twenty-three times per
+frame — the scene, twelve shadow cube faces, and each pass of the post chain.
+Sampling it from one callback therefore reads whichever render happened to go
+last.
+
+For a while that was the scene, and the table said 34 / 368,959. Once the
+composer was in place it became the final fullscreen blit, and the same tool,
+unchanged, reported **1 draw call and 1 triangle** for a room drawing millions.
+Both readings were the instrument catching a different moment, not the room
+changing.
+
+The fix: `gl.info.autoReset` is switched off and the probe resets the counters
+itself, once per frame, immediately after sampling. Each sample is now the
+complete cost of the frame that just finished — scene, shadows and post —
+regardless of what ran in what order. Two consecutive runs then returned
+139 / 2,807,921 **identical to the triangle**, which is what a real measurement
+looks like and what the old one never did.
+
+This is the second time this project has been steered by a broken instrument,
+after four months of grading a room against an exposure bug. It will not be the
+last. **Every number in this document was taken twice, and the ones that are
+not reproducible are named as such.**
 
 ---
 
@@ -71,8 +107,30 @@ to arrive before anything can be drawn at all. That is the number the staged
 loader has to attack: room shell first, console second, everything else behind
 them. Right now it is all-or-nothing.
 
-**34 draw calls and 369k triangles are both healthy** and are not where any
-effort should go. The room is not slow because of its geometry.
+**23 render passes per frame is the number that matters, and 12 of them are
+shadows.**
+
+`three` gives a point light an omnidirectional shadow, which is a **cube map —
+six renders of the scene, per light, per frame**. Two practicals carry
+`casts: true` (the desk lamp and the candelabra), so twelve of the twenty-three
+passes exist to produce two shadows. The main scene is one pass; the rest is
+the post chain.
+
+That is why the per-frame triangle count is 2.8 M against a scene that contains
+369 k. The room is not drawn once. It is drawn about eight times, most of them
+into shadow maps.
+
+**The obvious lever, not yet pulled:** a `spotLight` casts a single 2-D shadow
+map — one render instead of six. Both shadow-casters here are directional in
+character (a lamp pointing down at the worktop, a candelabra washing one
+corner), so converting them would take the frame from 23 passes to about 13 for
+very little visual change. That is a look decision as much as a performance one
+and it is not being made unilaterally, but it is the single biggest lever in the
+room and it should be measured on real hardware before anyone spends a day on
+anything else.
+
+**Geometry itself is still not the problem.** 369 k triangles in one pass is
+fine. Drawing it eight times is the thing worth looking at.
 
 **95 textures against 12 props is high.** Each prop carries base colour, normal
 and metallic-roughness, which is 36 for the props themselves; the room's

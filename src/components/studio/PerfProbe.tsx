@@ -29,6 +29,34 @@ export function PerfProbe({ enabled }: { enabled: boolean }) {
   const firstFrameAt = useRef(0);
   const lastReport = useRef(0);
 
+  // ONE FRAME'S WORTH OF DRAW CALLS, held between reports.
+  //
+  // `gl.info.render` is cleared at the start of every `renderer.render()`
+  // call, and this room renders several times per frame: the scene, then each
+  // pass of the post chain, plus the fold's own render target while a
+  // transition is running. Sampling it from a useFrame callback therefore
+  // reads whichever render happened to go last — which, once the composer was
+  // in place, was its final fullscreen blit. The probe dutifully reported
+  // 1 draw call and 1 triangle for a room drawing three hundred thousand of
+  // them, and the recorded baseline's 34 / 368,959 was the same instrument
+  // catching a different moment rather than a different truth.
+  //
+  // So autoReset goes off and the reset happens here, once per frame, after
+  // sampling. Each sample is then the complete cost of the frame that just
+  // finished — scene AND post — regardless of what order anything ran in.
+  // Deliberately NOT solved with useFrame priorities: giving this probe a
+  // priority would switch r3f into manual-render mode, which is a profiler
+  // changing the thing it profiles.
+  const perFrame = useRef({ calls: 0, triangles: 0, passes: 0 });
+  const lastPassCount = useRef(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const info = gl.info;
+    info.autoReset = false;
+    return () => { info.autoReset = true; };
+  }, [enabled, gl]);
+
   useEffect(() => {
     if (!enabled) return;
     const el = document.createElement('div');
@@ -62,6 +90,25 @@ export function PerfProbe({ enabled }: { enabled: boolean }) {
 
     frames.current.push(dt * 1000);
     if (frames.current.length > 240) frames.current.shift();
+
+    // Sample the frame that just completed, then clear for the next one.
+    //
+    // `passes` is the number of times renderer.render() ran, and it is the
+    // single most useful number here: every shadow-casting light redraws the
+    // whole scene, the SSAO pass needs depth and normals, and each post effect
+    // is another pass. A triangle count that looks alarming is usually one
+    // scene drawn several times, and the fix for that is a different fix.
+    perFrame.current = {
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      // A DELTA, not the counter. `info.render.frame` is cumulative and
+      // `info.reset()` deliberately does not clear it, so reading it raw
+      // reports "renders since page load" while looking exactly like
+      // "renders this frame".
+      passes: gl.info.render.frame - lastPassCount.current,
+    };
+    lastPassCount.current = gl.info.render.frame;
+    gl.info.reset();
 
     if (now - lastReport.current < 1000) return;
     lastReport.current = now;
@@ -139,8 +186,9 @@ export function PerfProbe({ enabled }: { enabled: boolean }) {
         p95Ms: +at(0.95).toFixed(1),
         worstMs: +at(1).toFixed(1),
         fps: sorted.length ? +(1000 / at(0.5)).toFixed(1) : 0,
-        calls: info.render.calls,
-        triangles: info.render.triangles,
+        calls: perFrame.current.calls,
+        triangles: perFrame.current.triangles,
+        passes: perFrame.current.passes,
         geometries: info.memory.geometries,
         textures: info.memory.textures,
         programs: info.programs?.length ?? 0,
