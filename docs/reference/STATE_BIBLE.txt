@@ -1,0 +1,835 @@
+THE 137 MACHINE · STATE BIBLE
+v0.1
+
+STATE BIBLE
+Working title: THE 137 MACHINE — A POLYMATH'S RECEIVING ROOM Version 0.1 —
+foundation draft Author: Studio 137 (Michael MacDonald) · opened with the Higgsfield pipeline
+
+> This document is the foundation. Every render, prop, splat, state, and line of copy is an
+implementation of what is written here. When in doubt, the Bible wins.
+
+
+
+
+0 · THESIS
+One sentence: The visitor walks into a derelict pink room reclaimed by nature, pulls four levers on a
+machine's console — and realizes too late that the room had already logged them as part of it.
+
+The site is not a portfolio. It is a place — a museum of one polymath's mind, disguised as a broken
+machine. It is built so that when someone visits, scroll, stares, and stays, they feel four sensations in
+this order:
+
+     1. Creeped out — the room notices them before they notice it. It knows a number. It has been
+     waiting.
+     2. Excited — the machine responds to them. They can paint it, tune it, enter its screen.
+     3. Nostalgic — the pink CRT, the phosphor green, the sun-worn walls, the radio static all hum
+     with a past that is half theirs, half the machine's.
+     4. Nervous — the slow realization that the room remembers every visit, and that they have
+     crossed a threshold. They are inside it now, not looking at it.
+
+That fourth feeling is the whole point. The visitor is a subject. The room collects them. The art is that
+they came back.
+
+The medium is the message. The intro video's final frame — the zoom through the CRT glass — is
+the literal "handoff" from cinema to interface. The website continues that push inward, forever. There
+is no "home page"; there is the room.
+
+
+
+
+1 · THE MACHINE — A TAXONOMY OF SPACES
+Four named places. Each is a real 3D location, and each carries a different psychological function.
+Place                    In-world name            What it is                   Feeling it gives
+
+The room                 THE RECEIVING ROOM       The gaussian-splat           The museum. Walk, look,
+                                                  environment. Pink            paint.
+                                                  dust-rose walls, natural
+                                                  reclamation, the stone
+                                                  portal, the pink CRT,
+                                                  scattered objects.
+
+The console              THE CONSOLE              The four-lever rack (a       Agency. The hand on the
+                                                  mesh prop) that changes      machine.
+                                                  the world.
+
+The portal               THE RING                 The carved stone ring        The readout. The wheel
+                                                  with 16 lit segments = the   you can read across the
+                                                  16 states. The room's        room.
+                                                  face to the visitor.
+
+The terminal             THE TERMINAL / THE       The pink CRT. Zooming        The vault. The archive.
+                         SCREEN                   into it is the cross-over    The mind's interior.
+                                                  into a whole OS.
+
+The door                 THE DOOR / THE WAY       The portal's far side —      The nervousness. The
+                         THROUGH                  the threshold to beyond      maybe.
+                                                  the room (future second
+                                                  room, exit, or the void).
+
+
+The three spaces of interaction:
+
+     1. THE ROOM — walk (oblique traversal, no cheap "free fly"), look, grab, paint. The museum.
+     2. THE SCREEN — click the CRT, camera dives through glass, the OS unfolds. The archive.
+     The library.
+     3. THE RING — read the 16-state wheel, and use the four levers at the console to live inside
+     any one of the 16 rooms. The two meet: the wheel shows where you are, the levers choose
+     where you go.
+
+The visual voice of the whole machine is green phosphor + dust-rose + reclaimed steel — a
+CRT reanimated by moss. This stays constant across every surface so the room, the screen, and
+the radio all read as one machine.
+
+
+
+
+2 · THE LEVER — THE 16-STATE MACHINE (CORE SYSTEM)
+
+2.1 The four levers
+
+The console holds four mechanical levers. Each has only two positions — 0 and 1 — a 4-bit
+register. Because this is a polymath's machine, each lever is a dimension of the world, not a
+setting.
+Lever                       Name                        0                         1
+
+L1                          SIGNAL                      DRIFT — faint code,       STORM — dense code,
+                                                        calm text                 green rain, restlessness
+
+L2                          LUMEN                       DAWN — warm pink-gold,    DUSK — cool teal-violet,
+                                                        solarpunk morning         twilight
+
+L3                          FLORA                       BARREN — scarred, bare    OVERGROWN — the room
+                                                                                  half-returned to jungle
+
+L4                          DECAY                       PRISTINE — clean,         ANCIENT — aged,
+                                                        salvageable               dusted, broken-in
+
+
+Why four levers, not four sliders: the binary register makes the machine legible and finite —
+exactly 16 world-states, no more, no less. That finiteness is what lets the visitor mentally "count" the
+machine, suspect there are 16, and then want to see all 16. The portal ring displays all 16
+segments; lit segments show which states they've been in. It turns exploration into a collection of
+worlds.
+
+
+
+2.2 The SIGNET — the glyph system
+
+Each state has a SIGNET: a single connected glyph that is cuttable as a stencil (one piece, no
+floating islands). The signet is the visual DNA of the machine and the bridge to the artist's physical
+work (see §10).
+
+The structure of every signet:
+
+       • A ring (the circle = the machine, always present).
+       • Four slots at North / East / South / West — one per lever.
+       • Each slot holds one mark, one per dimension:
+
+Slot                                 Mark                                Shape
+
+N · SIGNAL                           wave                                three ~sine strokes
+
+E · LUMEN                            disc — half sun, half shadow        dawn/dusk split disc
+
+S · FLORA                            sprout                              stem + leaf
+
+W · DECAY                            crack                               a single zigzag seam
+
+
+       • When a lever is 1, its mark is carved solid (filled).
+       • When a lever is 0, its mark is hollow (open outline).
+
+So 1010 (SIGNAL■ STORM, LUMEN dawn, FLORA overgrown, DECAY pristine) reads as: wave +
+sprout solid, disc + crack hollow. Sixteen combinations of solid/hollow marks = sixteen signets. The
+signet is the state, and vice versa. See the generated signets/ folder for all 16 SVGs (already
+connected for stencil cutting).
+2.3 The 16 states
+
+Each state = a bins the machine offers, a mood line, a palette, and a way the room behaves. State
+names are dawn/dusk adjective-nouns — read aloud like a spell or a vitals readout.
+
+
+Bits L1L2L3L4   State            Palette (wall /   Which marks      Mood line          Feels like
+                                 accent / glow /   SOLID            (CRT whisper)
+                                 light)
+
+0000            PRIMROSE         dust-rose         — (all hollow)   "the room woke     Quiet museum
+                                 #D2A6A3 ·                          clean at first     at 6am.
+                                 sage #7C8B5A                       light"             Innocent.
+                                 · blue #4FC3E0
+                                 · lamp
+                                 #E8C25A
+
+0001            SCRATCH          pale rose         W (crack)        "someone was       Chipped, dusty,
+                                 #C99A8F · rust                     here before,       personal.
+                                 #9C5B45 ·                          and left marks"
+                                 paper #DCC9A3
+                                 · lamp
+                                 #D89E5A
+
+0010            SPROUT           rose #C9A6A0 ·    S (sprout)       "the first thing   Hopeful. One
+                                 leaf #6E8B4E ·                     that grew back"    fern on the
+                                 fern #5E7F4B ·                                        console.
+                                 lamp #E8C25A
+
+0011            THATCH           clay #B98F8B ·    S, W             "the house         Old greenhouse
+                                 moss #5C7A44                       gave itself to     morning.
+                                 · thatch                           the field"         Mellow.
+                                 #B08A54 ·
+                                 lamp #D89E5A
+
+0100            GLASS            dusk slate        E (disc)         "you are the       Cold clean
+                                 #8FA8B5 · ice                      specimen in the    observatory.
+                                 #A7C4CE · blue                     jar"               Blue. Watched.
+                                 #3A7BD5 · dusk
+                                 #6C5B8A
+
+0101            NIT              gray-blue         E, W             "cold storage.     Silent vault.
+                                 #8A96A6 · cold                     do not wake the    Moon through
+                                 dust #7A8CA0 ·                     rest."             the window.
+                                 dark #44506A ·
+                                 dusk #5D598F
+
+0110            COLDHOUSE        glass-teal        E, S             "the garden at     Plants in a dark
+                                 #7F9B8E · teal                     the hour the       glasshouse,
+                                 leaf #4F7B6E ·                     lights die"        dew.
+                                 pane #9FC0B0
+                                 · dusk #6C5B8A
+Bits L1L2L3L4   State         Palette (wall /   Which marks   Mood line          Feels like
+                              accent / glow /   SOLID         (CRT whisper)
+                              light)
+
+0111            REED          reed #7C8E7E ·    E, S, W       "the marsh         Cold wild ruin,
+                              reed-gold                       takes the wiring   swaying.
+                              #B9A357 ·                       back"
+                              deep green
+                              #3E5F50 · dusk
+                              #5D598F
+
+1000            SIREN         rose #C89A8F ·    N (wave)      "signal            The moment it
+                              signal #C8452C                  acquired. it       starts watching.
+                              · phosphor                      sees you."
+                              #5FBC47 ·
+                              lamp #E8C25A
+
+1001            TAPE          clay #B8988C ·    N, W          "the archive is    HV hiss,
+                              tape green                      speaking in its    magnetic
+                              #69B45A ·                       sleep"             memory, dawn
+                              archive                                            burn-in.
+                              #4A5A4E ·
+                              paper #D8C9A0
+
+1010            SIGNAL-BLOO   rose #C49D94 ·    N, S          "code and rose,    The machine
+                M             rose-red                        grown together"    and the field in
+                              #C07A7A ·                                          love.
+                              phosphor
+                              #5FBC47 ·
+                              ember
+                              #E8C25A
+
+1011            FERNSTORM     moss-gray         N, S, W       "the garden        Data rain
+                              #8F807C ·                       computes. it is    through leaves.
+                              deep green                      compiling"         Wind in the
+                              #3E5F50 ·                                          terminal.
+                              phosphor
+                              #69B45A ·
+                              ember
+                              #C8804A
+
+1100            DUSKBELL      dusk blue         N, E          "the bell at the   Clean dark with
+                              #6C7B97 · bell                  bottom of the      a secret signal.
+                              #4F78C0 · cold                  light"
+                              #3A5A86 ·
+                              violet #6C5B8A
+
+1101            RADIOGRAVE    dark slate        N, E, W       "you tuned into    Music drifting in
+                              #6A6F84 ·                       something you      the static. Ah.
+                              static teal                     should not
+                              #5F8790 ·                       have"
+                              phosphor
+                              #69B45A ·
+                              violet #5D598F
+Bits L1L2L3L4      State            Palette (wall /   Which marks         Mood line            Feels like
+                                    accent / glow /   SOLID               (CRT whisper)
+                                    light)
+
+1110               VINES            vine #6E7A6E ·    N, E, S             "the wires           Dim jungle
+                                    leaf #3E6A50 ·                        learned to           where the lights
+                                    teal #4F8A8A ·                        flower"              breathe.
+                                    violet #6C5B8A
+
+1111               IT               machine           N, E, S, W (all     "you are in it       The machine's
+                                    #5E636F ·         solid)              now. fully."         own dusk. The
+                                    moss #3E5F50                                               final facsimile.
+                                    · phosphor
+                                    #5FBC47 ·
+                                    violet #4A4470
+
+
+Lever → feeling mapping (how the machine manipulates emotion, for the builders):
+
+        • SIGNAL controls cognitive density — calm = air to breathe; storm = the sense of being
+        watched, of too much, of code that knows you.
+        • LUMEN controls warmth vs. terror — dawn is safe and nostalgic; dusk is the creep. Every
+        dusk state reads as "later than it should be."
+        • FLORA controls how much of it is theirs vs. ours — barren = a human machine; overgrown =
+        the planet winning, which is oddly comforting and ominous at once.
+        • DECAY controls reverence vs. shock — pristine = the museum; ancient = the grave. It
+        governs how much unhinged copy the terminal is willing to say (see §7).
+
+
+2.4 States as archive bins
+
+The 16 states double as filing cabinets. Every work on the site is filed under a state — because a
+polymath's pieces are moods, not menus. When a visitor is in state 1011 FERNSTORM, the WORKS
+door shows work that "belongs" to that world. Pull a lever, change the world, change which art
+you're shown against it. The archive becomes algorithmically atmospheric rather than a flat grid.
+
+Default bin map (seed catalog — expand in Phase 5):
+
+
+State                                                 Houses (suggestions)
+
+PRIMROSE / SPROUT                                     Early, tender works; the origin of the practice; first
+                                                      splat experiments
+
+SCRATCH / THATCH                                      The physical craft — stencil art, print, texture, the
+                                                      hand
+
+GLASS / NIT                                           The cold conceptual pieces; the archive itself;
+                                                      research-heavy experiments
+
+COLDHOUSE / REED                                      Nature-collision works — the Lost Forty, land, fire
+State                                                  Houses (suggestions)
+
+SIREN / TAPE / SIGNAL-BLOOM                            The AI-generation work; the machine pieces;
+                                                       code-as-art
+
+FERNSTORM / VINES                                      The maximalist pieces; the deep splats; the heavy 3D
+
+DUSKBELL / RADIOGRAVE                                  Sound, radio, the spooky works, things that should not
+                                                       be played loudly
+
+IT                                                     The one you only show people when they're ready
+
+
+(Each is a bin, not a strict bucket — a work can belong to several states via tags. This is a curation
+layer, not a constraint.)
+
+
+
+
+3 · THE SUBJECT — "YOU ARE PART OF IT"
+This is the skeleton of the creep. Everything here lives in localStorage — no cookies, no
+accounts, no tracking the artist doesn't already get from the host. The machine's "memory" is
+local, private, and part of the spell.
+
+
+
+3.1 The subject ID
+
+        • On first visit, the terminal types: SUBJECT 87 — SIGNAL ACQUIRED (a random number,
+        e.g. 4–4 digits, stored).
+        • The visitor is now a subject. The machine addresses them by number from then on.
+        • The number is referenced constantly but never explained: SUBJECT 87, DECAY RISING,
+        subject 87 — you left this room in SIGNAL-BLOOM.
+
+
+3.2 The room remembers
+
+        • Returning: RETURNING SUBJECT — 0110, COLDHOUSE. the garden grew while
+        you were away.
+        • They leave it as they left it: stored lever position, stored paint, stored radio tune. The room
+        is exactly where they left it — the single most chilling thing a website can do.
+        • They accumulate: every visit increments a counter. The counter feeds two systems — flora
+        growth (§3.3) and the trust gate (§3.4).
+
+
+3.3 It grows
+
+        • Flora creep: each returning visit, the FLORA state's overgrowth advances a little —
+        controlled by a stored "season" integer. Visit 1, the wall is bare in FLORA BARREN; by visit
+        ~6–8 even a BARREN room shows a few new leaves. Nobody tells them. They just notice the
+        room is growing with them.
+     • The counter is shown only as subtext: the CRT's S-meter never fully zeroes between visits.
+
+
+3.4 The trust gate (the maintenance secret)
+
+     • The throwable stool and the smashable glass (the "MAINTENANCE" easter egg) only arm
+     for subjects at visit ≥ 3. Trust builds, then chaos is allowed. Stops the toy from cheapening the
+     first visit's reverence; makes the third visit a gift.
+     • The machine explicitly frames it: on visit 3, a single line: SUBJECT — THE TOOLS ARE
+     YOURS. DO NOT BREAK WHAT KEEPS YOU.
+
+
+3.5 Privacy & the spell
+
+     • All persistence is local. Deleting site data resets you to a new subject — which the machine
+     reads, with perfect deadpan, as death: on re-birth it types SUBJECT 88 — PREVIOUS
+     SUBJECT LOST. THE ROOM KEEPS NO ASHES.
+
+
+
+
+4 · THE PAINT — SPRAYING NEW SPLATS INTO THE FIELD
+The room is gaussian splats. The killer trick of the paint system: we spawn new gaussians into
+the existing field. Not decals on top of a video — literal new points embedded in the same
+point-cloud, catching the same light, occluding the same way. Fake paint is a sprite; this is actual
+paint in the machine's geometry.
+
+
+
+4.1 The can
+
+     • A spray can (mesh prop, like the stool) lies on the floor. It clatters when kicked — satisfying
+     audio bite.
+     • Options held loosely in the world: a handful of cans in the room's palette:
+- dust-rose #D2A6A3 - sage #7C8B5A - signal orange #C8452C - the portal blue #4FC3E0 -
+"glitch" can — paint that flickers between two colors and leaves corrupted splats (extra fun).
+
+     • Color select = pick the can up. That's the whole UI. Bring the can to your hand; what you're
+     holding is what you spray.
+
+
+4.2 Spraying
+
+     • Hold to spray: a cone of particles streams from the nozzle.
+     • Where the cone raycast-hits a surface, new colored splats spawn with a jitter spread —
+     dense at center, atomized at the edge, exactly aerosol.
+     • Drips: on a hard downward stroke, a few elongated glossy splats spawn below the hit point
+     — paint running down the wall. It gets old-satisfying immediately.
+     • Spray on anything: walls, the ring, the floor, the CRT (painting the screen makes it glitch —
+     free character, see §7). No limits. The mess is the point.
+4.3 Persistence
+
+    • Painted splats save as a per-visitor layer — cheap coordinate+color data, not video.
+    • Come back; your tag is still on the wall. Your subject number, your colors, your bad
+    handwriting rendered as aerosol. That is "part of it" made literal.
+
+
+4.4 Relations
+
+    • Paint and Flora interact: overgrowth in FLORA OVERGROWN partly re-claims old paint (moss
+    desaturates it) — a slow, visible decay of even your mark, which loops back to the machine's
+    melancholy.
+
+
+
+
+5 · THE RADIO — "SOMETHING IN THE ROOM IS THE
+RECEIVER"
+
+5.1 The receiver
+
+    • A chunky retro radio sits on the right-hand cabinet (salvage aesthetic; the CRT is already the
+    screen, the radio is the ears). It is the only sound source in the entire room.
+
+
+5.2 Silence is the default
+
+    • The room is dead quiet on entry. That silence is the creep; sound is a threshold the visitor
+    must cross.
+    • The radio is what breaks it. The room itself (ambient drone) only ever manifests behind a
+    tuned station — the radio is the door to all sound.
+
+
+5.3 The dial
+
+    • A worn tuning dial + a small S-meter needle.
+    • Turning it sweeps across static: generated noise, band-limited hiss, distant ghost-carriers.
+    Mostly desert — the hunt is the point.
+    • Faint glow marks on the dial glass = known-good frequencies (the "proven dope" stations).
+    Land exactly on a mark and the music tunes in — crackling in from static like a signal you
+    found, not a playlist.
+    • The dial reads in kHz with decimals (e.g. 88.3, 103.7, 108.0) so the "bands" feel real and
+    tunable, not snapped.
+
+
+5.4 Stations (your tracks)
+     • Michael provides a set of songs (Phase 3 input — a folder/link). Each becomes a station at a
+     reserved frequency:
+- Track 1 → 88.1 … track N → mapped up the band. - Metadata drives the dial: the station's glow
+mark, maybe faint station-call letters like W-137.
+
+     • Easter stations (½ of the fun):
+1. The whisper: a distorted loop — "subject 87, you are still in the room." 2. The
+gibberish: readable only in certain states (e.g. TAPE / IT make it resolve into speech). 3. The one
+that likes you: only tunes in at subject visit ≥ 3 (ties into the trust gate).
+
+     • State-aware: tuning to a station whose vibe matches the current state reinforces the state's
+     drone; mismatched stations make the room subtly uncomfortable (a dissonant adjacency). The
+     machine curates even your music.
+
+
+5.5 Mixing rules
+
+     • Inside the CRT (the OS, §6) sound is the OS's own: typing, machine hum, program sounds.
+     When you're in the screen, the room ducks to a distant bed. Two rooms, two mixers.
+
+
+
+
+6 · THE TERMINAL — CRITICAL INTERACTION: THE ZOOM
+The CRT screen is zoomed in on when the user interacts. This is the load-bearing wall of the
+concept.
+
+
+
+6.1 The approach
+
+Walk up to the CRT. The screen glows; its radar sweep gets restless as you near (it's watching —
+the subject engine). The approach primes the anxiety.
+
+
+
+6.2 The dive
+
+Click the glass → the camera physically dives into the screen, not a cut:
+
+     • You pass the glass plane. A half-frame of the room behind you goes reflective / scanlined.
+     • You land inside the OS, framed by the CRT's bezel — chunky rounded corner, slight convex
+     glass, scanlines, phosphor afterglow as new UI bleeds in.
+     • The reachable room drops away behind the frame. You're in something now, not on
+     something. The bezel stays — an OS with a frame is a world; a bezel-less fullscreen is a
+     browser tab.
+
+
+6.3 Inside — the OS is the archive
+
+The screen hosts the content doors (§8) as actual programs:
+     • ARCHIVE://WORKS — the art, filed by state (§2.4)
+     • RAMBLINGS.OF.A.MADMAN — the manifesto journal (§7)
+     • TRANSMIT://COMMISSION — the hire form (§8.3)
+     • SALVAGE://SHOPIFY — the shop (§8.4)
+     • SIGNAL.NODE_MAP — socials as a constellation (§8.5)
+
+Windows, tiles, a tiny dock. The 16 signets run along the bottom like a taskbar of worlds — click
+a signet to re-tune the room to that state from inside the screen.
+
+
+
+6.4 The recursive door (cheap, devastating)
+
+A document inside the OS can contain its own mini-CRT window: you look at a screenshot of the
+room inside the screen. If you're deranged enough to click it, you zoom again — screen within a
+screen. One level is plenty; the "how deep does this go" sensation is immediate and free. It's the
+same zoom-deeper grammar as the intro, recursively pointed at itself.
+
+
+
+6.5 Exit
+
+ESC or a "DENY ACCESS" corner button pulls you back through the glass into the ruin. Landing
+back, the room has remembered — subject counter up, the radio dial nudged, moss a touch closer.
+Zoom in is crossing the threshold; zoom out is the return, and now you're part of it.
+
+
+
+6.6 Design decision (open tab)
+
+Inside the OS, the visual plane is a choice:
+
+     • Warm ghost (recommended): the OS reuses the room's palette — pink glass, green
+     phosphor, dust-rose chrome; the OS is a ghost of the room. Reanimated tech = nostalgia
+     creep.
+     • Cold whisper: the OS is stark — near-black, white type, sharp — the machine's world, alien
+     and cold against the warm ruin. Bigger shock, less continuity.
+
+Default: warm ghost. Rationale — the green-on-dust-rose "reclaimed OS" look is the exact
+nostalgia-cree your feeling-stack asked for, and it keeps the room and screen one machine.
+Flippable later for a special effect, but the base is warm ghost.
+
+
+
+
+7 · THE VOICE — COPY DNA & THE MADMAN
+
+7.1 Voice grammar
+
+The machine speaks in lowecase monospace, teletype fragments, mostly unpunctuated,
+archaic-but-soft. It never explains; it confirms. Rules:
+     • Address the subject by number.
+     • Prefer fragments to sentences.
+     • Never say "welcome." Say entering..
+     • Never say "about." Say transmitting..
+     • Never break the fourth wall with marketing voice. The machine does not know it is a website.
+     • Capitalize only "monolith words" that deserve weight: IT, THE ROOM, SIGNAL, THE DOOR.
+     Everything else lowercase.
+
+
+7.2 Sample copy library (seed — extend in Phase 5)
+
+     • Load: loading the receiving room…, waking the ring…, the walls are
+     listening. they are not fast.
+     • First visit: SUBJECT 87 — SIGNAL ACQUIRED. you were expected. not for me.
+     for the room.
+     • Returning: RETURNING SUBJECT. the last time you were here the light was
+     DAWN. it has not been DAWN since.
+     • Leaving: subject 87 — the room will keep what you made. it has nowhere
+     else to put it.
+     • The whisper-easter: you can leave. the room has already won the argument.
+     • RAMBLINGS title card: RAMBLINGS.OF.A.MADMAN — entry timestamps are lies.
+     the machine edits this when it thinks you are not listening.
+
+
+7.3 Madness level (DECAY drives copy)
+
+L4 DECAY is the reverence dial, and it literally changes how unhinged the terminal's copy
+becomes:
+
+
+DECAY                                              Copy behavior
+
+PRISTINE                                           The machine is calm, clinical, polite. Short, clean
+                                                   readouts.
+
+ANCIENT                                            The machine rambles. Longer, stranger fragments. It
+                                                   confides. It asks you questions. do you remember
+                                                   the first room?, it was small then. i was
+                                                   small then.
+
+(storm + ancient)                                  Fully unhinged in IT: recursive sentences,
+                                                   self-reference, the deepest madman mode. we are
+                                                   the code the room runs. you are reading
+                                                   yourself.
+
+
+So a nervous visitor can dial deeper into the madness, and the copy follows them down. The art is
+that they pull that lever themselves.
+7.4 The 60-second first visit (canonical playtest)
+
+       1. 0–15s: Load into the room. Silence. The portal glows blue. CRT radar sweeps. Nothing
+       invites; everything is. The dust, the moss, the lights breathing.
+       2. 15–30s: They move toward the console. The CRT sweep quickens. First SIGNAL
+       ACQUIRED line types as they near. Creeped.
+       3. 30–45s: They pull a lever. The room re-tunes — light shifts dawn→dusk, code density
+       jumps. Excited. They pull another. The wheel at the ring advances a segment. They're building
+       understanding.
+       4. 45–60s: They click the CRT and dive through the glass into the OS. The bezel frames the
+       mind. They realize they can paint, tune, read the madman. And then the whisper of the counter
+       tells them the room was always counting. Nervous. Part of it.
+
+
+
+
+8 · THE ARCHIVE — CONTENT ARCHITECTURE
+Six doors, all reachable from inside the CRT (and lightly hinted from the room — a paper note, a
+looped radiophrase). No conventional nav bar anywhere.
+
+
+Door                       In-world name            Carries                       Pattern
+
+Projects                   ARCHIVE://WORKS          Every art piece / project /   State-binned dossier
+                                                    experiment, filed by state    cards; click → full window
+                                                                                  (media, process, notes)
+
+Journal                    RAMBLINGS.OF.A.MAD       Manifesto, process,           Teletype journal; scrolls
+                           MAN                      micro-poems                   itself, likes to edit itself
+
+Hire                       TRANSMIT://COMMISSI      "Draft a transmission"        The only form on the site;
+                           ON                       form — email, budget,         the machine's answer is
+                                                    timeline                      fast and human (your
+                                                                                  inbox)
+
+Shop                       SALVAGE://SHOPIFY        Your Shopify store            Clean aisle, opens to
+                                                                                  your store; a "salvage
+                                                                                  cart" nod
+
+Socials                    SIGNAL.NODE_MAP          A constellation of your       Each platform a pulsing
+                                                    platforms                     node on the ring; hover =
+                                                                                  the node flickers + its
+                                                                                  radio tone
+
+The Man                    SUBJECT-137 / THE        Who made it; the origin of    Lives in RAMBLINGS + a
+                           MADMAN                   the machine                   "first entry" document
+                                                                                  meets-the-maker
+
+
+Hire specifics ("obviously, I'm the shit — commissions): the TRANSMIT form fields: your name,
+your email, what you want (project / commission / collab), budget ("transmission weight"), timeline
+("deliver before"), a whisper box (any note). On submit it routes to his email; the machine replies
+in-room with a deadpan confirmation (signal received. it is loud. i will have
+someone answer.). Merch / business contact surfaces here too.
+
+Shop specifics: SALVAGE opens Shopify in a new tab on the artist's terms — no pop-up spam,
+keep it a clean aisle. Optional: the CRT shows a "catalog of salvaged things" grid; clicking an item
+leaves the room for the store (with a leaving the room… flash, so even checkout feels like
+crossing a threshold).
+
+Socials specifics: the ring NODE_MAP — each platform (Instagram, X, YouTube, TikTok, maybe
+itch/are.na) is a node on the portal ring's outer circuit. Hover a node and it flickers with a distinct
+radio tone; click tunes to that feed (new tab). The constellation IS the "find me elsewhere" —
+atmospheric, not a row of icons.
+
+Content taxonomy rules (Phase 5):
+
+     • Every work gets: one hero media, a state (or tags → multi-state), a title, a date, 1–3 lines of
+     field notes, optional process images/wireframes, optional "madman marginalia."
+     • Works are curated, not exhaustive: the machine only shows what it's confident about. A
+     polymath's site that shows everything shows nothing.
+
+
+
+
+9 · THE SUBJECT'S PLACE — "WHERE IS THE POLYMATH IN
+THIS"
+Michael is the room. Design principle: the room is an autobiography hiding its author. Signs of
+the maker are everywhere if you look — the soda can, the paint colors that match a real studio, a
+doodle only they'd draw — but the room never cops to being a biography. Visitors discover the
+human inside the machine. That inversion (machine pretending not to be art, art people hid themself
+in) is the polymath signature — and it threads his real practice: stencil, splats, 3D, print, sound,
+code. Every discipline is a subsystem of the same machine.
+
+
+
+
+10 + · THE STENCIL BRIDGE (THE ARTIST'S OUTSIDE LIFE)
+The SIGNET system is cuttable. The 16 signets are generated as single-connected SVG paths —
+no floating islands, bridges in place — ready for Cricut / laser and for hand X-Acto on poster
+board (Michael's existing fabrication discipline, single solid pieces).
+
+     • The 16 signets → cut in posters, stamps, Lost Forty prints, shirts, patches.
+     • The machine's glyph language becomes portable folklore: the same 4 marks (wave, disc,
+     sprout, crack) can appear as festival art, not just pixels.
+     • Future: a "cut my signet" page (get a work's state signet as an SVG) and a "lost-forty" merch
+     line that is the machine's glyphs on physical goods. Digital shrine and cut-paper folklore, by the
+     same hand.
+11 · THE STACK & PIPELINE (TECH UNDERLAY)
+
+11.1 Stack
+
+      • Next.js + React Three Fiber (R3F) — the app. Splats + meshes in one scene. (Michael:
+      cloud/app builds here; GPU-heavy local work stays with him, e.g. COLMAP, Splat
+      reconstruction, Blender finishing.)
+      • Gaussian splats = the whole environment (the room). Rendered by R3F splat renderer (web
+      viable — needs perf budget, see below).
+      • Real meshes = every grab/interactive prop: the four-lever console, the stool, the spray cans,
+      the radio, the CRT's physical body, the ring's rim. Rule: if you can grab it, it's a mesh;
+      everything else is splat.
+      • LUT tables for the state system: SIGNAL/LUMEN/FLORA/DECAY each drive a set of shader
+      + scene params (lighting, bloom, fog color, code density, flora masks, decay dirt). 16 states =
+      16 rows of a single state table. Not 16 scenes.
+
+
+11.2 Asset pipeline
+
+      1. Environment (splat): intro frame → Seedance capture pass (dolly in/out + tight orbits) →
+      extract frames → COLMAP / PostShot locally (Michael, GPU) → splat. His documented
+      tight-envelope densification (orbits ≤ ±10°; avoid wide-angle drift that breaks COLMAP). Splat
+      = static shell; no interactivity inside the point cloud.
+      2. Props (mesh): hero props → image-to-3D → imageto3d / multiimageto_3d (Meshy,
+      PBR) → Blender (Michael: real units, origin zero, loose submesh cleanup, retopology) →
+      export.
+      3. Compression: Draco + KTX2 → ideally each mesh ≤ a few MB for the web; global perf
+      budget below.
+
+
+11.3 Performance budget (draft)
+
+Resource                                            Budget
+
+Total initial payload (greedy or not)               ≤ ~8–12 MB (splash + splat + core meshes)
+
+Runtime splat points                                ≤ ~1.5–2M (LOD / visibility culling)
+
+Mesh tri count (active scene)                       ≤ ~200–300k
+
+GPU context                                         WebGL2 / WebGPU w/ fallback; mobile = reduced
+                                                    splat density + no dynamic paint
+
+Memory                                              Textures KTX2-compressed; no giant albedo PNGs
+
+
+Non-goals (Phase 0): no photo-real lighting chase, no 4K texture marathon. The aesthetic is
+reclaimed, not photoreal-CGI — a slightly dirty render is right.
+11.4 Quality: the "won't cheapen" rules
+
+    • The bezel always frames the OS (no bezel-less dataviz landing).
+    • The room never fully explains itself; there is no FAQ, no onboarding, no "how to use." The
+    machine trusts the visitor's dread.
+    • Persistence is local-only (no cookie banner — the room is quietly not-tracking, which is more
+    unsettling than a banner).
+
+
+
+
+12 · OPEN TABS (decisions Michael must sign)
+
+#                       Decision                  Default                      Flip if
+
+1                       OS visual plane           Warm ghost (room's           You want the cold-shock
+                                                  palette)                     contrast of a stark
+                                                                               machine-world
+
+2                       Breakability              Stool/glass arm only at      You want instant chaos
+                                                  visit ≥ 3 (trust gate)       toy energy
+
+3                       Movement                  Oblique traversal with       You'd rather a floatsy
+                                                  grab (no "free fly")         dream traversal
+
+4                       Radio stations list       You provide tracks +         I pick genre-consistent
+                                                  frequencies/stations         placeholder tracks to
+                                                                               prototype
+
+5                       Site name                 THE 137 MACHINE (alt:        You have a name
+                                                  RECEIVING ROOM,
+                                                  SUBJECT.HTML)
+
+6                       Shop depth                SALVAGE → Shopify            Embed catalog in-CRT
+                                                  new tab                      (heavier)
+
+7                       Localization              English-first (machine is    You want DE/other
+                                                  a voice, not a translation   voices later
+                                                  layer)
+
+8                       First-room "IT"           The 11-domain maximal        It's the default beauty
+                                                  state is the final door,     shot
+                                                  gated
+
+
+
+
+13 · ROADMAP
+Phase                             What ships                            Owner
+
+0 · State Bible                   This document. Foundation locked.     ✔ done
+
+1 · Scaffold                      R3F room: splat env + lever           Agent + Michael
+                                  console + ring readout + subject
+                                  engine + LUT state table. Tune the
+                                  60-sec first visit.
+
+2 · Paint                         Spray-can splat spawning              Agent + Michael
+                                  prototype (color, drip, glitch can,
+                                  persistence).
+
+3 · Radio                         Receiver mesh + dial + static         Agent + Michael
+                                  engine + station slots (Michael's
+                                  tracks).
+
+4 · The Screen                    CRT dive + bezel + OS shell +         Agent + Michael
+                                  recursion + doors scaffold.
+
+5 · Archive                       Migrate real works into state-bins;   Michael (content) + Agent (shell)
+                                  write madman copy; connect
+                                  Shopify + socials + hire form.
+
+6 · Polish                        Draco/KTX, mobile reduction, perf     Agent
+                                  budget, favicon = the PRIMROSE
+                                  signet, share card = a state.
+
+
+
+
+14 · THE SIGNET FILE SET
+Alongside this bible, signets/ contains all 16 signets as single-connected SVGs (stencil-ready),
+named signet0000primrose.svg … signet1111it.svg, plus signet_sheet.svg — all 16
+on one gridded sheet for printing / cutting reference. These are also the source for the CRIT taskbar,
+the share card, and the Lost Forty bridge (§10).
+
+
+
+End of State Bible v0.1. Every page of the build is an implementation of these words. If a render
+contradicts the Bible, fix the render.
+

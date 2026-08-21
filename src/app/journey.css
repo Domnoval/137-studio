@@ -1,0 +1,261 @@
+/* src/app/journey.css — OWNED BY ATMOSPHERE agent. Imported once by page.tsx.
+   Responsibilities: full-bleed journey (hide global nav/footer on /),
+   scrollbar, selection, cursor suppression, loader keyframes, Lenis base,
+   and THE LIGHT-ACT CHROME CONTRACT (below). */
+
+/* ---------------------------------------------------------------- */
+/* THE LIGHT ACT — one set of tokens, every piece of chrome reads it. */
+/*                                                                    */
+/* During the RETURN the ground turns over: void gives way to bone.   */
+/* That inversion has to take the whole frame with it, edge to edge — */
+/* a cream plane that stops short of the depth rail reads as a panel  */
+/* jammed against black chrome, not as the world turning over. So the */
+/* bone plane is FULL BLEED (Finale.tsx) and the fixed chrome redraws */
+/* dark-on-cream by reading these variables, which Finale scrubs on   */
+/* <html> from the same 0→1 inversion amount that drives the ground.  */
+/*   --jp-inv      0 = void ground, 1 = bone ground                   */
+/*   --jp-ink-top  depth counter — inverted by the ground under IT    */
+/*   --jp-ink-bot  chapter label — likewise, at the other end         */
+/*   --jp-track    rail track + unlit ticks (chalk hairline → void)   */
+/*   --jp-grain    grain opacity (overlay noise bites harder on bone, */
+/*                 so the plate is pulled back to keep the same tooth)*/
+/* The ground WIPES rather than fades, so for the two beats the edge  */
+/* is in transit the viewport is two grounds at once: the top/bot ink */
+/* pair exists so the counter never sits mid-grey on bone while the   */
+/* label is still on void. Crimson never moves — it is legible on     */
+/* both grounds and is the one colour allowed to stay constant.       */
+/* ---------------------------------------------------------------- */
+:root {
+  --jp-inv: 0;
+  --jp-ink-top: #a09890;
+  --jp-ink-bot: #a09890;
+  --jp-track: rgba(232, 228, 220, 0.16);
+  --jp-grain: 0.06;
+}
+
+/* ---------------------------------------------------------------- */
+/* Full-bleed: the journey hides the global chrome on /              */
+/* Nav and Footer are direct children of <body> (see layout.tsx).    */
+/* ---------------------------------------------------------------- */
+body:has(.journey-root) > nav,
+body:has(.journey-root) > footer {
+  display: none !important;
+}
+
+body:has(.journey-root) {
+  background: #0e0c0a;
+  overscroll-behavior-y: none;
+}
+
+/* Kill the global smooth-scroll so it never fights Lenis. */
+html:has(.journey-root) {
+  scroll-behavior: auto !important;
+}
+
+/* Journey pages ignore the global sticky-nav scroll margin. */
+html:has(.journey-root) [id] {
+  scroll-margin-top: 0;
+}
+
+/* ---------------------------------------------------------------- */
+/* Selection + scrollbar — the details reward attention.             */
+/* ---------------------------------------------------------------- */
+html:has(.journey-root) ::selection {
+  background-color: #c41230;
+  color: #e8e4dc;
+}
+
+html:has(.journey-root) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 152, 144, 0.35) #0e0c0a;
+}
+
+html:has(.journey-root)::-webkit-scrollbar {
+  width: 4px;
+}
+
+html:has(.journey-root)::-webkit-scrollbar-track {
+  background: #0e0c0a;
+}
+
+html:has(.journey-root)::-webkit-scrollbar-thumb {
+  background: rgba(160, 152, 144, 0.35);
+  border-radius: 0;
+}
+
+html:has(.journey-root)::-webkit-scrollbar-thumb:hover {
+  background: rgba(160, 152, 144, 0.6);
+}
+
+/* The scrollbar is chrome too: a 4px black gutter down the right of a
+   full-bleed cream frame is the same defect as a black rail channel. */
+html.journey-light:has(.journey-root) {
+  scrollbar-color: rgba(60, 55, 50, 0.4) #e8e4dc;
+}
+
+html.journey-light:has(.journey-root)::-webkit-scrollbar-track {
+  background: #e8e4dc;
+}
+
+html.journey-light:has(.journey-root)::-webkit-scrollbar-thumb {
+  background: rgba(60, 55, 50, 0.4);
+}
+/* ::selection needs no light variant — crimson ground with chalk type reads
+   on either world, which is the whole reason crimson is allowed to stay put. */
+
+/* ---------------------------------------------------------------- */
+/* Custom cursor: system cursor hidden ONLY while ours is active.    */
+/* Cursor.tsx toggles this class on <body> after the first move.     */
+/* ---------------------------------------------------------------- */
+body.journey-cursor-active,
+body.journey-cursor-active * {
+  cursor: none !important;
+}
+
+/* ---------------------------------------------------------------- */
+/* Loader — sigil line-draw + dissolve                               */
+/* ---------------------------------------------------------------- */
+.jl-sigil path,
+.jl-sigil circle {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: jl-draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+.jl-sigil .jl-triangle {
+  animation-duration: 1s;
+  animation-delay: 0.05s;
+}
+
+.jl-sigil .jl-eye {
+  animation-duration: 0.7s;
+  animation-delay: 0.65s;
+}
+
+.jl-sigil .jl-pupil {
+  animation-duration: 0.4s;
+  animation-delay: 1.1s;
+}
+
+@keyframes jl-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Reduced motion: sigil appears fully drawn, no line animation. */
+.jl-static path,
+.jl-static circle {
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  animation: none;
+}
+
+.jl-root {
+  opacity: 1;
+  transition: opacity 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+    filter 0.55s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.jl-root.jl-dissolve {
+  opacity: 0;
+  filter: blur(6px);
+}
+
+.jl-root.jl-instant {
+  transition: opacity 0.18s linear;
+}
+
+.jl-root.jl-instant.jl-dissolve {
+  filter: none;
+}
+
+/* Faint breathing on the equation while it settles. */
+.jl-eq {
+  animation: jl-eq-flicker 0.13s steps(2, jump-none) infinite;
+}
+
+@keyframes jl-eq-flicker {
+  0% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0.68;
+  }
+}
+
+.jl-eq.jl-eq-locked {
+  animation: none;
+  opacity: 0.92;
+}
+
+/* ---------------------------------------------------------------- */
+/* Scroll progress rail — phase label crossfade                      */
+/* ---------------------------------------------------------------- */
+.jp-label {
+  animation: jp-label-in 0.618s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes jp-label-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The HUD is the same instrument on a phone.
+   It used to be amputated below 767px — counter and chapter label both
+   display:none — which left the mobile journey with a bare hairline and no
+   000→137 depth read at all. The rail's own gutter is 55px wide and every
+   mobile section already stops at x≈335 (full-bleed plates included), so
+   there is room; it just has to be set smaller and tucked tighter. Both
+   pieces still read the --jp-ink-* tokens, so they invert with the ground
+   exactly as they do on desktop. */
+@media (max-width: 767px) {
+  .jp-counter {
+    top: 26px !important;
+    right: 11px !important;
+    font-size: 0.5rem !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .jp-label {
+    bottom: 26px !important;
+    right: 13px !important;
+    font-size: 0.5rem !important;
+    letter-spacing: 0.18em !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-label {
+    animation: none;
+  }
+  .jl-eq {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Lenis recommended base styles                                     */
+/* ---------------------------------------------------------------- */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
