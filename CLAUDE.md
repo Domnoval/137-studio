@@ -1,23 +1,25 @@
-## gstack (REQUIRED — global install)
+## gstack (optional reference)
 
-**Before doing ANY work, verify gstack is installed:**
+[gstack](https://github.com/garrytan/gstack) is a recommended skill pack for this
+repo. It is not required: work goes ahead whether or not it's installed.
+
+Check for it:
 
 ```bash
 test -d ~/.claude/skills/gstack/bin && echo "GSTACK_OK" || echo "GSTACK_MISSING"
 ```
 
-If GSTACK_MISSING: STOP. Do not proceed. Tell the user:
+- **Installed:** skills like /qa, /ship, /review, /investigate and /browse are
+  available. Use them where they fit. File paths live under `~/.claude/skills/gstack/`.
+- **Missing:** carry on with the built-in tools. If a task would clearly benefit
+  from gstack, mention it once. Never block on it.
 
-> gstack is required for all AI-assisted work in this repo.
-> Install it:
-> ```bash
-> git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
-> cd ~/.claude/skills/gstack && ./setup --team
-> ```
-> Then restart your AI coding tool.
+Install on a local machine:
 
-Do not skip skills, ignore gstack errors, or work around missing gstack.
+```bash
+git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup --team
+```
 
-Using gstack skills: After install, skills like /qa, /ship, /review, /investigate,
-and /browse are available. Use /browse for all web browsing.
-Use ~/.claude/skills/gstack/... for gstack file paths (the global path).
+For cloud sessions, add those two lines to the environment's setup script so new
+sessions start with gstack already installed.
