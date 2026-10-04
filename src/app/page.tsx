@@ -38,7 +38,7 @@ const gallery = [
 
 const apps = [
   { name: '137 Cipher', url: 'https://137-cipher.vercel.app', desc: 'Ancient script translator' },
-  { name: '137 Geometry', url: 'https://137-geometry.vercel.app', desc: 'Sacred geometry generator' },
+  { name: '137 Geometry', url: '/geometry', desc: 'Sacred geometry studio' },
   { name: 'Harmonic Arcana', url: 'https://harmonic-arcana.vercel.app', desc: 'Tarot meets music theory' },
   { name: '137 Cycles', url: 'https://137-cycles.vercel.app', desc: 'Life cycle calculator' },
   { name: '137 Pad', url: 'https://137-pad.vercel.app', desc: 'Infinite canvas notepad' },
@@ -402,7 +402,8 @@ function HomePageInner() {
           gap: '12px',
         }}>
           {apps.map((app) => (
-            <a key={app.name} href={app.url} target="_blank" rel="noopener noreferrer"
+            <a key={app.name} href={app.url}
+              {...(app.url.startsWith('/') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
               className="app-card"
               style={{
                 display: 'block', textDecoration: 'none',
