@@ -24,8 +24,8 @@
  *
  *   golden     dodecahedron · icosahedron
  *     Fibonacci ratios F(k+2)/F(k+1): 2/1, 3/2, 5/3, 8/5, 13/8, 21/13, …
- *     converging on φ. Consecutive notes sit 41, 27, 10, 4, 1.5 cents apart
- *     and are tuned exactly (no random detune) so their slow beating is
+ *     converging on φ. From the third step on, consecutive notes sit 182, 71,
+ *     27, 10, 4, 1.5 cents apart (shrinking as they close on φ) and are tuned exactly (no random detune) so their slow beating is
  *     audible. Timbre: "pure" sine, which exposes beating best.
  *
  *   The octave window slides with progress: step k of `max` is placed in
@@ -56,18 +56,9 @@
 
 /* ------------------------------------------------------------------ types */
 
-export type PatternId =
-  | 'seed'
-  | 'flower'
-  | 'metatron'
-  | 'metatron3d'
-  | 'tetrahedron'
-  | 'cube'
-  | 'octahedron'
-  | 'dodecahedron'
-  | 'icosahedron'
-  | 'vesica'
-  | 'yantra';
+import { isPatternId, type PatternId } from './catalog';
+
+export type { PatternId };
 
 export interface Resonance {
   /** False when there is no Web Audio (SSR, old browsers). */
@@ -179,10 +170,6 @@ const PATTERNS: Readonly<Record<PatternId, PatternSpec>> = {
   dodecahedron: { family: 'golden', chord: harmonicChord(20, 30, 12), shimmer: false },
   icosahedron: { family: 'golden', chord: harmonicChord(12, 30, 20), shimmer: false },
 };
-
-function isPattern(id: string): id is PatternId {
-  return Object.prototype.hasOwnProperty.call(PATTERNS, id);
-}
 
 function clampInt(value: number, lo: number, hi: number): number {
   const v = Number.isFinite(value) ? Math.round(value) : lo;
@@ -611,7 +598,7 @@ export function createResonance(opts: ResonanceOptions = {}): Resonance {
 
     step(pattern: PatternId, step: number, max: number, when?: number): void {
       const g = live();
-      if (!g || !isPattern(pattern) || !Number.isFinite(step)) return;
+      if (!g || !isPatternId(pattern) || !Number.isFinite(step)) return;
       const t = timeOf(g, when);
       if (Math.abs(t - lastStepAt) < MIN_STEP_GAP - 1e-9) return; // rapid-fire: drop
       lastStepAt = t;
@@ -637,7 +624,7 @@ export function createResonance(opts: ResonanceOptions = {}): Resonance {
 
     complete(pattern: PatternId, when?: number): void {
       const g = live();
-      if (!g || !isPattern(pattern)) return;
+      if (!g || !isPatternId(pattern)) return;
       const t = timeOf(g, when);
       if (Math.abs(t - lastChordAt) < MIN_CHORD_GAP) return;
       lastChordAt = t;

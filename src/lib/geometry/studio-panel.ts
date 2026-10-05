@@ -16,7 +16,6 @@ const STORAGE_KEY = 'sg-studio';
 
 export interface StudioPanel {
   readonly settings: S.StudioSettings;
-  readonly isOpen: boolean;
   open(): void;
   close(): void;
   toggle(): void;
@@ -144,7 +143,7 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
     const b = bbox(raw);
     const bw = Math.max(1, b[2] - b[0]);
     const bh = Math.max(1, b[3] - b[1]);
-    const m = Math.min(ST.margin, Math.min(W, H) / 3);
+    const m = S.fitMargin(W, H, ST);
     const s = Math.min((W - 2 * m) / bw, (H - 2 * m) / bh);
     const rmm = (s * Math.max(bw, bh)) / 2;
     const N = Math.PI / Math.acos(Math.max(-1, 1 - tol / Math.max(rmm, tol)));
@@ -158,11 +157,11 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
     return geo;
   }
 
-  const tolFor = () => (ST.mode === 'stencil' ? 0.35 : 0.1);
-  const baseName = () => {
-    const { W, H } = S.pageSize(ST);
-    return `${state.pattern}-step${state.step}-${Math.round(W)}x${Math.round(H)}mm`;
-  };
+  // fit tolerance in mm: chords of curves stay within this of the true circle
+  const TOL_PRINT_MM = 0.1;
+  const TOL_STENCIL_MM = 0.35;
+  const tolFor = () => (ST.mode === 'stencil' ? TOL_STENCIL_MM : TOL_PRINT_MM);
+  const baseName = () => S.studioBaseName(state.pattern, state.step, ST);
 
   // ───────────── UI ─────────────
   field<HTMLSelectElement>('stPage').innerHTML = S.PAGES.map(p => `<option value="${p.id}">${p.label}</option>`).join('');
@@ -170,7 +169,7 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
   field('stLayers').innerHTML = S.LAYERS.map(
     L =>
       `<div class="st-layer"><label class="st-check"><input type="checkbox" id="stOn-${L.id}"><span><b>${L.label}</b><small>${L.hint}</small></span></label>` +
-      `<label class="st-num" title="Pen / line width"><input type="number" id="stPen-${L.id}" min="0.05" max="50" step="0.05"><i>mm</i></label><input type="color" id="stCol-${L.id}" aria-label="${L.label} colour"></div>`,
+      `<label class="st-num"><input type="number" id="stPen-${L.id}" aria-label="${L.label} pen width in millimetres" min="0.05" max="50" step="0.05"><i aria-hidden="true">mm</i></label><input type="color" id="stCol-${L.id}" aria-label="${L.label} colour"></div>`,
   ).join('');
 
   const modeButtons = ctx.qa<HTMLButtonElement>('#stModes button');
@@ -178,7 +177,10 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
 
   function syncStudio() {
     field<HTMLSelectElement>('stPage').value = ST.page;
-    orientButtons.forEach(b => b.classList.toggle('active', b.dataset.v === ST.orient));
+    orientButtons.forEach(b => {
+      b.classList.toggle('active', b.dataset.v === ST.orient);
+      b.setAttribute('aria-pressed', String(b.dataset.v === ST.orient));
+    });
     field('stCustom').hidden = ST.page !== 'custom';
     field('stW').value = String(ST.cw);
     field('stH').value = String(ST.ch);
@@ -234,15 +236,18 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
     ctx.stopAutoRotate();
     dlg.show();
     root.classList.add('studio-open');
+    studioBtn.setAttribute('aria-expanded', 'true');
     syncStudio();
     updatePreview();
   }
   function close() {
     dlg.close();
     root.classList.remove('studio-open');
+    studioBtn.setAttribute('aria-expanded', 'false');
   }
 
-  on(field('studioBtn'), 'click', () => (dlg.open ? close() : open()));
+  const studioBtn = field('studioBtn');
+  on(studioBtn, 'click', () => (dlg.open ? close() : open()));
   on(field('stClose'), 'click', close);
   on<KeyboardEvent>(dlg, 'keydown', e => {
     if (e.key === 'Escape') close();
@@ -255,9 +260,11 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
       updatePreview();
     });
   bind('stPage', t => (ST.page = t.value));
-  bind('stW', t => (ST.cw = Math.max(50, +t.value || 1000)));
-  bind('stH', t => (ST.ch = Math.max(50, +t.value || 1000)));
-  bind('stMargin', t => (ST.margin = Math.max(0, +t.value || 0)));
+  const D = S.studioDefaults;
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  bind('stW', t => (ST.cw = clamp(+t.value || D.cw, 50, 20000)));
+  bind('stH', t => (ST.ch = clamp(+t.value || D.ch, 50, 20000)));
+  bind('stMargin', t => (ST.margin = clamp(+t.value || 0, 0, 2000)));
   orientButtons.forEach(b =>
     on(b, 'click', () => {
       ST.orient = b.dataset.v === 'landscape' ? 'landscape' : 'portrait';
@@ -274,14 +281,14 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
   );
   S.LAYERS.forEach(L => {
     bind('stOn-' + L.id, t => (ST.layers[L.id].on = t.checked));
-    bind('stPen-' + L.id, t => (ST.layers[L.id].pen = Math.max(0.05, +t.value || 0.5)));
+    bind('stPen-' + L.id, t => (ST.layers[L.id].pen = clamp(+t.value || 0.5, 0.05, 50)));
     bind('stCol-' + L.id, t => (ST.layers[L.id].color = t.value));
   });
-  bind('stSlot', t => (ST.slot = Math.max(0.5, +t.value || 4)));
-  bind('stBridge', t => (ST.bridge = Math.max(0.5, +t.value || 5)));
-  bind('stSpan', t => (ST.span = Math.max(10, +t.value || 160)));
+  bind('stSlot', t => (ST.slot = clamp(+t.value || D.slot, 0.5, 100)));
+  bind('stBridge', t => (ST.bridge = clamp(+t.value || D.bridge, 0.5, 100)));
+  bind('stSpan', t => (ST.span = clamp(+t.value || D.span, 10, 5000)));
   bind('stSheet', t => (ST.sheet = t.value));
-  bind('stOverlap', t => (ST.overlap = Math.max(0, +t.value || 0)));
+  bind('stOverlap', t => (ST.overlap = clamp(+t.value || 0, 0, 500)));
   bind('stDpi', t => (ST.dpi = +t.value));
   on(field('stReset'), 'click', () => {
     Object.assign(ST, S.cloneDefaults());
@@ -297,59 +304,93 @@ export function mountStudioPanel(ctx: Ctx): StudioPanel {
       return;
     }
     const out = S.buildDownload(g, ST, ctx.labels(), baseName());
-    ctx.download(out.name, out.data instanceof Blob ? out.data : new Blob([out.data], { type: 'image/svg+xml' }));
+    ctx.download(out.name, out.data);
   });
 
   function rasterize(svg: string, w: number, h: number, bg?: string): Promise<Blob> {
     return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
+      const done = () => URL.revokeObjectURL(url);
       img.onload = () => {
         const c = document.createElement('canvas');
         c.width = w;
         c.height = h;
         const x = c.getContext('2d');
-        if (!x) return reject(new Error('canvas'));
+        if (!x) {
+          done();
+          return reject(new Error('canvas'));
+        }
         if (bg) {
           x.fillStyle = bg;
           x.fillRect(0, 0, w, h);
         }
         x.drawImage(img, 0, 0, w, h);
+        done();
         c.toBlob(b => (b ? resolve(b) : reject(new Error('canvas'))), 'image/png');
       };
-      img.onerror = reject;
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      img.onerror = e => {
+        done();
+        reject(e);
+      };
+      img.src = url;
     });
   }
 
-  on(field('stPng4'), 'click', async () => {
+  // A raster of a big page is heavy: one at a time, and nothing is saved if the page was left meanwhile.
+  const pngButtons = [field('stPng4'), field('stPngPrint')];
+  let rasterising = false;
+  async function rasterJob(job: () => Promise<void>) {
+    if (rasterising) return;
+    rasterising = true;
+    pngButtons.forEach(b => b.setAttribute('aria-busy', 'true'));
     try {
-      ctx.download(`${state.pattern}-step-${state.step}@4x.png`, await rasterize(ctx.screenSvg(), 3600, 2800));
-    } catch {
-      ctx.toast('PNG render failed');
+      await job();
+    } finally {
+      rasterising = false;
+      pngButtons.forEach(b => b.removeAttribute('aria-busy'));
     }
-  });
-  on(field('stPngPrint'), 'click', async () => {
-    const g = geometry(0.1);
-    if (!g) return;
-    const { w, h, dpi } = S.printPngSize(g, +ST.dpi);
-    const svg = S.buildPrintSvgForPng(g, ST, ctx.labels(), w, h);
-    try {
-      ctx.download(`${baseName()}@${Math.round(dpi)}dpi.png`, await rasterize(svg, w, h, '#ffffff'));
-      if (dpi < +ST.dpi - 1)
-        ctx.toast(`Capped at ${Math.round(dpi)} dpi (${w}×${h} px, the browser's limit). Use the SVG for full resolution.`);
-    } catch {
-      ctx.toast('PNG too large for this browser — use the SVG');
-    }
-  });
+  }
+
+  on(field('stPng4'), 'click', () =>
+    rasterJob(async () => {
+      const name = `${state.pattern}-step-${state.step}@4x.png`;
+      try {
+        const blob = await rasterize(ctx.screenSvg(), 3600, 2800);
+        if (!ctx.signal.aborted) ctx.download(name, blob);
+      } catch {
+        ctx.toast('PNG render failed');
+      }
+    }),
+  );
+  on(field('stPngPrint'), 'click', () =>
+    rasterJob(async () => {
+      const g = geometry(TOL_PRINT_MM);
+      if (!g) {
+        ctx.toast('Turn on a layer with lines first');
+        return;
+      }
+      const wanted = +ST.dpi;
+      const name = baseName();
+      const { w, h, dpi } = S.printPngSize(g, wanted);
+      const svg = S.buildPrintSvgForPng(g, ST, ctx.labels(), w, h);
+      try {
+        const blob = await rasterize(svg, w, h, '#ffffff');
+        if (ctx.signal.aborted) return;
+        ctx.download(`${name}@${Math.round(dpi)}dpi.png`, blob);
+        if (dpi < wanted - 1)
+          ctx.toast(`Capped at ${Math.round(dpi)} dpi (${w}×${h} px, the browser's limit). Use the SVG for full resolution.`);
+      } catch {
+        ctx.toast('PNG too large for this browser — use the SVG');
+      }
+    }),
+  );
   on(field('stScreenSvg'), 'click', () =>
     ctx.download(`${state.pattern}-step-${state.step}-screen.svg`, new Blob([ctx.screenSvg()], { type: 'image/svg+xml' })),
   );
 
   return {
     settings: ST,
-    get isOpen() {
-      return dlg.open;
-    },
     open,
     close,
     toggle: () => (dlg.open ? close() : open()),

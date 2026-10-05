@@ -78,8 +78,6 @@ export const SPATIAL: readonly PatternId[] = [
   'icosahedron',
 ];
 
-export const PLATONIC: readonly PatternId[] = ['tetrahedron', 'cube', 'octahedron', 'dodecahedron', 'icosahedron'];
-
 /** [pointing up, scale, vertical offset, ] for each of the nine triangles of the yantra. */
 export const YANTRA_DEFS: readonly (readonly [boolean, number, number])[] = [
   [false, 205, 5],

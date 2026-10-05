@@ -5,6 +5,7 @@ const SITE_LINKS = [
   { label: "Voice", href: "/sing" },
   { label: "Lyrics", href: "/lyrics" },
   { label: "Play", href: "/play" },
+  { label: "Geometry", href: "/geometry" },
   { label: "RNG", href: "/rng" },
 ];
 

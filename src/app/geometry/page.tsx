@@ -11,6 +11,8 @@ export const metadata: Metadata = {
     title: 'Sacred Geometry Studio — 137 Studio',
     description,
     url: '/geometry',
+    siteName: '137 Studio',
+    type: 'website',
     images: [{ url: '/og-geometry.png', width: 1200, height: 630, alt: 'The Flower of Life drawn in chalk-white line on a dark ground' }],
   },
   twitter: {

@@ -152,23 +152,71 @@ export function cloneDefaults(): StudioSettings {
   return structuredClone(studioDefaults);
 }
 
-/** What `JSON.parse` of a stored settings string may hold: anything, in practice. Nothing is validated (as in the original). */
+/** What `JSON.parse` of a stored settings string may hold: anything, in practice. */
 type StoredSettings = Partial<Omit<StudioSettings, 'layers'>> & {
-  layers?: Partial<Record<LayerId, LayerSetting>> | null;
+  layers?: Partial<Record<LayerId, Partial<LayerSetting> | null>> | null;
 };
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** A finite number clamped to [lo, hi], or `fallback` for anything else (strings that parse are accepted). */
+function num(v: unknown, lo: number, hi: number, fallback: number): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+}
+
+function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return (allowed as readonly unknown[]).includes(v) ? (v as T) : fallback;
+}
+
+/**
+ * Settings come back from localStorage, which can hold anything: an older schema, a hand edit,
+ * another script on the origin. Every field is checked (numbers clamped to the ranges the UI
+ * allows, enums and colours matched exactly) and falls back to its default, so a bad value can
+ * neither throw, hang the tiler, nor reach the SVG markup. Layers are rebuilt as fresh objects,
+ * never aliased to `studioDefaults`.
+ */
+function sanitizeSettings(stored: StoredSettings): StudioSettings {
+  const d = cloneDefaults();
+  const layers: Record<string, unknown> = stored.layers && typeof stored.layers === 'object' ? stored.layers : {};
+  for (const L of LAYERS) {
+    const o = layers[L.id];
+    if (!o || typeof o !== 'object') continue;
+    const l = o as Partial<LayerSetting>;
+    const base = d.layers[L.id];
+    d.layers[L.id] = {
+      on: typeof l.on === 'boolean' ? l.on : base.on,
+      pen: num(l.pen, 0.05, 50, base.pen),
+      color: typeof l.color === 'string' && HEX_COLOR.test(l.color) ? l.color : base.color,
+    };
+  }
+  return {
+    ...d,
+    mode: oneOf(stored.mode, ['print', 'plotter', 'stencil'] as const, d.mode),
+    page: oneOf(stored.page, PAGES.map(p => p.id), d.page),
+    orient: oneOf(stored.orient, ['portrait', 'landscape'] as const, d.orient),
+    cw: num(stored.cw, 50, 20000, d.cw),
+    ch: num(stored.ch, 50, 20000, d.ch),
+    margin: num(stored.margin, 0, 2000, d.margin),
+    slot: num(stored.slot, 0.5, 100, d.slot),
+    bridge: num(stored.bridge, 0.5, 100, d.bridge),
+    span: num(stored.span, 10, 5000, d.span),
+    sheet: oneOf(stored.sheet, SHEETS.map(p => p.id), d.sheet),
+    overlap: num(stored.overlap, 0, 500, d.overlap),
+    dpi: num(stored.dpi, 72, 1200, d.dpi),
+    human: typeof stored.human === 'boolean' ? stored.human : d.human,
+  };
+}
 
 /**
  * The original `const ST = (() => { ... })()` minus the `localStorage` access: the caller passes
- * the stored string (`localStorage.getItem('sg-studio')`). Never throws; falls back to the
- * defaults on missing or corrupt input.
+ * the stored string (`localStorage.getItem('sg-studio')`). Never throws; missing, corrupt or
+ * wrongly-shaped input falls back to the defaults, field by field.
  */
 export function loadSettings(raw: string | null): StudioSettings {
   try {
     const v: unknown = JSON.parse(raw || 'null');
-    if (v) {
-      const stored = v as StoredSettings;
-      return { ...studioDefaults, ...stored, layers: { ...studioDefaults.layers, ...(stored.layers || {}) } };
-    }
+    if (v && typeof v === 'object' && !Array.isArray(v)) return sanitizeSettings(v as StoredSettings);
   } catch {
     // corrupt stored value: fall through to the defaults
   }
@@ -183,6 +231,11 @@ export const f2 = (n: number): number => +n.toFixed(2);
 
 export function fmtLen(mm: number): string {
   return mm >= 1000 ? `${(mm / 1000).toFixed(2)} m` : `${Math.round(mm)} mm`;
+}
+
+/** The margin actually applied: never more than a third of the short side, so a big margin on a small sheet can't eat the drawing. */
+export function fitMargin(W: number, H: number, ST: StudioSettings): number {
+  return Math.min(ST.margin, Math.min(W, H) / 3);
 }
 
 export function pageSize(ST: StudioSettings): { W: number; H: number } {
@@ -729,7 +782,8 @@ export function stencilSheets(g: Geometry, ST: StudioSettings): StencilSheet[] {
 
 /** Four registration crosses (as filled bars) in the page corners, shared by every layer sheet. */
 export function regMarks(W: number, H: number, w: number, ST: StudioSettings): string {
-  const m = Math.max(8, Math.min(ST.margin / 2, 40)),
+  const mg = fitMargin(W, H, ST),
+    m = Math.max(8, Math.min(mg / 2, 40)),
     arm = Math.min(12, m * 0.8),
     h = Math.max(0.8, w / 2),
     P: Pt[] = [
@@ -773,7 +827,7 @@ export function stencilInner(
   return (
     `<g id="stencil-${sheet.L.id}" inkscape:groupmode="layer" inkscape:label="Stencil · ${sheet.L.label}"><path d="${d}" fill="#000" fill-rule="nonzero"/><path d="${regMarks(W, H, +ST.slot, ST)}" fill="#000"/>` +
     (label
-      ? `<text x="${f2(W / 2)}" y="${f2(Math.max(6, ST.margin / 2))}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="${f2(Math.max(3, Math.min(10, ST.margin / 5)))}" fill="#888">${esc(sheet.L.label.toUpperCase())} · ${esc(labels.patternTitle)} · ${f2(W)}×${f2(H)} mm · slot ${ST.slot} · bridge ${ST.bridge}</text>`
+      ? `<text x="${f2(W / 2)}" y="${f2(Math.max(6, fitMargin(W, H, ST) / 2))}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="${f2(Math.max(3, Math.min(10, fitMargin(W, H, ST) / 5)))}" fill="#888">${esc(sheet.L.label.toUpperCase())} · ${esc(labels.patternTitle)} · ${f2(W)}×${f2(H)} mm · slot ${ST.slot} · bridge ${ST.bridge}</text>`
       : '') +
     '</g>'
   );
@@ -801,6 +855,9 @@ export interface TilePlan {
   label: string;
 }
 
+/** Above this many sheets tiling is refused: every tile embeds the whole figure, so memory grows with tiles x figure. */
+export const MAX_TILES = 1000;
+
 export function tilePlan(W: number, H: number, ST: StudioSettings): TilePlan | null {
   const sh = SHEETS.find(s => s.id === ST.sheet);
   if (!sh || !sh.w) return null;
@@ -809,18 +866,21 @@ export function tilePlan(W: number, H: number, ST: StudioSettings): TilePlan | n
     [sh.w, sh.h ?? NaN],
     [sh.h ?? NaN, sh.w],
   ];
-  const ov = +ST.overlap,
+  const requested = Math.max(0, +ST.overlap || 0),
     edge = 6,
     best = dims
       .map(([sw, shh]) => {
         const tw = sw - 2 * edge,
           th = shh - 2 * edge,
+          // the grid advances by (tile - overlap): keep that positive, or cols/rows run to Infinity
+          ov = Math.min(requested, Math.min(tw, th) / 2),
           cols = Math.max(1, Math.ceil((W - ov) / (tw - ov))),
           rows = Math.max(1, Math.ceil((H - ov) / (th - ov)));
-        return { sw, sh: shh, tw, th, cols, rows, n: cols * rows };
+        return { sw, sh: shh, tw, th, cols, rows, n: cols * rows, ov };
       })
       .sort((a, b) => a.n - b.n)[0];
-  return { ...best, ov, edge, label: sh.label };
+  if (!Number.isFinite(best.n) || best.n > MAX_TILES) return null;
+  return { ...best, edge, label: sh.label };
 }
 
 /** Teal alignment crosses at the centre of every tile overlap (the original also took, but never used, the page size). */
@@ -864,7 +924,7 @@ export function tiles(
         id = `r${r + 1}c${c + 1}`;
       // note: the title is not run through esc() here (as in the original)
       const svg =
-        svgOpen(tp.sw, tp.sh, `${labels.fileTitle} · tile ${id}`) +
+        svgOpen(tp.sw, tp.sh, esc(`${labels.fileTitle} · tile ${id}`)) +
         `<defs><clipPath id="t"><rect x="0" y="0" width="${f2(tp.tw)}" height="${f2(tp.th)}"/></clipPath></defs>` +
         `<g transform="translate(${tp.edge} ${tp.edge})"><g clip-path="url(#t)"><g transform="translate(${f2(-x)} ${f2(-y)})">${inner}${marks}</g></g>` +
         `<rect x="0" y="0" width="${f2(tp.tw)}" height="${f2(tp.th)}" fill="none" stroke="#bbb" stroke-width=".2" stroke-dasharray="2 2"/></g>` +
@@ -1000,7 +1060,7 @@ export function buildPreview(g: Geometry | null, ST: StudioSettings, labels: Lab
           `<g transform="translate(${f2(i * (W + sgap))} 0)"><rect width="${f2(W)}" height="${f2(H)}" fill="#fff" stroke="#999" stroke-width="${f2(Math.max(W, H) / 900)}"/>${stencilInner(sh, W, H, ST, labels, false)}<text x="${f2(W / 2)}" y="${f2(H + Math.max(W, H) * 0.06)}" text-anchor="middle" font-size="${f2(Math.max(W, H) * 0.045)}" fill="currentColor" opacity=".7">${i + 1} · ${sh.L.label}</text></g>`,
       )
       .join('');
-    stats = `${sheets.length} sheet${sheets.length === 1 ? '' : 's'} (${sheets.map(s => s.L.label).join(', ')}) · ${sheets.reduce((t, s) => t + s.slots.length, 0)} slots · ${sheets.reduce((t, s) => t + s.bridges, 0)} bridges · every region is tied to its neighbours, so nothing falls out`;
+    stats = `${sheets.length} sheet${sheets.length === 1 ? '' : 's'} (${sheets.map(s => s.L.label).join(', ')}) · ${sheets.reduce((t, s) => t + s.slots.length, 0)} slots · ${sheets.reduce((t, s) => t + s.bridges, 0)} bridges · bridges tie long slots; where crossings sit closer than the slot width a small piece can still float free, so check the preview at your slot width before cutting`;
   }
   const tp = tilePlan(W, H, ST);
   let tileOverlay = '';
@@ -1109,13 +1169,15 @@ export function buildPrintSvgForPng(g: Geometry, ST: StudioSettings, labels: Lab
 
 /**
  * Pixel size for the print-size PNG at `dpi`, capped so neither side exceeds 16384 px and the
- * area stays within 2.4e8 px. The returned `dpi` is the (possibly reduced, unrounded) value used.
+ * area stays within 8e7 px (~320 MB of RGBA). The original allowed 2.4e8, which at the default
+ * 48 in page asked a browser for an ~830 MB canvas and failed on many machines; past this budget
+ * the toast steers to the vector SVG. The returned `dpi` is the (possibly reduced, unrounded) value used.
  */
 export function printPngSize(g: Geometry, dpi: number): { w: number; h: number; dpi: number } {
   const { W, H } = g;
   let d = +dpi;
   const MAX = 16384,
-    AREA = 2.4e8;
+    AREA = 8e7;
   d = Math.min(d, MAX / (Math.max(W, H) / 25.4), Math.sqrt(AREA / ((W / 25.4) * (H / 25.4))));
   const w = Math.round((W / 25.4) * d),
     h = Math.round((H / 25.4) * d);

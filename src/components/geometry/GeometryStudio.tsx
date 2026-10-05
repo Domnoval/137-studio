@@ -120,9 +120,6 @@ function GeometryStudioShell() {
                 <button className="chip active" id="perspectiveLinesBtn" type="button">
                   Perspective lines
                 </button>
-                <button className="chip active" id="autoRotateBtn" type="button">
-                  Auto rotate
-                </button>
               </div>
               <p className="picker-note">
                 Drag the horizon or numbered points directly on the drawing. Dragging the form pauses
@@ -159,6 +156,9 @@ function GeometryStudioShell() {
               </button>
               <button type="button" className="chip" data-toggle="darkline">
                 Ink accent
+              </button>
+              <button className="chip active" id="autoRotateBtn" type="button">
+                Auto rotate
               </button>
               <button type="button" className="chip" data-toggle="fruit" id="fruitChip" hidden>
                 Fruit circles · r/2
@@ -303,6 +303,8 @@ function GeometryStudioShell() {
                 className="action primary"
                 id="studioBtn"
                 type="button"
+                aria-controls="studio"
+                aria-expanded="false"
                 title="Print, plotter and stencil outputs at real size"
               >
                 <Icon>
@@ -311,7 +313,7 @@ function GeometryStudioShell() {
                 </Icon>
                 Studio
               </button>
-              <button className="action" id="themeBtn" type="button" aria-label="Switch to paper theme" aria-pressed="false">
+              <button className="action" id="themeBtn" type="button" aria-label="Paper theme" aria-pressed="false">
                 <Icon>
                   <circle cx="12" cy="12" r="8" />
                   <path d="M12 4v16" fill="currentColor" />
@@ -340,7 +342,7 @@ function GeometryStudioShell() {
               <span className="y">Y</span>
               <span className="z">Z</span>
             </div>
-            <div className="status-line" id="statusLine" aria-live="polite" />
+            <div className="status-line" id="statusLine" />
             <div className="present-title" aria-hidden="true">
               <span className="present-kicker" />
               <h2 className="present-name" />
@@ -491,7 +493,7 @@ function GeometryStudioShell() {
             <span className="label">Tile onto smaller sheets</span>
             <div className="st-row">
               <label className="st-field">
-                Sheet
+                Tile sheet size
                 <select id="stSheet" />
               </label>
               <label className="st-field">
@@ -534,6 +536,7 @@ function GeometryStudioShell() {
         </div>
       </dialog>
       <div className="toast" id="toast" role="status" />
+      <div className="sr-only" id="announce" role="status" aria-live="polite" />
     </div>
   );
 }

@@ -119,9 +119,22 @@ export function mountPresent(ctx: Ctx, deps: PresentDeps): Present {
     });
   };
 
+  // The browser drops the lock on its own whenever the tab is hidden, and a request can resolve
+  // after Present has already ended, so every sentinel is checked against the live run.
   async function lockScreen() {
+    if (wake && !wake.released) return;
+    const token = run;
     try {
-      wake = (await navigator.wakeLock?.request('screen')) ?? null;
+      const sentinel = await navigator.wakeLock?.request('screen');
+      if (!sentinel) return;
+      if (!active || token !== run) {
+        void sentinel.release().catch(() => undefined);
+        return;
+      }
+      wake = sentinel;
+      sentinel.addEventListener('release', () => {
+        if (wake === sentinel) wake = null;
+      });
     } catch {
       wake = null; // not granted (battery saver, unsupported): the show still runs
     }
@@ -150,12 +163,16 @@ export function mountPresent(ctx: Ctx, deps: PresentDeps): Present {
     // there is no Esc key on a phone: say what actually exits, and keep it visible a little longer
     exitBtn.textContent = matchMedia('(pointer: coarse)').matches ? 'Tap to exit' : 'Esc to exit';
     bumpIdle(FIRST_IDLE_MS);
-    void lockScreen();
 
     if (options.fullscreen && root.requestFullscreen) {
       root
         .requestFullscreen()
         .then(() => {
+          if (!active) {
+            // Present ended while the request was pending: don't strand the page in fullscreen
+            void document.exitFullscreen().catch(() => undefined);
+            return;
+          }
           enteredFullscreen = true;
         })
         .catch(() => {
@@ -163,6 +180,7 @@ export function mountPresent(ctx: Ctx, deps: PresentDeps): Present {
         });
     }
     run++;
+    void lockScreen();
     void loop(run);
   }
 
@@ -188,7 +206,7 @@ export function mountPresent(ctx: Ctx, deps: PresentDeps): Present {
       stop();
     } else if (e.key === ' ') {
       e.preventDefault();
-      paused = !paused;
+      if (!e.repeat) paused = !paused;
     } else if (e.key === 'ArrowRight') {
       skip(1);
     } else if (e.key === 'ArrowLeft') {
@@ -202,8 +220,8 @@ export function mountPresent(ctx: Ctx, deps: PresentDeps): Present {
   on(document, 'visibilitychange', () => {
     if (active && document.visibilityState === 'visible' && !wake) void lockScreen();
   });
-  // pointermove covers a mouse; a tap (pointerdown) is the only signal on touch screens
-  for (const type of ['pointermove', 'pointerdown'])
+  // pointermove covers a mouse, a tap (pointerdown) touch screens, and keydown / focusin keyboards
+  for (const type of ['pointermove', 'pointerdown', 'keydown', 'focusin'])
     on(document, type, () => {
       if (active) bumpIdle();
     });

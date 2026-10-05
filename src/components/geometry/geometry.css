@@ -612,3 +612,8 @@
   .sg-root h1 { font-size: 40px; }
   .sg-root .canvas-wrap { box-shadow: none; border: 0; height: 90vh; }
 }
+
+/* Present mode: the exit control fades with the idle cursor, but it must never be invisible to keyboard focus */
+.sg-root.presenting .present-hint:focus-visible {
+  opacity: 1;
+}

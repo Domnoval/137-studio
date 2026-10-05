@@ -7,7 +7,7 @@
  * a figure turns is far cheaper as direct DOM writes than as a React tree.
  */
 
-import { MAX_STEPS, NOTES, PENTAGONAL, PHASES, SPATIAL, TITLES, isPatternId, type PatternId } from './catalog';
+import { MAX_STEPS, NOTES, PATTERN_IDS, PENTAGONAL, PHASES, SPATIAL, TITLES, isPatternId, type PatternId } from './catalog';
 import type { Ctx } from './ctx';
 import { Painter, svgEl, type Layers } from './painter';
 import { mountPresent, type Present } from './present';
@@ -35,6 +35,15 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 
 export function mountGeometry(root: HTMLElement): () => void {
   const ac = new AbortController();
+  try {
+    return mountInto(root, ac);
+  } catch (err) {
+    ac.abort(); // a missing shell id would otherwise leave listeners and the frame loop running
+    throw err;
+  }
+}
+
+function mountInto(root: HTMLElement, ac: AbortController): () => void {
   const { signal } = ac;
 
   // ───────────────────────────── DOM helpers ─────────────────────────────
@@ -87,6 +96,9 @@ export function mountGeometry(root: HTMLElement): () => void {
     phiChip: q<HTMLButtonElement>('#phiChip'),
     fruitChip: q<HTMLButtonElement>('#fruitChip'),
     primitiveNote: q('#primitiveNote'),
+    svgTitle: q<SVGTitleElement>('#svgTitle'),
+    svgDesc: q<SVGDescElement>('#svgDesc'),
+    announce: q('#announce'),
     soundBtn: q<HTMLButtonElement>('#soundBtn'),
     soundNote: q('#soundNote'),
     themeBtn: q<HTMLButtonElement>('#themeBtn'),
@@ -146,7 +158,9 @@ export function mountGeometry(root: HTMLElement): () => void {
   }
 
   function syncPressed() {
-    qa('.chip,.segmented button').forEach(b => b.setAttribute('aria-pressed', String(b.classList.contains('active'))));
+    qa('.chip:not(#stReset),.segmented button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.classList.contains('active'))),
+    );
   }
 
   function syncValues() {
@@ -154,7 +168,10 @@ export function mountGeometry(root: HTMLElement): () => void {
     q('#tiltValue').textContent = `${Math.round(state.tilt)}°`;
     q('#depthValue').textContent = String(Math.round(state.depth));
     q('#weightValue').textContent = state.weight.toFixed(1);
-    q('#horizonValue').textContent = `${Math.round((1 - state.horizon / 700) * 100)}%`;
+    const horizon = `${Math.round((1 - state.horizon / 700) * 100)}%`;
+    q('#horizonValue').textContent = horizon;
+    els.horizon.setAttribute('aria-valuetext', horizon);
+    els.weight.setAttribute('aria-valuetext', `${state.weight.toFixed(1)} pt`);
   }
 
   function syncAllControls() {
@@ -197,6 +214,7 @@ export function mountGeometry(root: HTMLElement): () => void {
 
   // ───────────────────────────── render ─────────────────────────────
   let lastStatus = '';
+  let announced = { pattern: state.pattern, step: state.step };
 
   // The timeline ticks depend only on the figure, so rebuild them when it changes, not every frame.
   let tickedPattern: PatternId | null = null;
@@ -226,6 +244,7 @@ export function mountGeometry(root: HTMLElement): () => void {
     els.readout.textContent = `${pad2(state.step)} / ${pad2(max)}`;
     els.caption.textContent = phase;
     els.phase.textContent = `${phase} · Step ${state.step}`;
+    els.step.setAttribute('aria-valuetext', `Step ${state.step} of ${max}, ${phase}`);
     els.prev.disabled = state.step <= 1;
     els.next.disabled = state.step >= max;
     drawStepBreakpoints();
@@ -249,6 +268,25 @@ export function mountGeometry(root: HTMLElement): () => void {
       els.status.innerHTML = status;
       lastStatus = status;
     }
+
+    // the drawing's accessible name follows what is on screen
+    els.svgTitle.textContent = `${TITLES[state.pattern]}, step ${state.step} of ${max}: ${phase}`;
+    els.svgDesc.textContent = `${viewLabel.toLowerCase()}, ${state.primitive === 'solid' ? 'wireframe solids' : 'planar forms'}.`;
+    // tell screen-reader users where a deliberate step or figure change landed (not playback / Present ticks)
+    if (state.pattern !== announced.pattern || state.step !== announced.step) {
+      if (!state.playing && !live.present?.active)
+        els.announce.textContent =
+          state.pattern !== announced.pattern
+            ? `${TITLES[state.pattern]}. ${phase}, step ${state.step} of ${max}`
+            : `${phase}, step ${state.step} of ${max}`;
+      announced = { pattern: state.pattern, step: state.step };
+    }
+    renderFrame(false);
+  }
+
+  /** The part of a repaint that must run every animation frame: the drawing, then the after-render hooks. */
+  function renderFrame(paint = true) {
+    if (paint) painter.paint(els.svg);
     afterRender.forEach(fn => fn());
   }
 
@@ -263,6 +301,7 @@ export function mountGeometry(root: HTMLElement): () => void {
   function restoreSnapshot(s: Snapshot) {
     stopPlayback();
     inertia = 0;
+    pendingSnapshot = null; // never let a half-recorded gesture be committed on top of the restored state
     Object.assign(state, s);
     syncAllControls();
     render();
@@ -282,11 +321,24 @@ export function mountGeometry(root: HTMLElement): () => void {
   }
 
   // ───────────────────────────── context for the sub-modules ─────────────────────────────
+  let toastClear: ReturnType<typeof setTimeout> | undefined;
   function toast(message: string) {
-    els.toast.textContent = message;
-    els.toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => els.toast.classList.remove('show'), 1800);
+    clearTimeout(toastClear);
+    // clear first so a repeated message is announced again by the live region
+    els.toast.classList.remove('show');
+    els.toast.textContent = '';
+    requestAnimationFrame(() => {
+      els.toast.textContent = message;
+      els.toast.classList.add('show');
+    });
+    toastTimer = setTimeout(
+      () => {
+        els.toast.classList.remove('show');
+        toastClear = setTimeout(() => (els.toast.textContent = ''), 400);
+      },
+      Math.max(2400, Math.min(7000, message.length * 60)),
+    );
   }
 
   function download(name: string, blob: Blob) {
@@ -296,7 +348,8 @@ export function mountGeometry(root: HTMLElement): () => void {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    // Safari and Firefox cancel a slow save if the URL is revoked too soon, and zips can be large
+    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
   }
 
   /** A standalone SVG has no page stylesheet and no custom properties: resolve every var(--token)
@@ -350,7 +403,6 @@ export function mountGeometry(root: HTMLElement): () => void {
     root,
     signal,
     state,
-    painter,
     q,
     qa,
     on,
@@ -360,7 +412,6 @@ export function mountGeometry(root: HTMLElement): () => void {
     screenSvg,
     afterRender,
     stopAutoRotate,
-    syncPressed,
   };
 
   // ───────────────────────────── controls ─────────────────────────────
@@ -405,9 +456,13 @@ export function mountGeometry(root: HTMLElement): () => void {
     }),
   );
 
+  // keys that actually move a slider; Ctrl/⌘ combinations (undo!) must not start a recorded gesture
+  const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
   const rangeHistory = (el: HTMLElement) => {
     on(el, 'pointerdown', beginChange);
-    on(el, 'keydown', beginChange);
+    on<KeyboardEvent>(el, 'keydown', e => {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && SLIDER_KEYS.has(e.key)) beginChange();
+    });
     on(el, 'change', commitChange);
     on(el, 'blur', commitChange);
   };
@@ -444,6 +499,7 @@ export function mountGeometry(root: HTMLElement): () => void {
   for (const [key, el, fromSlider] of sliders) {
     rangeHistory(el);
     on(el, 'input', () => {
+      if (key === 'rotation' || key === 'tilt') stopAutoRotate();
       state[key] = fromSlider(Number(el.value));
       syncValues();
       render();
@@ -511,6 +567,9 @@ export function mountGeometry(root: HTMLElement): () => void {
   // ───────────────────────────── keyboard ─────────────────────────────
   on<KeyboardEvent>(document, 'keydown', e => {
     if (live.present?.active) return;
+    const target = e.target as HTMLElement | null;
+    // inside the Studio drawer or a text/number/select field, native editing and the drawer's own controls win
+    if (target?.closest('dialog') || target?.matches('input:not([type=range]),select,textarea')) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -523,21 +582,25 @@ export function mountGeometry(root: HTMLElement): () => void {
       redo();
       return;
     }
-    const target = e.target as HTMLElement | null;
-    if (target?.matches('input,select,textarea')) return;
-    if (e.key === 'ArrowRight' && state.step < MAX_STEPS[state.pattern]) {
+    // leave Alt+←/→ (browser history), ⌘+←/→, Shift+arrows and screen-reader chords to the browser
+    if (mod || e.altKey || e.shiftKey) return;
+    const onSlider = !!target?.matches('input[type=range]');
+    if (!onSlider && e.key === 'ArrowRight' && state.step < MAX_STEPS[state.pattern]) {
       beginChange();
+      stopPlayback();
       state.step++;
       render();
       commitChange();
     }
-    if (e.key === 'ArrowLeft' && state.step > 1) {
+    if (!onSlider && e.key === 'ArrowLeft' && state.step > 1) {
       beginChange();
+      stopPlayback();
       state.step--;
       render();
       commitChange();
     }
-    if (mod || e.altKey) return;
+    // one-shot toggles: holding the key must not flap Present / Studio or flood the undo history
+    if (e.repeat) return;
     const idle = document.activeElement === document.body || els.wrap.contains(document.activeElement);
     if (e.key === ' ' && idle) {
       e.preventDefault();
@@ -547,8 +610,7 @@ export function mountGeometry(root: HTMLElement): () => void {
     } else if (e.key === 's' || e.key === 'S') {
       panel.toggle();
     } else if (e.key === '[' || e.key === ']') {
-      const ids = Object.keys(TITLES) as PatternId[];
-      const next = ids[(ids.indexOf(state.pattern) + (e.key === ']' ? 1 : -1) + ids.length) % ids.length];
+      const next = PATTERN_IDS[(PATTERN_IDS.indexOf(state.pattern) + (e.key === ']' ? 1 : -1) + PATTERN_IDS.length) % PATTERN_IDS.length];
       beginChange();
       setPattern(next);
       commitChange();
@@ -561,9 +623,13 @@ export function mountGeometry(root: HTMLElement): () => void {
     | { x: number; y: number; r: number; t: number; lastX: number; lastTime: number; velocity: number };
   let drag: Drag | null = null;
 
+  /** Client pixels to the 900x700 drawing space. Goes through the SVG's own transform, because the
+   *  viewBox is letterboxed inside the canvas box on almost every viewport. */
   const eventToSvg = (e: PointerEvent) => {
-    const r = els.svg.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) * 900) / r.width, y: ((e.clientY - r.top) * 700) / r.height };
+    const m = els.svg.getScreenCTM();
+    if (!m) return { x: 450, y: 350 };
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
   };
   const clampN = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -633,7 +699,7 @@ export function mountGeometry(root: HTMLElement): () => void {
   });
 
   const endDrag = () => {
-    if (drag && !('picker' in drag)) inertia = drag.velocity || 0;
+    if (drag && !('picker' in drag)) inertia = reduced ? 0 : drag.velocity || 0;
     drag = null;
     els.wrap.classList.remove('dragging');
     commitChange();
@@ -642,17 +708,20 @@ export function mountGeometry(root: HTMLElement): () => void {
   on(els.wrap, 'pointercancel', endDrag);
 
   let lastFrame = performance.now();
+  let lastPaint = 0;
   let raf = 0;
   const wrapDeg = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180;
   function animate(now: number) {
+    if (signal.aborted) return;
     const dt = Math.min(40, now - lastFrame);
     lastFrame = now;
     const rotating = SPATIAL.includes(state.pattern) || live.present?.active === true;
     if (!drag && state.mode !== 'plan') {
       let changed = false;
       if (state.autoRotate && rotating) {
+        // 8 degrees per second moves a figure's edge under half a pixel per frame: repaint at ~30 fps
         state.rotation = wrapDeg(state.rotation + dt * 0.008);
-        changed = true;
+        changed = now - lastPaint >= 32;
       } else if (Math.abs(inertia) > 0.002) {
         state.rotation = wrapDeg(state.rotation + inertia * dt);
         inertia *= Math.pow(0.93, dt / 16);
@@ -661,9 +730,10 @@ export function mountGeometry(root: HTMLElement): () => void {
         inertia = 0;
       }
       if (changed) {
+        lastPaint = now;
         els.rotation.value = String(state.rotation);
         syncValues();
-        render();
+        renderFrame();
       }
     }
     raf = requestAnimationFrame(animate);
@@ -687,7 +757,6 @@ export function mountGeometry(root: HTMLElement): () => void {
   function syncTheme() {
     root.dataset.theme = theme;
     els.themeBtn.setAttribute('aria-pressed', String(theme === 'paper'));
-    els.themeBtn.setAttribute('aria-label', theme === 'paper' ? 'Switch to void theme' : 'Switch to paper theme');
   }
   on(els.themeBtn, 'click', () => {
     theme = theme === 'void' ? 'paper' : 'void';
@@ -714,6 +783,7 @@ export function mountGeometry(root: HTMLElement): () => void {
     if (live.present?.active || hashTimer) return;
     hashTimer = setTimeout(() => {
       hashTimer = undefined;
+      if (live.present?.active) return; // Present started while this write was pending
       const payload = livePayload();
       if (payload === lastHash) return;
       lastHash = payload;
@@ -765,6 +835,9 @@ export function mountGeometry(root: HTMLElement): () => void {
       try {
         await resonance.enable();
       } catch {
+        /* reported below */
+      }
+      if (!resonance.enabled) {
         toast('Sound could not start');
         return;
       }
@@ -802,7 +875,8 @@ export function mountGeometry(root: HTMLElement): () => void {
   on(q('#presentBtn'), 'click', () => present.toggle({ fullscreen: true }));
 
   // ───────────────────────────── debug hook (parity tests) ─────────────────────────────
-  const debug = process.env.NODE_ENV !== 'production' || /[?&]debug\b/.test(location.search);
+  // Development only: it exposes the Studio internals and has no business in a production bundle.
+  const debug = process.env.NODE_ENV !== 'production';
   if (debug) {
     const st = panel.settings;
     (window as unknown as { __studio?: unknown }).__studio = {
@@ -821,6 +895,7 @@ export function mountGeometry(root: HTMLElement): () => void {
   }
 
   // ───────────────────────────── go ─────────────────────────────
+  els.soundNote.textContent = SOUND_OFF;
   syncTheme();
   syncAllControls();
   updateHistoryButtons();

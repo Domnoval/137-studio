@@ -18,7 +18,19 @@ export interface ScaledPoly {
 
 const dist = (a: Triple, b: Triple) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
+const polyCache = new Map<string, PolyData>();
+const scaledCache = new Map<string, ScaledPoly>();
+
+/** The vertices and edges of a solid. The data is constant, and the painter asks for it every frame, so it is built once. */
 export function polyData(type: PatternId | 'cube'): PolyData {
+  const hit = polyCache.get(type);
+  if (hit) return hit;
+  const built = buildPolyData(type);
+  polyCache.set(type, built);
+  return built;
+}
+
+function buildPolyData(type: PatternId | 'cube'): PolyData {
   const phi = (1 + Math.sqrt(5)) / 2;
   const inv = 1 / phi;
   let vertices: Triple[] = [];
@@ -79,6 +91,15 @@ export function polyData(type: PatternId | 'cube'): PolyData {
 
 /** Scale a solid so its circumradius equals `size`. */
 export function scaledPoly(type: PatternId | 'cube', size = 170): ScaledPoly {
+  const key = `${type}@${size}`;
+  const hit = scaledCache.get(key);
+  if (hit) return hit;
+  const built = buildScaledPoly(type, size);
+  scaledCache.set(key, built);
+  return built;
+}
+
+function buildScaledPoly(type: PatternId | 'cube', size: number): ScaledPoly {
   const data = polyData(type);
   const radius = Math.max(...data.vertices.map(v => Math.hypot(...v)));
   const scale = size / radius;

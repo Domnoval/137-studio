@@ -4,7 +4,6 @@
  * never import one another.
  */
 
-import type { Painter } from './painter';
 import type { State } from './state';
 import type { Labels } from './studio';
 
@@ -12,7 +11,6 @@ export interface Ctx {
   root: HTMLElement;
   signal: AbortSignal;
   state: State;
-  painter: Painter;
   /** Required-element lookup scoped to `root`. Throws if the shell markup is missing something. */
   q<T extends Element = HTMLElement>(selector: string): T;
   qa<T extends Element = HTMLElement>(selector: string): T[];
@@ -34,5 +32,4 @@ export interface Ctx {
   afterRender: Set<() => void>;
   /** Turn auto-rotation off (and reflect it in the UI). */
   stopAutoRotate(): void;
-  syncPressed(): void;
 }

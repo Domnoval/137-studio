@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
+import Link from 'next/link';
 import { artworks as worksData } from '@/lib/works';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -81,6 +82,12 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
     }
     return this.props.children;
   }
+}
+
+/** A card link: internal routes go through the router (prefetch, no full reload); external apps open in a new tab. */
+function AppLink({ url, children, ...rest }: { url: string } & Omit<React.ComponentProps<'a'>, 'href'>) {
+  if (url.startsWith('/')) return <Link href={url} {...rest}>{children}</Link>;
+  return <a href={url} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>;
 }
 
 function HomePageInner() {
@@ -402,8 +409,7 @@ function HomePageInner() {
           gap: '12px',
         }}>
           {apps.map((app) => (
-            <a key={app.name} href={app.url}
-              {...(app.url.startsWith('/') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+            <AppLink key={app.name} url={app.url}
               className="app-card"
               style={{
                 display: 'block', textDecoration: 'none',
@@ -432,7 +438,7 @@ function HomePageInner() {
                 fontSize: '0.55rem', color: '#a09890',
                 letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0,
               }}>{app.desc}</p>
-            </a>
+            </AppLink>
           ))}
         </div>
       </section>

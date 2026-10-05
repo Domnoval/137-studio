@@ -23,6 +23,10 @@ icosahedron) on φ. The φ overlay (whirling squares and spiral) exists only for
 | `P` | **Present**: fullscreen installation loop through all eleven figures (Space pauses, `←` `→` skip, Esc exits) |
 | `S` | Open the **Studio** drawer |
 | `Ctrl/⌘ Z`, `Ctrl/⌘ ⇧ Z` | Undo / redo (100 steps) |
+
+Shortcuts step aside for everything else: they are ignored with `Alt`, `Ctrl/⌘` (except undo) or
+`Shift` held, while a key is held down (no repeat), and inside the Studio drawer or any form field,
+so browser history, native text undo and screen-reader chords keep working.
 | Drag the canvas | Rotate and tilt (with inertia). Drag the horizon / VP handles in perspective |
 | **Link** | Copies a URL that restores exactly this drawing |
 | **Sound** (Resonance) | Opt-in. Off until clicked |
@@ -59,11 +63,23 @@ Everything is derived from the figure on screen and fitted to a real sheet (A3 �
 - **Print**: layered vector at true size, pen widths in mm. Opens in Illustrator, Inkscape, Affinity.
 - **Plotter**: one path per stroke, a numbered layer per pen, overlapping chords merged so no line
   is drawn twice, strokes ordered to keep pen-up travel short. Works with AxiDraw layer mode.
-- **Stencil**: one sheet per layer; lines become slots of the width you set, with bridges so no
-  island can fall out; registration crosses in the corners.
+- **Stencil**: one sheet per layer; lines become slots of the width you set, with bridges across
+  long slots and registration crosses in the corners. **Check the preview before you cut.** A bridge
+  only helps where there is room for one: where two crossings sit closer together than the slot
+  width (dense chord webs such as Metatron's Cube at a small sheet size, or a wide slot), a small
+  piece can still be left floating free. This was found by flood-filling the rasterised output; the
+  Studio says so in its stats line rather than promising otherwise. Narrow the slot or enlarge the
+  sheet.
 - **Tiling**: split a big piece onto Letter / A4 / Tabloid / A3 / 24×36 Mylar with overlap and
   shared registration crosses.
-- PNG (screen 4×, or print at 150/300/600 dpi, capped to what the browser can allocate) and SVG.
+- PNG (screen 4×, or print at 150/300/600 dpi) and SVG. Print PNGs are capped at 80 megapixels
+  (the original allowed 240 MP, which at the default 48 in sheet asked the browser for an ~830 MB
+  canvas); above that the toast points you to the vector SVG, which is exact at any size.
+
+Studio settings persist in `localStorage` (`sg-studio`) and are validated on load: numbers are
+clamped to what the fields allow, enums and colours matched exactly, anything else falls back to the
+default. Tiling is refused above 1000 sheets (every tile embeds the figure) and the overlap can never
+exceed half a sheet, because an overlap that equals the printable width makes the grid never advance.
 
 ### Present mode
 
@@ -119,12 +135,34 @@ Design rules worth keeping:
 ### Debug hook
 
 `window.__studio` exposes the Studio internals (`geometry`, `plotterPlan`, `stencilSheets`,
-`tilePlan`, `tiles`, `zip` …). It is attached in development, or in production when the URL has
-`?debug`. It exists so the port could be diffed against the original artifact.
+`tilePlan`, `tiles`, `zip` …). It is attached **in development only** (`NODE_ENV !== 'production'`),
+so it never ships. It exists so the port could be diffed against the original artifact.
 
-### Parity
+### Verification and deliberate differences from the original
 
-The port is being diffed against the original single-file artifact over a matrix of states (every
-figure x step x view x toggle, plus the Studio outputs). Until that result is recorded here, treat
-`painter.ts` and `studio.ts` as ported-but-unverified. If you change either, geometry should only
-ever change on purpose.
+What has been verified, and how (the scripts live outside the repo, in a session scratch directory,
+not in the tree):
+
+- **`studio.ts`** (the physical-output maths) was compared with the original artifact's own functions
+  on synthetic geometry (Metatron's 78-chord web, a 37-circle flower lattice, polylines, fuzz and
+  degenerate strokes) across page sizes, orientations and margins: 63,711 comparisons, exact equality
+  on SVG strings, plotter plans, stencil slot polygons, tile files and zip bytes, plus 21 deliberate
+  mutations of the port, each of which the comparison caught.
+- **The whole UI** was exercised in real Chromium: stepping, undo/redo, share-link round trips
+  (including hostile hashes), all three Studio downloads and both PNG paths, Present mode, sound,
+  themes, keyboard rules, pointer dragging under letterboxing, and leaving and returning to the route.
+- A golden-master comparison of the *painter's* rendered SVG against the original across every
+  figure x step x view x toggle is the remaining open item; until its result is recorded here, treat
+  `painter.ts` as ported-but-not-yet-diffed. If you change it, geometry should only ever change on purpose.
+
+Where the port intentionally differs from the original artifact:
+
+| Area | Original | Here | Why |
+| --- | --- | --- | --- |
+| Settings from `localStorage` | trusted as-is | validated and clamped | a stale or hand-edited value could hang the tiler, throw, or reach SVG markup |
+| Tile overlap / count | unbounded | overlap <= half a sheet, <= 1000 tiles | overlap equal to the printable width made the grid loop forever |
+| Print PNG budget | 240 MP | 80 MP | the default page asked for an ~830 MB canvas |
+| Stencil claim | "nothing falls out" | states the limitation | it was not true for dense webs at small sizes |
+| Registration marks | used the raw margin | use the clamped margin | on a small sheet they stacked in the middle of the drawing |
+| Pointer to drawing space | assumed a 9:7 box | uses the SVG's own transform | the canvas is letterboxed, so handles jumped away from the cursor |
+| Strokes | literal colours baked in | CSS token references | theme switch and the print stylesheet restyle without repainting |
