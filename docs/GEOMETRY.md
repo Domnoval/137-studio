@@ -143,17 +143,31 @@ so it never ships. It exists so the port could be diffed against the original ar
 What has been verified, and how (the scripts live outside the repo, in a session scratch directory,
 not in the tree):
 
-- **`studio.ts`** (the physical-output maths) was compared with the original artifact's own functions
-  on synthetic geometry (Metatron's 78-chord web, a 37-circle flower lattice, polylines, fuzz and
-  degenerate strokes) across page sizes, orientations and margins: 63,711 comparisons, exact equality
-  on SVG strings, plotter plans, stencil slot polygons, tile files and zip bytes, plus 21 deliberate
-  mutations of the port, each of which the comparison caught.
-- **The whole UI** was exercised in real Chromium: stepping, undo/redo, share-link round trips
-  (including hostile hashes), all three Studio downloads and both PNG paths, Present mode, sound,
-  themes, keyboard rules, pointer dragging under letterboxing, and leaving and returning to the route.
-- A golden-master comparison of the *painter's* rendered SVG against the original across every
-  figure x step x view x toggle is the remaining open item; until its result is recorded here, treat
-  `painter.ts` as ported-but-not-yet-diffed. If you change it, geometry should only ever change on purpose.
+- **The whole UI** was fingerprinted in real Chromium against the original artifact over **2,911
+  states**: every figure x every step x plan / axon / 1-2-3 point perspective, every toggle, slider and
+  primitive variant, undo/redo, keyboard, playback, vanishing-point drags, and the Studio outputs and
+  downloads. Each state records the innerHTML of all six SVG layers, the text and flags of the UI, and
+  the Studio's stats and file hashes. The original fingerprints byte-identically across repeated runs,
+  and the harness caught all 12 deliberate mutations of the original.
+  **Result:** 2,274 states are identical outright, including every painter-driven group (1,372
+  toggle/slider/primitive variants, 236 step sweeps, 165 figure x step x view cells, 176 undo/redo,
+  56 keyboard, 36 undo-by-slider, 28 carry-over) and all 140 Studio **file downloads** (print,
+  plotter and stencil, byte for byte). That comparison resolves one representation change first
+  (strokes reference `var(--geometry)` here and a baked-in colour in the original). The other 637
+  differ, and each was traced to a change listed below, not assumed: 510 only because the Studio-open
+  class moved from `body` to the component root, 342 stats lines that differ only by the new stencil
+  sentence, 55 SVG exports that match once the font, drawing title and one darkened token are
+  accounted for (checked byte for byte), the vanishing-point drags (the pointer fix), the dark-scheme
+  states (the original follows the OS setting; this has an explicit toggle), and settings clamping.
+- `studio.ts` was also compared with the original's own functions on synthetic geometry (Metatron's
+  78-chord web, a 37-circle lattice, polylines, fuzz, degenerate strokes) across page sizes,
+  orientations and margins: 63,711 comparisons with exact equality, plus 21 deliberate mutations of
+  the port, each caught. After the review fixes, 26,190 of 29,281 still match exactly; the rest are the
+  intended changes below (and tilePlan: 1,747 identical, the other 7 are the overlap clamp and the tile cap).
+
+The harnesses (`fingerprint.mjs`, `diff.mjs`, the differential test) live outside the repository, in a
+session scratch directory, and are not committed. If you change `painter.ts` or `studio.ts`, geometry
+should only ever change on purpose.
 
 Where the port intentionally differs from the original artifact:
 
@@ -166,3 +180,9 @@ Where the port intentionally differs from the original artifact:
 | Registration marks | used the raw margin | use the clamped margin | on a small sheet they stacked in the middle of the drawing |
 | Pointer to drawing space | assumed a 9:7 box | uses the SVG's own transform | the canvas is letterboxed, so handles jumped away from the cursor |
 | Strokes | literal colours baked in | CSS token references | theme switch and the print stylesheet restyle without repainting |
+| Studio-open state | class on `body` | class on the component root | the styles are scoped under `.sg-root` and must not leak to other routes |
+| Toast text | left in place after it fades | cleared after it fades | stale text lingered in the accessibility tree; repeats are announced again |
+| Auto-rotate repaint | every frame | ~30 per second, drawing only | it turns 8 degrees per second, so extra frames only burn battery; the painted angle can trail the state by under 0.3 degrees |
+| Auto-rotate control | inside the perspective-only group | always visible; sliders stop it | in Axon it could only be stopped by dragging (WCAG 2.2.2) |
+| Fonts and exports | IBM Plex Mono / DM Sans | JetBrains Mono, the site's faces | the 137 design system; exported SVG text follows |
+| Debug hook | always present | development only | it exposes the Studio internals |
