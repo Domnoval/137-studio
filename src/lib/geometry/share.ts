@@ -57,6 +57,10 @@ const BOOLS: readonly [BoolKey, string][] = [
   ['fruit', 'fr'],
 ];
 
+/** Minimum distance between the left and right vanishing points, and the right-hand limit of the canvas. */
+const MIN_VP_GAP = 80;
+const VP_MAX = 865;
+
 const VIEWS: readonly ViewMode[] = ['plan', 'axon', 'perspective'];
 const PRIMS: readonly Primitive[] = ['flat', 'solid'];
 
@@ -115,10 +119,26 @@ export function decodeState(hash: string): Decoded {
     else if (raw === '0') out[key] = false;
   }
 
-  const s = Number(q.get('s'));
-  if (Number.isFinite(s) && q.get('s') !== null) {
+  // an empty value is "not given", like every other numeric key
+  const sRaw = q.get('s');
+  const s = Number(sRaw);
+  if (sRaw !== null && sRaw.trim() !== '' && Number.isFinite(s)) {
     const pattern = out.pattern ?? createState(false).pattern;
     out.step = clamp(Math.round(s), 1, MAX_STEPS[pattern]);
+  }
+
+  // the two vanishing points of a 2-point view must stay at least MIN_VP_GAP apart (the drag handler enforces
+  // the same), or the perspective collapses; nudge a crossed or too-close pair apart rather than reject the link
+  if (out.vpLeft !== undefined || out.vpRight !== undefined) {
+    const base = createState(false);
+    let left = out.vpLeft ?? base.vpLeft;
+    let right = out.vpRight ?? base.vpRight;
+    if (right - left < MIN_VP_GAP) {
+      right = Math.min(VP_MAX, left + MIN_VP_GAP);
+      left = Math.min(left, right - MIN_VP_GAP);
+    }
+    out.vpLeft = left;
+    out.vpRight = right;
   }
 
   const theme = q.get('theme');
