@@ -1,4 +1,4 @@
-# /genesis audio
+# /lab/genesis audio
 
 The Genesis route currently scores itself with a **synthesised drone** (Web
 Audio) built into `src/components/GenesisCanvas.tsx` — a root tone with a

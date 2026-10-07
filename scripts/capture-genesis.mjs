@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Phase 4 — silent capture of /genesis for sharing.
+ * Phase 4 — silent capture of /lab/genesis for sharing.
  *
  * Loads the route, triggers the "touch the void" gesture, records one full
  * 54s pass at 1080p, and writes genesis.webm. Convert to mp4 / gif with the
@@ -41,7 +41,7 @@ const context = await browser.newContext({
   reducedMotion: 'no-preference', // capture the full animation, not the still
 });
 const page = await context.newPage();
-await page.goto(`${BASE}/genesis`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/lab/genesis`, { waitUntil: 'networkidle' });
 
 // The gesture: start the clock (audio stays muted — this is a silent capture).
 await page.getByRole('button', { name: /touch the void/i }).click();

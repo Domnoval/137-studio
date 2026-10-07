@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   title: 'Genesis',
   description:
     'The 8-stage embryology of Metatron’s Cube. Two voices — form and life — begin fused, differentiate, reunite on the Platonic solids, and collapse to the origin. Touch the void to begin.',
+  // Parked under /lab: reachable by direct link only, kept out of search.
+  robots: { index: false, follow: false },
 };
 
 /**
- * /genesis — Genesis folded in as a first-class route.
+ * /lab/genesis — Genesis, parked under /lab (no nav entry, noindex).
  *
  * Full-bleed: the canvas is the work. A fixed, viewport-filling layer covers
  * the global Footer (which would otherwise collide with the scrubber) while
