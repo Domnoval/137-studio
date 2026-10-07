@@ -7,10 +7,9 @@ modern physics tactile. Drag sliders, watch reality misbehave.
 
 | Concern | Path |
 | --- | --- |
-| Route / UI | `src/app/quantum/page.tsx` |
+| Route / UI | `src/app/lab/quantum/page.tsx` (route `/lab/quantum`, unlisted, noindex) |
 | Physics math (pure) | `src/lib/quantum/physics.ts` |
 | Concept gallery data | `src/lib/quantum/concepts.ts` |
-| Nav entry | `src/components/ui/Nav.tsx` → `/quantum` |
 
 ## What's inside
 
@@ -43,7 +42,15 @@ goal is intuition, not lab precision.
 
 ## Extending
 
-Add a new demonstration by writing the math in `physics.ts`, a `<Section>` +
-canvas component in `page.tsx`, and (if it deserves nav real estate) nothing
-else — it already lives under `/quantum`. Add a canon entry by appending to the
+Add a new demonstration by writing the math in `physics.ts` and a `<Section>` +
+canvas component in `page.tsx`. Add a canon entry by appending to the
 `concepts` array in `concepts.ts`.
+
+## Parked in /lab
+
+This page is parked: it lives at `/lab/quantum`, has no nav or footer entry, and
+`src/app/lab/layout.tsx` marks everything under `/lab` as `noindex`. To promote it
+later, move it out of `src/app/lab/` and add a `Nav.tsx` entry. Known gaps before
+that: the demo grid has no responsive breakpoint (the canvas gets very narrow
+on phones), and the Canon copy states some interpretations of Bell's theorem as
+settled fact.

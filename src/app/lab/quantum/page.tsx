@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * /quantum — "Quantum Physics & Other Smart People Shit"
+ * /lab/quantum — "Quantum Physics & Other Smart People Shit"
  *
  * An interactive playground for the ideas that broke classical intuition:
  *   1. Double-slit interference — watch a particle behave like a wave.
