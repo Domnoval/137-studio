@@ -295,9 +295,6 @@ export const artworks: Artwork[] = [
     altText: 'Tall cubist figure in amber, magenta, and black with elongated neck on lavender background by Michael MacDonald',
     featured: false,
     order: 13,
-    // Source file in public/art is a corrupt 1×1 px image — hidden from the
-    // grid until a full-resolution version is re-uploaded.
-    inGallery: false,
   },
   {
     id: 'undertow',
@@ -358,7 +355,7 @@ export const allInfluences = [...new Set(artworks.flatMap(a => a.influences ?? [
  */
 const GALLERY_ORDER = [
   'math-chaos', 'teal-skull', 'rosetta', 'chaos-garden', 'undertow',
-  'ultraviolet-beast', 'composite-head', 'totem', 'orbit', 'blue-teeth',
+  'ultraviolet-beast', 'composite-head', 'the-delegate', 'totem', 'orbit', 'blue-teeth',
   'cruciform', 'pink-skull', 'menagerie', 'broken-signal',
 ];
 
